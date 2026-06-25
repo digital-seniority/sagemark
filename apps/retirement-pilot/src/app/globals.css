@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────────────────────
+   Cedar Hollow Senior Living — design tokens
+   Warm, calm, trustworthy. Sage + forest green, cream, soft gold.
+   ─────────────────────────────────────────────────────────────── */
+@theme {
+  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+
+  --color-cream: #faf7ef;
+  --color-cream-deep: #f1ebdd;
+  --color-ink: #283330;
+  --color-muted: #5e6b65;
+
+  --color-forest: #2f5d50;
+  --color-forest-deep: #234a40;
+  --color-forest-soft: #e6efe9;
+
+  --color-sage: #7fa491;
+  --color-gold: #c19a4b;
+  --color-gold-soft: #f3e9d2;
+
+  --color-border: #e3ddcf;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Offset anchor targets so sticky header doesn't overlap section headings. */
+:target {
+  scroll-margin-top: 6rem;
+}
+
+section[id] {
+  scroll-margin-top: 5rem;
+}

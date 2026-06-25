@@ -2,25 +2,20 @@
   "name": "sagemark",
   "version": "0.1.0",
   "private": true,
+  "description": "Marketing OS for the retirement home industry",
+  "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.2.9",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/node": "^20.19.0",
+    "turbo": "^2.5.5",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

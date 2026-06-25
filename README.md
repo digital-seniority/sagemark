@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sagemark
 
-## Getting Started
+**Marketing OS for the retirement home industry.**
 
-First, run the development server:
+Sagemark is a monorepo of standalone marketing microservices. Each service runs,
+deploys, and is usable on its own, but they discover and call one another through
+a shared service registry when a job needs more than one of them.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Structure
+
+```
+sagemark/
+├── apps/
+│   ├── retirement-pilot/   Demo client site (Cedar Hollow Senior Living) — also the SEO test fixture
+│   ├── seo/                SEO Engine — search-first content + on-page structure        :3001
+│   ├── imagegen/           Image Generation — brand-consistent campaign imagery          :3002
+│   ├── videogen/           Video Generation — tour videos, explainers, social clips      :3003
+│   ├── ppc/                PPC Manager — paid search/social for occupancy goals          :3004
+│   └── intelligence/       Intelligence Layer — analytics, signals, orchestration        :3005
+└── packages/
+    ├── config/             @sagemark/config — shared TypeScript base configs
+    └── core/               @sagemark/core — service registry + inter-service client
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## How services talk to each other
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+No service hardcodes another's URL. The registry in
+[`packages/core/src/services.ts`](packages/core/src/services.ts) is the single
+source of truth for which services exist and how to reach them (local dev port or
+deployed URL via env var). A service calls a sibling with the typed client:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```ts
+import { callService } from "@sagemark/core";
 
-## Learn More
+// e.g. the intelligence layer asking the SEO engine to score a page
+const result = await callService<{ score: number }>("seo", "/api/score", {
+  method: "POST",
+  body: { url: "https://cedarhollow.example/about" },
+});
+```
 
-To learn more about Next.js, take a look at the following resources:
+Each service exposes at least:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `GET /api/health` — liveness + version (shared shape from `@sagemark/core`)
+- `POST /api/run` — primary action (currently a stub)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+To deploy, set each service's base-URL env var (`SEO_SERVICE_URL`,
+`IMAGEGEN_SERVICE_URL`, …) so siblings resolve the production URL instead of the
+local dev port.
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Next.js 16 · React 19 · TypeScript · Tailwind v4 · pnpm workspaces · Turborepo
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Develop
+
+```bash
+pnpm install
+pnpm dev          # runs every app via turbo
+pnpm typecheck
+pnpm build
+```
+
+Run a single service: `pnpm --filter @sagemark/seo dev`.
