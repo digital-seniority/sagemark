@@ -24,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // This script lives at <repo>/.claude/hooks/install-autoloop-hooks.mjs
 const REPO_ROOT = resolve(__dirname, "..", "..");
 const CLAUDE_DIR = join(REPO_ROOT, ".claude");
-const STATE_ROOT_REL = "C:/Users/stone/Code/sagemark/apps/seo/builds/seo-creator";
+const STATE_ROOT_REL = "apps/seo/builds/seo-creator";
 const SLUG = "seo-creator";
 
 // Validate the interpolated values before they flow into settings.json / the
