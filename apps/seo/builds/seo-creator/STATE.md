@@ -1,41 +1,50 @@
 # SEO Creator Build — Current State
 
-**Last updated:** — (bootstrap; Run #001 not yet started)
+**Last updated:** 2026-06-25 (Run #001 complete)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 0 / 23 engineering PRs merged
+**Phase progress:** 1 / 23 engineering PRs merged
+**Runs since last audit:** 1 (audit threshold: 5)
 
 ## Currently in flight
 
-_(none — bootstrap; first run will populate)_
+_(none — Run #001 batch resolved; loop continuing to Run #002)_
 
 ## Next up (dependencies satisfied)
 
-- PR P0.W.1: PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)
-- PR P0.E.1: PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core
+- **PR P0.E.2** (PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core) — deps [P0.E.1 ✓ MERGED] — engine-port
+- **PR P0.S.1** (PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test) — deps [P0.E.1 ✓ MERGED] — schema-tenancy
 
 ## Blocked / awaiting input
 
-_(none — bootstrap)_
+- **PR P0.W.1 (PR 000 — capability-denial spike)** — `PR_CREATED`, OPEN at PR #3, **judge-APPROVED as a landable artifact but human-gated**: the live Vercel Sandbox adversarial run needs infra a human/CI must run. **This gates PR 006 (worker host) and the whole worker-runtime lane downstream of it.** Held open (not auto-merged) per DR-002. See PR #3 body for the exact live-run steps.
+  - **Worker-lane consequence:** P0.W.2 / P0.W.3 / P0.W.4 / P0.W.5 / P0.S.2 / P1.W.1 (and the agent-ui / render / client-review PRs transitively under them) stay deferred until P0.W.1 is merged after the live run. Independent lanes (engine-port, schema-tenancy) continue.
 
-## Recent learnings (last 5 — older entries roll into run-log)
+## Recent learnings (last 5)
 
-_(none — bootstrap)_
+1. **Port sources live in `C:/Users/stone/Code/flywheel-main/`** (DR-001), not in sagemark. RFC `apps/trailhead`/`apps/agents` paths are relative to that sibling repo (read-only). Agents read them by absolute path.
+2. **Spike PRs that need real infra** can't complete unattended — deliver the artifact + an honest Tier-3 NEEDS-INPUT, hold the PR open, gate the dependent host PR. Don't fabricate verdicts.
+3. **`auth.ts` is a no-op placeholder seam** (DR-003) until a schema-tenancy PR fills it — studio surfaces are NOT actually access-controlled yet.
+4. **`@sagemark/core` is source-consumed** (DR-004); `build = tsc --noEmit`; the turbo "no output files" warning is expected.
+5. **AC#3 (worker-env CI lint "fails the build") is half-delivered** — the lint function exists + is unit-tested, but no CI/turbo step invokes it (no CI harness in the repo yet). Deferred to the worker-runtime lane / a CI-bootstrap PR. (escalation — see checkpoint)
 
 ## Files most recently touched
 
-_(none — bootstrap)_
+- `packages/core/src/ai/{resolve-gateway-model,cost-accountant,worker-env-lint}.ts` (+tests)
+- `apps/seo/src/app/(studio)/page.tsx`, `apps/seo/src/lib/auth.ts`
+- `apps/seo/spike/capability-enforcement/*` (spike, PR #3 open)
+- `packages/core/{package.json,src/index.ts}`, `turbo.json`
 
 ## Phase 0 — Foundations PR map
 
 | ID | Title | Lane | Status | Run merged | Commit | PR |
 |---|---|---|---|---|---|---|
-| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | NOT_STARTED | — | — | — |
-| P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
+| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | PR_CREATED | — | c38de48 | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
+| P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | MERGED | 1 | ec13f1c | [#2](https://github.com/digital-seniority/sagemark/pull/2) |
 | P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
 | P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | NOT_STARTED | — | — | — |
-| P0.E.4 | PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate) | engine-port | NOT_STARTED | — | — | — |
-| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | NOT_STARTED | — | — | — |
+| P0.E.4 | PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | NOT_STARTED | — | — | — |
+| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | NOT_STARTED (GATED by P0.W.1 live run) | — | — | — |
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | NOT_STARTED | — | — | — |
@@ -58,19 +67,16 @@ _(none — bootstrap)_
 | P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | client-review | NOT_STARTED | — | — | — |
 | P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | client-review | NOT_STARTED | — | — | — |
 
+## Drift-watch trend (5-run rolling)
+
+| Run | Process | Product | BLOCKED rate | Re-judge rate |
+|---|---|---|---|---|
+| 001 | 4.5 | 4.0 | 0% | 0% |
 
 ## Status legend
 
-- `NOT_STARTED` — eligible only when deps are MERGED; not yet picked up
-- `IN_FLIGHT` — currently being implemented by an engineering agent
-- `INTERRUPTED` — partial work; needs continuation (worktree preserved)
-- `APPROVED_NOT_COMMITTED` — judge approved; commit pending
-- `PR_CREATED` — opened on GitHub, awaiting merge (auto or manual)
-- `MERGED` — landed on `preview`
-- `PREVIEW_FAILED` — commit attempt failed (PR-specific); worktree preserved for retry
-- `BLOCKED` — judge rejected after 3 passes; worktree preserved for human inspection
-- `REQUIRES_HUMAN_MERGE` — PR_CREATED but excluded from auto-merge (audit-finding, production-critical, etc.)
+- `NOT_STARTED` · `IN_FLIGHT` · `INTERRUPTED` · `APPROVED_NOT_COMMITTED` · `PR_CREATED` (open, awaiting merge) · `MERGED` · `PREVIEW_FAILED` · `BLOCKED` · `REQUIRES_HUMAN_MERGE`
 
 ---
 
-*Bootstrap state · Run #001 not yet started · 23 PRs total · all NOT_STARTED · ready for `/seo-creator-build` invocation*
+*Run #001 complete · 1/23 merged (P0.E.1) · P0.W.1 open + human-gated · next: P0.E.2, P0.S.1 · auto-loop iteration 1/8 continuing*

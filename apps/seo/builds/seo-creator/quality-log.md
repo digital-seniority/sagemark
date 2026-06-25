@@ -12,5 +12,4 @@ These can diverge. Watch for declining slopes across 3+ rows — that's the Laye
 | Run | Date | PRs merged | Process | Product | Top issue | Top improvement | Checkpoint |
 |---|---|---:|---:|---:|---|---|---|
 <!-- Rows appended by /seo-creator-build Phase 6. -->
-
-*Bootstrapped — no runs yet. First row will appear after Run #001.*
+| 001 | 2026-06-25 | 1 | 4.5 | 4.0 | P0.W.1 spike needs a live Vercel Sandbox run no unattended agent can perform (human-gated; gates PR 006) | When a criterion says "fails the build," wire it to a real build/CI step, not just a unit-tested function | checkpoints/run-001-2026-06-25.md |

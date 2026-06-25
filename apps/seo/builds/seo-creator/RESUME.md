@@ -1,29 +1,35 @@
 # RESUME — SEO Creator build (intra-run cursor)
 
-> **What this file is.** The fine-grained cursor for an in-flight `/seo-creator-build auto` run.
-> STATE.md is the between-batch PR ledger; THIS file is the within-run pointer — rewritten by the
-> orchestrator at every phase transition. After a context compaction or session resume, re-read
-> this file first, then STATE.md, then continue. Never restart a run from scratch based on a
-> compaction summary — trust this cursor + STATE.md + `gh pr view` reality.
+> Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`.
+> Never restart from scratch. Never re-merge MERGED PRs. Trust this cursor + STATE.md + `gh pr view`.
 
-**Status:** not started (no auto run has begun yet)
+**Status:** Run #001 active — agents spawning
 
 ## Cursor
 
 | Field | Value |
 |---|---|
-| Run # | — |
-| Loop iteration | — / — |
-| Lock phase | — |
-| Updated at | — |
+| Run # | 001 |
+| Loop iteration | 1 / 8 |
+| Lock phase | agents_spawning |
+| Updated at | 2026-06-25T19:24Z |
 
 ## In-flight PRs (this batch)
 
-_None yet. When a run is active, each spawned PR appears here as `id → worktree → branch → status`._
+| id | worktree | branch | status |
+|---|---|---|---|
+| P0.E.1 | (assigned via isolation:worktree) | (agent-created) | IN_FLIGHT |
+| P0.W.1 | (assigned via isolation:worktree) | (agent-created) | IN_FLIGHT |
+
+## Key facts
+
+- Port-source root = `C:/Users/stone/Code/flywheel-main/` (DR-001). RFC `apps/trailhead`/`apps/agents` paths are relative to that sibling repo (read-only).
+- Auto-merge ON (user-authorized full unattended). Compaction hooks installed (PR #1 merged → preview a6570e6).
+- P0.W.1 is High-risk spike; live Sandbox run not possible unattended → expect Tier-3 NEEDS-INPUT on the real-infra criterion.
 
 ## Next action
 
-Begin a run: read STATE.md, run drift watch + preflight, plan the first batch.
+Both agents are spawning in parallel (Phase 3). When both return: Phase 4 lane-sharded judge → Phase 5/5.5 commit + auto-merge approved → Phase 6 state landing → Phase 7c loop-back decision.
 
 ## Resume command
 
@@ -31,4 +37,4 @@ Begin a run: read STATE.md, run drift watch + preflight, plan the first batch.
 /seo-creator-build auto
 ```
 
-To halt an active autonomous loop, delete `C:/Users/stone/Code/sagemark/apps/seo/builds/seo-creator/.auto-loop.json`.
+Halt: delete `apps/seo/builds/seo-creator/.auto-loop.json`. Pause: create `.auto-loop.pause`.
