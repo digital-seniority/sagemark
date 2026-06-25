@@ -54,3 +54,15 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Checkpoint:** `checkpoints/run-002-2026-06-25.md`
 
 *Loop continues to Run #003 — next: P0.E.3 (port seo-gate + lifecycle-fsm + failure-codes).*
+
+## Run #003 — 2026-06-25
+
+- **Duration:** ~00:16 · Mode: auto (iteration 3/8)
+- **PRs merged:** 1 (`P0.E.3` — port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core, PR #8 d44d7e9)
+- **Process:** 5.0/5 · **Product:** 4.0/5 · GATE-BYPASS PASS
+- **Top issue:** ymylSignals is a ~22-term substring lexicon (YMYL false-negative risk) — DR-007 + RFC:458 change-control.
+- **Decisions:** DR-007 (ymylSignals posture); DR-005 marked satisfied (single composer).
+- **Phase 0 progress:** 4/11 merged (was 3/11).
+- **Checkpoint:** `checkpoints/run-003-2026-06-25.md`
+
+*Loop continues to Run #004 — P0.E.4 (kernel routes), the last autonomously-reachable PR.*
