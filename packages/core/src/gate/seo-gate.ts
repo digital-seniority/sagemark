@@ -409,12 +409,17 @@ export async function runSeoGate(
       return vetoResult("REJECT", [FAILURE_CODES.VETO_EVAL_FAILED]);
     }
 
+    // Index access is provably in-bounds: `runScorersFailClosed` pushes exactly
+    // one result per input scorer in order and only returns `passed: true` after
+    // the full loop, so when we reach here `composition.results` has the same 5
+    // elements (indices 0–4) as the scorer array above. The non-null assertions
+    // are compile-time only — they change no runtime behavior.
     const det: DeterministicScores = {
-      broken: composition.results[0].result as BrokenChunkResult,
-      keyword: composition.results[1].result as KeywordDensityResult,
-      breakdown: composition.results[2].result as ContentScoreBreakdown,
-      lexicon: composition.results[3].result as BannedLexiconResult,
-      geo: composition.results[4].result as GeoCitationResult,
+      broken: composition.results[0]!.result as BrokenChunkResult,
+      keyword: composition.results[1]!.result as KeywordDensityResult,
+      breakdown: composition.results[2]!.result as ContentScoreBreakdown,
+      lexicon: composition.results[3]!.result as BannedLexiconResult,
+      geo: composition.results[4]!.result as GeoCitationResult,
     };
 
     // LLM gates (also fail-closed on throw/reject).

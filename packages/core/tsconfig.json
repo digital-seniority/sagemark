@@ -1,16 +1,18 @@
 {
   "extends": "@sagemark/config/tsconfig.base.json",
   "compilerOptions": {
-    // The PR 002 scorers + gates are ported VERBATIM from flywheel-main
-    // (origin/preview), whose tsconfig does NOT enable noUncheckedIndexedAccess.
-    // The ports use unguarded array/regex-group index access (e.g.
-    // `match[1].trim()`, `lines[i].trim()`) that is safe in context but trips
-    // the base config's noUncheckedIndexedAccess. Relax it for this
-    // source-consumed package (DR-004) so the ports — and their tests — compile
-    // unmodified. Code authored in-tree (PR 001's ai/*) is unaffected: turning
-    // the flag off never breaks code that was correct with it on.
-    "noUncheckedIndexedAccess": false
+    // C.004.1 (supersedes the blanket relaxation in DR-004):
+    // `@sagemark/core` is SOURCE-CONSUMED by `apps/seo` (Next.js
+    // `transpilePackages`), so apps/seo type-checks core's *source* under the
+    // strict base config (`noUncheckedIndexedAccess: true`). Relaxing the flag
+    // here let core's own `build` pass while the consuming app's build went RED.
+    // Fix: keep the STRICT base setting over production source (so a future
+    // unchecked-index in core source fails core's OWN build — the regression
+    // guard), and exclude the *.test.ts files, which keep a relaxed posture.
+    // The tests are type-unchecked by tsc and run via vitest (vitest.config.ts),
+    // so excluding them here does not affect test execution.
+    "noEmit": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/**/*.test.ts", "src/test/**"]
 }
