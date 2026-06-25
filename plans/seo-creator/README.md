@@ -63,7 +63,11 @@ canvas (`PinOverlay`, `PreviewClickHandler`, `useIframePinDrop`, `VersionHub`,
 ## Status & next step
 
 Plan authored 2026-06-25 via a 17-agent research/synthesis workflow, then
-git-verified. **Next:** resolve the Phase-1-gating open decisions in
-[06](06-open-decisions.md) — chiefly **D1** (autonomous loop vs. fixed pipeline),
-**D2** (hard vs. soft gate), **D3** (fund a SERP API), **D7** (generated homepage
-now or later) — then start the roadmap's thinnest end-to-end slice.
+git-verified. **D1/D2/D3/D5/D7 are locked** (see [DECISIONS.md](DECISIONS.md)) —
+notably **D5 = Claude Agent SDK self-hosted worker** (overrides the in-process AI SDK
+runtime in docs 00/01: `apps/seo` on Vercel orchestrates a separate Agent-SDK worker
+container that runs the autonomous loop and calls host-side tools for the gate).
+**Still open:** **D9** (where the worker runs — Vercel Sandbox / Modal / Trigger.dev /
+container), **D6** (reviewer ceiling + backup name), **D4** (ledger confirm). **Next:**
+pick D9, then build the roadmap's thinnest end-to-end slice across the worker↔Vercel
+boundary.
