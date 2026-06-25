@@ -66,3 +66,15 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Checkpoint:** `checkpoints/run-003-2026-06-25.md`
 
 *Loop continues to Run #004 — P0.E.4 (kernel routes), the last autonomously-reachable PR.*
+
+## Run #004 — 2026-06-25  (LOOP TERMINAL: depleted)
+
+- **Duration:** ~00:25 · Mode: auto (iteration 4/8 — final)
+- **PRs merged:** 2 — `P0.E.4` (kernel route contract /content/api/*, PR #11 ca776f0) + corrective `C.004.1` (core strict-clean for apps/seo build, PR #10 269a0b1)
+- **Process:** 5.0/5 · **Product:** 4.75/5 · GATE-BYPASS + TENANCY PASS
+- **Top issue:** apps/seo build was RED (DR-004 strict-vs-relaxed tsconfig mismatch in source-consumed core) — per-lane judges missed it by building the package, not the consuming app. Fixed by C.004.1.
+- **Decisions:** DR-008 (source-consumed build integrity, supersedes part of DR-004), DR-009 (audit read-only).
+- **Phase 0 progress:** 5/11 merged (was 4/11).
+- **Checkpoint:** `checkpoints/run-004-2026-06-25.md`
+
+*LOOP TERMINATED — terminal_reason: depleted. All remaining PRs need the worker-runtime lane, gated on P0.W.1's live Vercel Sandbox run (human action). Audit due before resuming (4 runs since last).*
