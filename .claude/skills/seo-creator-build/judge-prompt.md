@@ -149,6 +149,14 @@ GATE-BYPASS: PASS|FAIL — prove the agent still has no publish tool AND canPubl
 
 TENANCY: PASS|FAIL — paste the client_id+workspace filter on every new query; confirm warm-pool VM wipe on lease handoff.
 
+### SOURCE-CONSUMED-INTEGRATION-BUILD (audit-001 finding P1; DR-008 Decision #2)
+
+**Trigger:** any PR whose diff touches a package consumed as SOURCE by an app — today `packages/core/**` or `packages/schema-flywheel/**` (consumed by `apps/seo` via `transpilePackages`). Strict tsconfig flags (`strict` + `noUncheckedIndexedAccess`) make the package build GREEN while the consuming app build is RED.
+
+**Required output:**
+
+SOURCE-CONSUMED BUILD: PASS|FAIL — you MUST run AND paste the result of the CONSUMING APP's build (`pnpm --filter @sagemark/seo build`), not only `--filter <package> build`. The verdict CANNOT be APPROVED if the consuming-app build is RED. (Why: C.004.1 / PR #10 was a corrective for exactly this miss — P0.E.4 was APPROVED while `apps/seo` build was RED because per-lane judges built only the package. Cite the build output.)
+
 
 ## G. ANCHOR COMPLIANCE (drift-control build only — auto-Critical)
 
