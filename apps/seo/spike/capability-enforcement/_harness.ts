@@ -171,7 +171,7 @@ export const DENY_CIDRS = [
   '169.254.0.0/16', // link-local incl. cloud metadata (IMDS) endpoint
   '10.0.0.0/8', // RFC-1918 private
   '172.16.0.0/12', // RFC-1918 private
-  '192.168.0.0/8', // RFC-1918 private
+  '192.168.0.0/16', // RFC-1918 private (the 192.168 block is a /16; /8 is unaligned and the Sandbox API rejects it with 400 "not a valid CIDR")
 ];
 
 /**

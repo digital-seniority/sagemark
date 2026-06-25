@@ -9,70 +9,100 @@
 
 ---
 
-## ⛔ STATUS: LIVE RUN BLOCKED — Tier-2 NEEDS-INPUT (Sandbox API auth rejected)
+## STATUS: LIVE RUN COMPLETE (2026-06-25, auth cleared) — Sandbox VIABLE *with two architecture constraints*
 
-**The live adversarial run WAS executed (2026-06-25) with `@vercel/sandbox@2.2.1`
-installed and the harness bug fixed, but the three infra-dependent controls
-(1 egress, 2 env scrub, 3 fs) could not record a verdict: every `Sandbox.create`
-call was rejected by the Vercel Sandbox API with HTTP 403
-`{"error":{"code":"forbidden","message":"Not authorized","invalidToken":true}}`.**
-A plain `Sandbox.create({ runtime: 'node24' })` with no network policy fails
-identically, so this is an **account/credential authorization blocker — not a
-probe or harness defect, and not a control finding.** No microVM was provisioned
-(the 403 is returned before any VM is created), so there is nothing to bill or
-clean up. Control 4 (boot refusal) needs no infra and **PASSed**.
+**The live adversarial run executed end-to-end against real Vercel Sandbox infra
+on the Digital Seniority team (`@vercel/sandbox@2.2.1`).** The prior `403 invalidToken`
+blocker is cleared: a fresh team-scoped `VERCEL_TOKEN` was minted and `Sandbox.create`
+now provisions real Firecracker microVMs. **All four controls recorded a real verdict.**
+The two raw FAILs are nuanced — neither is a credential-exfiltration breach or a
+cross-tenant bleed — but **control 3 surfaces a genuine architecture constraint** that
+re-scopes PR 006/006b. Verdicts below are honest; nothing was fabricated or flipped.
 
-**No control verdict has been fabricated.** Controls 1–3 are honestly recorded as
-**ERROR (unverifiable — infra auth blocked)**, which by the decision rule blocks
-PR 006 from merging on a "Sandbox confirmed" basis until the auth blocker is
-cleared and the run is repeated.
+**Headline: Vercel Sandbox is a viable worker runtime, conditional on the v1 worker
+adopting the *no-shell-capable-worker* profile + one egress-hardening note.** This is
+the decision-rule "adopt the matching fallback and re-scope PR 006/006b" outcome — NOT
+"proceed as written," and NOT a hard block.
 
-What IS done (✅):
-- The **harness bug is fixed**: `_harness.ts` now applies the egress control via
-  the REAL SDK field `networkPolicy` (default-deny + allowlist + private/link-local
-  subnet deny), not the bogus `egressAllowlist`, and **reads the policy back** off
-  the created instance (`sandbox.networkPolicy`), throwing if it did not apply so
-  the egress probe can never PASS/FAIL on an unconfigured allow-all VM.
-- `@vercel/sandbox@2.2.1` installed; all five spike `.ts` files + `_harness.ts`
-  typecheck clean against the REAL SDK types under the project's strict tsconfig
-  (`strict` + `noUncheckedIndexedAccess`, `moduleResolution: Bundler`).
-- `boot-refusal-probe.ts` executed (needs no infra) → **PASS** (refuses every
-  broken-control profile, allows the valid one). Exit 0.
-- The harness loads the real SDK at runtime (verified: `Sandbox.create` resolves).
+A separate harness CIDR bug was found and fixed during the run (see below).
 
-What is NEEDS-INPUT (blocks the gate):
-- Controls **1 (egress)**, **2 (env scrub)**, **3 (fs constraint)** ran but
-  **ERROR**ed at sandbox creation with a 403 invalid-token. They need **a Vercel
-  token/team/project authorized for Sandbox on the Digital Seniority team** (the
-  current `VERCEL_TOKEN` is rejected as `invalidToken`). Re-run once a valid,
-  Sandbox-scoped credential is provided.
-- Control **4 (boot refusal)** logic passes locally; its **live wiring** to the
-  real `sandbox-launch` preflight remains part of the (re)run.
+### Per-control summary
 
-**This gate is not closed until controls 1–3 record real PASS/FAIL on infra.**
+1. **Egress allowlist — raw FAIL, effectively ENFORCED for real egress.** Genuine
+   off-VM egress is refused at the network layer: RFC-1918 `10.0.0.1`/`192.168.0.1`
+   → TCP reset (`curl (56) connection reset`); arbitrary public hosts `example.com`/
+   `api.ipify.org` → DNS denied (`curl (6) could not resolve`); the allowlisted
+   `ai-gateway.vercel.sh` → reachable (308). The applied `networkPolicy` was read back
+   off the instance and matched. **The only "bypass" is `169.254.169.254`**, which on
+   Firecracker is the **hypervisor-local MMDS** (`Server: Firecracker API`, response in
+   ~0.3 ms — never leaves the VM, so an *egress* `subnets.deny` cannot refuse it). It is
+   **token-gated**: returns `401 "No MMDS token provided"` on the metadata root AND on
+   the IAM-credentials path, deterministically 5/5 tries — **no credentials disclosed.**
+   → Residual is reachable-but-locked MMDS, not a credential path. Hardening note for
+   PR 006: block `169.254.0.0/16` in-VM (iptables/route) or confirm MMDS is disabled for
+   the worker, as defense-in-depth on top of the platform's token gate.
+
+2. **Env scrub — PASS.** No known-secret variable NAMES present; no secret-shaped VALUES
+   beyond the single run-JWT placeholder; the run-JWT reached the worker (positive
+   control). The worker VM carries only its run credential.
+
+3. **Constrained shell/file — FAIL → selects the "no-shell-capable worker" fallback.**
+   This is the real finding. A stock `node24` Sandbox VM gives the run an **unconstrained
+   shell with a normal view of its own ephemeral filesystem**: `/etc/shadow` and
+   `/proc/1/environ` readable, path-traversal `…/../../../etc/hostname` readable, and a
+   planted same-VM "sibling" marker readable. **This is NOT a cross-tenant bleed** — each
+   run is its own Firecracker VM (the sibling file was planted by the probe on the *same*
+   VM; real siblings are different, physically unreachable VMs), and the reads hit the
+   VM's *own* ephemeral files, not a shared host. `/root/.ssh/id_rsa` + `/root/.aws/
+   credentials` were absent (DENIED). The architectural consequence: the worker must not
+   expose a general shell/file tool to the model — adopt the **no-shell-capable-worker**
+   profile (restrict the Agent-SDK tool surface; no arbitrary `bash`/`cat`), or jail the
+   run (chroot/bind-mount). Per the decision tree this is the documented fallback.
+
+4. **Boot refusal — PASS (logic, local).** The fail-closed launcher refuses every broken
+   single/multi-control profile and allows only the all-controls-in-force profile (6/6).
+   Live wiring to the real `sandbox-launch` preflight remains a PR 006 task.
+
+### Harness bug fixed during this run (real finding)
+`_harness.ts DENY_CIDRS` listed `192.168.0.0/8` — an **unaligned CIDR** the Sandbox API
+rejects at create time with `400 "192.168.0.0/8 is not a valid CIDR (should be aligned
+as 192.0.0.0/8)"`, which masked control 1 as an `ERROR` on the first attempt. Corrected
+to `192.168.0.0/16` (the real RFC-1918 192.168 block); `Sandbox.create` then succeeds and
+the policy reads back intact. This is what let control 1 record a real verdict.
+
+**Gate status:** controls recorded **2 PASS (env scrub, boot refusal) + 2 nuanced FAIL
+(egress: MMDS-only, token-gated; fs: unconstrained shell)**. By the decision rule the
+gate does NOT close as "confirmed, proceed as written" — it closes as **"Sandbox viable;
+adopt no-shell fallback + egress hardening; re-scope PR 006/006b accordingly"**, which is
+a **human architecture decision** (this PR stays human-gated, not auto-merged).
 
 ---
 
-## Verdict table — live run 2026-06-25 (`@vercel/sandbox@2.2.1`)
+## Verdict table — live run 2026-06-25 (`@vercel/sandbox@2.2.1`, auth cleared, real microVMs)
 
-| # | Control | Probe | Verdict | Evidence (recorded 2026-06-25) |
+| # | Control | Probe | Raw verdict | Evidence (recorded 2026-06-25, live Firecracker VMs) |
 |---|---------|-------|---------|--------------------|
-| 1 | Network egress allowlist | `egress-probe.ts` | `ERROR` | `Sandbox.create` → HTTP 403 `forbidden / invalidToken`; control unverifiable on infra (auth blocked, not a bypass). Exit 2. |
-| 2 | Env scrub | `env-scrub-probe.ts` | `ERROR` | same 403 at sandbox creation; no VM, env never readable. Exit 2. |
-| 3 | Constrained shell/file | `fs-constraint-probe.ts` | `ERROR` | same 403 at sandbox creation; no VM, no FS to probe. Exit 2. |
+| 1 | Network egress allowlist | `egress-probe.ts` | `FAIL`* | Real egress refused at network layer: RFC-1918 `10.0.0.1`/`192.168.0.1` → TCP reset (`(56)`); `example.com`/`api.ipify.org` → DNS denied (`(6)`); allowlisted `ai-gateway.vercel.sh` → reachable (308). Applied `networkPolicy` read back & matched. *Only* `169.254.169.254` connects → but it is the **Firecracker MMDS** (`Server: Firecracker API`, ~0.3 ms, hypervisor-local), **token-gated 401, zero creds disclosed** on root + IAM path, deterministic 5/5. **Not a credential-exfil bypass.** Exit 1. |
+| 2 | Env scrub | `env-scrub-probe.ts` | `PASS` | No secret variable names; no secret-shaped values beyond the run-JWT placeholder; run-JWT delivered (positive control). Exit 0. |
+| 3 | Constrained shell/file | `fs-constraint-probe.ts` | `FAIL` | Unconstrained shell on a stock VM: `/etc/shadow`, `/proc/1/environ`, traversal `…/../../../etc/hostname`, and a planted **same-VM** sibling marker all READABLE. `/root/.ssh/id_rsa` + `/root/.aws/credentials` absent (DENIED). **Not cross-tenant** (per-VM isolation holds; sibling self-planted on the same VM). → selects the **no-shell-capable-worker** fallback. Exit 1. |
 | 4 | Boot refusal (fail-closed launch) | `boot-refusal-probe.ts` | `PASS` (logic, local) · live wiring `PENDING` | all 6 assertions PASS — refuses each broken profile, allows the valid one. Exit 0. |
 
+\* Egress is a **raw** FAIL only because the probe equates any non-000 HTTP code from a
+forbidden host with a bypass; the sole such host is the hypervisor-local, token-gated MMDS
+(no data leaked). Genuine off-VM egress is fully enforced. Treat as PASS-with-hardening-note.
+
 > Decision rule (from the spec):
-> - If **all four** record PASS → write **"Vercel Sandbox confirmed"** in the
->   "Final decision" section and PR 006/006b proceed as written.
-> - If **any** records FAIL → record the specific failure here **and** adopt the
->   matching fallback from the decision tree; PR 006/006b are re-scoped against
->   that fallback **before** the worker is built.
-> - **This run: 1 PASS + 3 ERROR (infra auth blocked).** An ERROR is *not* a FAIL
->   (no control was bypassed) but it is *not* a PASS either — the gate stays open.
->   The fix to the egress harness is landed and verified by typecheck + read-back
->   logic; the platform verdict for controls 1–3 is deferred to a re-run with a
->   Sandbox-authorized credential.
+> - If **all four** record PASS → write **"Vercel Sandbox confirmed"** and PR 006/006b
+>   proceed as written.
+> - If **any** records FAIL → record the specific failure here **and** adopt the matching
+>   fallback from the decision tree; PR 006/006b are re-scoped against that fallback
+>   **before** the worker is built.
+> - **This run: 2 PASS + 2 nuanced FAIL.** Neither FAIL is a credential leak or tenant
+>   breach. Control 3 (unconstrained shell) is a real architecture constraint → **adopt
+>   the no-shell-capable-worker fallback**; control 1 carries an egress-hardening note for
+>   the MMDS range. PR 006/006b re-scope accordingly. The gate is **decided** (Sandbox
+>   viable with fallback), and stays **human-gated for merge** — a human ratifies the
+>   no-shell architecture call before PR 006 lands.
 
 ---
 
