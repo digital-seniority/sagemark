@@ -1,0 +1,870 @@
+{
+  "meta": {
+    "blueprint_version": "1.0",
+    "schema_version": "1.0",
+    "bible_version": "1.0.0",
+    "bible_chapter_shas": {
+      "10": "2c02fe80",
+      "11": "2c02fe80",
+      "12": "2c02fe80",
+      "13": "2c02fe80",
+      "14": "2c02fe80",
+      "15": "2c02fe80",
+      "16": "2c02fe80",
+      "17": "2c02fe80",
+      "01": "2c02fe80",
+      "02": "2c02fe80",
+      "03": "2c02fe80",
+      "04": "2c02fe80",
+      "05": "2c02fe80",
+      "06": "2c02fe80",
+      "07": "2c02fe80",
+      "08": "2c02fe80",
+      "09": "2c02fe80"
+    },
+    "generated_by": "claude-opus-4-8",
+    "started_at": "2026-06-25T12:00:00-04:00"
+  },
+  "agent": {
+    "name": "seo-creator",
+    "display_name": "SEO Creator",
+    "concept_summary": "An agent-driven engine that produces and governs SEO/GEO content hubs (a pillar page plus a funnel-staged cluster of long-form, E-E-A-T-grade guides) for agency clients in the senior-living / memory-care vertical. Lives at apps/seo in the Sagemark monorepo. A self-hosted Claude Agent SDK worker (on Vercel Sandbox) runs the autonomous generation loop; the deterministic non-compensatory quality gate, scorers, and lifecycle FSM (ported from flywheel-main origin/preview) are enforced host-side and the agent cannot reason past them.",
+    "positioning": "The model is the replaceable middle; the harness is the moat. A non-compensatory publish gate, a cross-model faithfulness check, a fail-closed lifecycle FSM, and per-tenant voice/corpus isolation produce a durable, crawlable, schema-marked content asset that compounds across human readers, search crawlers, and AI answer engines."
+  },
+  "mode": "commercial",
+  "regulated": false,
+  "shape": {
+    "multi_tenant": "yes",
+    "public_by_default": "no",
+    "sensitive_pii": "no",
+    "existing_portfolio": "yes",
+    "per_customer_brand": "yes",
+    "greenfield_repo": "existing",
+    "regulatory_regime": []
+  },
+  "runtime": {
+    "profile": "claude-code",
+    "platform": "win32",
+    "capabilities": [
+      "background_subagent",
+      "computer_use",
+      "ask_user_question",
+      "edit_tool",
+      "worktree",
+      "web_fetch",
+      "fs",
+      "gh",
+      "mcp",
+      "schema_validation"
+    ]
+  },
+  "artifacts": {
+    "output_dir": "C:/Users/stone/Code/sagemark/plans/seo-creator/flywheel",
+    "intent_summary": "intent-summary.md",
+    "research_brief": "research-brief.md",
+    "discovery_log": "discovery-log.md",
+    "prd": "prd.md",
+    "rfc": "engineering-rfc.md",
+    "journeys": "journeys.md",
+    "handoff": "HANDOFF.md",
+    "review_log": "review-log.md",
+    "retro": "retro.md"
+  },
+  "research": {
+    "research_date": "2026-06-25",
+    "re_run_trigger_date": "2026-09-23",
+    "research_mode": "full",
+    "competitors": [
+      {
+        "name": "Jasper",
+        "url": "https://jasper.ai",
+        "description": "AI marketing-content platform with per-brand voice + team approval flows",
+        "business_model": "SaaS ~$49+/seat/mo",
+        "scale": "broad marketing-team adoption",
+        "differentiator": "multi-client brand-voice management",
+        "weakness": "stops at generation; confidently states wrong facts; generic drafts; no gate/YMYL governance"
+      },
+      {
+        "name": "Surfer SEO",
+        "url": "https://surferseo.com",
+        "description": "Real-time content editor scoring drafts against ranking factors (0-100 Content Score)",
+        "business_model": "SaaS $49-$182/mo",
+        "scale": "leading SEO-optimization tool",
+        "differentiator": "the Content Score teams use",
+        "weakness": "compensatory score drives keyword-stuffing; users report rank drops; nudges, never refuses"
+      },
+      {
+        "name": "Frase",
+        "url": "https://frase.io",
+        "description": "Research briefs + AI writing + dual Google/AI scoring",
+        "business_model": "SaaS $39-$239/mo",
+        "scale": "positioned as complete AI SEO agent",
+        "differentiator": "brief->write->optimize in one tool",
+        "weakness": "output requires editing; tier throttles; scores, doesn't gate"
+      },
+      {
+        "name": "Byword",
+        "url": "https://byword.ai",
+        "description": "Bulk article generation for publishers, topic-set in / articles-to-CMS out",
+        "business_model": "volume SaaS",
+        "scale": "popular with scaled publishers",
+        "differentiator": "speed/volume to CMS",
+        "weakness": "the anti-gate: makes publishing feel too easy; manual-action risk; no governance"
+      },
+      {
+        "name": "Writesonic",
+        "url": "https://writesonic.com",
+        "description": "AI content generation + publishing integrations at scale, pivoting to AI-search visibility",
+        "business_model": "tiered SaaS",
+        "scale": "large",
+        "differentiator": "scaled generate->CMS",
+        "weakness": "scaled thin-content exposure; no gate"
+      },
+      {
+        "name": "Search Atlas / OTTO",
+        "url": "https://searchatlas.com",
+        "description": "Agency all-in-one with OTTO agent that auto-deploys technical fixes via on-site pixel",
+        "business_model": "$99-$999/mo",
+        "scale": "agency white-label base",
+        "differentiator": "autonomous technical-SEO execution",
+        "weakness": "pixel lock-in; auto-applies changes, no content refuse-gate"
+      },
+      {
+        "name": "AirOps",
+        "url": "https://airops.com",
+        "description": "Content-engineering platform for AI search; Brand Kits/Knowledge Bases + workflow automation",
+        "business_model": "seat-based, $40M Series B at $225M valuation (Greylock, Nov 2025), $62.1M raised",
+        "scale": "customers incl. Ramp, Webflow, Klaviyo, Kayak",
+        "differentiator": "unified SEO+AI performance + per-tenant brand grounding",
+        "weakness": "un-opinionated build-your-own pipeline; ships guidance/brand-voice consistency, NOT a refuse-to-publish gate — the strategic threat that could add a gate"
+      },
+      {
+        "name": "Profound",
+        "url": "https://tryprofound.com",
+        "description": "Enterprise answer-engine analytics; brand mentions/citations/sentiment across 10+ AI engines",
+        "business_model": "$99-$399/mo + enterprise; $35M Series B (Sequoia)",
+        "scale": "enterprise",
+        "differentiator": "consumer-interface share-of-model data",
+        "weakness": "analytics only, no content generation/governance"
+      },
+      {
+        "name": "Goodie AI",
+        "url": "https://goodie.ai",
+        "description": "GEO tool monitoring brand visibility/citations in AI responses + content optimization",
+        "business_model": "from $495/mo",
+        "scale": "mid-market",
+        "differentiator": "GEO monitoring + optimization in one",
+        "weakness": "explicitly lacks compliance/governance posture"
+      },
+      {
+        "name": "AthenaHQ",
+        "url": "https://athenahq.ai",
+        "description": "GEO platform with citation-prediction metrics (ACE, QVEM) + brand-voice enforcement",
+        "business_model": "credit-based ~$95-$295/mo + enterprise",
+        "scale": "emerging",
+        "differentiator": "citation prediction; closest to governance language",
+        "weakness": "voice-consistency only (not faithfulness/YMYL refusal); credit model unpredictable at scale"
+      }
+    ],
+    "precedents": [
+      {
+        "name": "v0 (Vercel)",
+        "url": "https://v0.app",
+        "transferable_pattern": "Agentic artifact pipeline whose reliability gains came from DETERMINISTIC autofixers + self-review before shipping the artifact — direct precedent for a fail-closed gate + faithfulness self-check; validates 'harness not model'",
+        "not_transferable": "Code has a compiler (objective pass/fail); YMYL content has none — we must manufacture ground truth via cross-model faithfulness checks against sources"
+      },
+      {
+        "name": "AirOps Brand Kits / Knowledge Bases",
+        "url": "https://airops.com",
+        "transferable_pattern": "Per-tenant brand grounding for voice + proprietary data, matching our per-client voice-isolation shape",
+        "not_transferable": "It's an un-opinionated toolkit; our value is the opinionated fail-closed FSM the agency does not assemble"
+      },
+      {
+        "name": "GEO trackers (Profound/Goodie/AthenaHQ)",
+        "url": "https://tryprofound.com",
+        "transferable_pattern": "'Share of model' / citation-frequency as the new success metric — instrument hubs for AI-answer-engine citation",
+        "not_transferable": "Read-only measurement; they don't generate/govern the artifact, so complement not core"
+      }
+    ],
+    "cautionary_tales": [
+      {
+        "name": "CNET 'Money Staff' AI finance articles (2023)",
+        "what_they_tried": "Quietly published 77 AI-generated finance articles",
+        "why_it_failed": "Numeric errors ($10,300 vs correct $300), plagiarism, no pre-publish factual gate in a YMYL domain",
+        "lesson": "A non-compensatory gate that blocks unverifiable numeric/financial claims is the control CNET lacked; the failure was process, not model"
+      },
+      {
+        "name": "Sports Illustrated / AdVon (2023)",
+        "what_they_tried": "Published reviews under fabricated AI-generated author personas",
+        "why_it_failed": "Faked authorship/expertise — direct E-E-A-T violation",
+        "lesson": "E-E-A-T must be provable: real bylines/credentials/sourcing as a checkable publish precondition; refuse to attach fabricated authority"
+      },
+      {
+        "name": "AI content farms + Google AI Overviews health-misinfo (2024-26) + Babylon Health",
+        "what_they_tried": "Scaled AI content / ungoverned AI health claims",
+        "why_it_failed": "Mass deindexing post-Helpful-Content; Guardian 2026 probe found Google's own AI Overviews gave misleading health advice in 44% of medical searches; Babylon collapsed on over-claimed under-validated AI",
+        "lesson": "For YMYL memory-care, a cross-model faithfulness check + YMYL refusal is the feature that survives the next core update and shields clients"
+      }
+    ],
+    "user_sources": [
+      {
+        "source_path_or_url": "C:/Users/stone/Code/sagemark/plans/seo-creator/ (00-06 + README + DECISIONS.md)",
+        "classification": "load-bearing",
+        "summary": "The approved SEO Creator analysis docs + locked-decisions record (D1-D9) authored 2026-06-25 and git-verified against origin/preview",
+        "retention_policy": "indefinite",
+        "redaction_applied": false
+      },
+      {
+        "source_path_or_url": "https://whispering-willows-content-demo.vercel.app/",
+        "classification": "load-bearing",
+        "summary": "The reference output artifact: a senior-living SEO/GEO content hub (pillar + cluster of E-E-A-T guides)",
+        "retention_policy": "indefinite",
+        "redaction_applied": false
+      }
+    ],
+    "bible_chapters_loaded": [
+      "01",
+      "02",
+      "03",
+      "04",
+      "05",
+      "06",
+      "07",
+      "09",
+      "10",
+      "11",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17"
+    ],
+    "steal_vs_avoid": [
+      {
+        "source": "v0 (Vercel)",
+        "pattern": "deterministic autofixers + self-review before shipping artifact",
+        "verdict": "STEAL",
+        "why": "direct precedent for fail-closed gate + faithfulness self-check; reliability came from the deterministic layer, validating harness-not-model"
+      },
+      {
+        "source": "AirOps Brand Kits",
+        "pattern": "per-tenant brand grounding for voice/proprietary data",
+        "verdict": "STEAL",
+        "why": "matches per-client voice-isolation shape; reuse grounding, then add the gate they lack"
+      },
+      {
+        "source": "GEO trackers (Profound/Goodie/AthenaHQ)",
+        "pattern": "share-of-model / citation-frequency as success metric",
+        "verdict": "STEAL",
+        "why": "instrument hubs for AI-citation as the outcome metric; integrate downstream, not core"
+      },
+      {
+        "source": "Surfer SEO Content Score",
+        "pattern": "compensatory 0-100 optimization score",
+        "verdict": "AVOID",
+        "why": "a compensatory green-score is the opposite of a non-compensatory refuse-gate; drives keyword-stuffing and rank drops"
+      },
+      {
+        "source": "Byword/Writesonic scaled publishing",
+        "pattern": "volume-first generate->CMS with no quality gate",
+        "verdict": "AVOID",
+        "why": "makes publishing feel too easy — the exact failure mode our gate inverts; deindexing risk for YMYL clients"
+      },
+      {
+        "source": "CNET / Sports Illustrated AI debacles",
+        "pattern": "ungoverned YMYL generation + faked E-E-A-T authority",
+        "verdict": "CAUTION",
+        "why": "defines the harm to design against: enforce provable bylines/sourcing and refuse unverifiable claims as a publish precondition"
+      },
+      {
+        "source": "Google AI Overviews health-misinfo (2026) / Babylon Health",
+        "pattern": "ungoverned/over-claimed AI in health under regulator + press scrutiny",
+        "verdict": "CAUTION",
+        "why": "YMYL memory-care is actively burning; faithfulness check + YMYL refusal is the survival feature"
+      },
+      {
+        "source": "A Place for Mom AIO pivot",
+        "pattern": "largest senior-living aggregator moving keyword-SEO to truthful structured AIO content",
+        "verdict": "EXPLORATORY",
+        "why": "validates beachhead demand + GEO direction in our exact vertical; watch as signal/channel/competitor"
+      }
+    ],
+    "implications_for_discovery": [
+      "Wedge confirmed: frame the PRD around governance (the gate) as the differentiator, not generation speed (table stakes).",
+      "AirOps ($40M Series B) is the displacement risk; defense is the opinionated fail-closed FSM + vertical E-E-A-T depth a horizontal toolkit won't prioritize.",
+      "GEO 'share of model' is now the success metric; instrument hubs for AI-answer-engine citation, not just rank — confirm as a product KPI.",
+      "The D2xD3 tension is market-validated: thin grounding is exactly what got content farms deindexed; instrument the gate-block-by-sourcing rate (the D3 reversal trigger).",
+      "E-E-A-T must be provable not claimed (SI/CNET): byline/credential/citation as hard publish preconditions; confirm credentialed-reviewer staffing (D6) as the binding go-live constraint."
+    ]
+  },
+  "discovery": {
+    "started_at": "2026-06-25T12:25:00-04:00",
+    "completed_at": "2026-06-25T12:45:00-04:00",
+    "turn_count": 1,
+    "intent_and_strategic": {
+      "questions": [
+        {
+          "id": "Q1.1",
+          "question": "Wedge: why does the customer choose this over a generic LLM or ungoverned AI tool?",
+          "answer": "No shipping competitor can refuse to publish on faithfulness/YMYL grounds; the field is empty on governance (Phase 2 research across ~12 products).",
+          "interpretation": "Wedge is governance (the gate), not generation speed. Frame the PRD around refusal-as-feature.",
+          "bible_ref": "ch. 15",
+          "load_bearing": true
+        },
+        {
+          "id": "Q1.2",
+          "question": "Moat: what can a competitor not replicate in 6 months?",
+          "answer": "The opinionated fail-closed lifecycle FSM + vertical senior-living E-E-A-T depth + per-client voice corpus.",
+          "interpretation": "Defensible vs a horizontal toolkit; AirOps ($40M) is the displacement risk and could add a gate, so vertical depth is the durable moat.",
+          "bible_ref": "ch. 14",
+          "load_bearing": true
+        },
+        {
+          "id": "Q1.3",
+          "question": "Customer validation? (Trigger-3 commercial gate)",
+          "answer": "Whispering Willows is a real client engagement.",
+          "interpretation": "Strong validation; the demo reflects real client work. No abort.",
+          "bible_ref": "ch. 14",
+          "load_bearing": true
+        }
+      ]
+    },
+    "user_and_product": {
+      "questions": [
+        {
+          "id": "Q2.1",
+          "question": "Who are the personas?",
+          "answer": "Operator (agency editor), client (reviews/signs off), credentialed reviewer (holds YMYL release authority).",
+          "interpretation": "Three distinct surfaces: operator console, client review preview, reviewer release gate.",
+          "bible_ref": "ch. 05",
+          "load_bearing": true
+        },
+        {
+          "id": "Q2.2",
+          "question": "Capabilities (5-10)?",
+          "answer": "Autonomous brief->draft->gate->render loop; per-client voice; hub (pillar+cluster) + resource-library homepage generation; conversational fine-tune; on-screen client feedback; share-of-model instrumentation.",
+          "interpretation": "Fully specified in docs 02/03.",
+          "bible_ref": "ch. 02",
+          "load_bearing": true
+        }
+      ]
+    },
+    "technical_ai": {
+      "questions": [
+        {
+          "id": "Q3.1",
+          "question": "Agent runtime?",
+          "answer": "Claude Agent SDK self-hosted worker on Vercel Sandbox (D5/D9); apps/seo on Vercel = thin UI + orchestration.",
+          "interpretation": "Split topology; worker runs the autonomous loop, Vercel relays SSE.",
+          "bible_ref": "ch. 06",
+          "load_bearing": true
+        },
+        {
+          "id": "Q3.2",
+          "question": "Judge/gate placement?",
+          "answer": "Host-enforced non-compensatory gate + 22 scorers + cross-model faithfulness, ported from origin/preview; agent gets read-only scoring tools, cannot reason past a veto or canPublish().",
+          "interpretation": "The moat lives outside the loop; the agent can never self-grade past the gate.",
+          "bible_ref": "ch. 15",
+          "load_bearing": true
+        },
+        {
+          "id": "Q3.3",
+          "question": "Multi-tenancy model?",
+          "answer": "Supabase, workspace_id + client_id, fail-closed RLS (anon SELECT only status=published).",
+          "interpretation": "Tenancy is a hard fail-closed boundary; voice bleed is the cardinal failure.",
+          "bible_ref": "ch. 14",
+          "load_bearing": true
+        }
+      ]
+    },
+    "operational": {
+      "questions": [
+        {
+          "id": "Q4.1",
+          "question": "Publish lifecycle / kill switch?",
+          "answer": "Fail-closed publish (verdict=PUBLISH AND recorded human release AND eval-ran; YMYL adds named author+credentials+citations). Disabling release halts public output without stopping drafting.",
+          "interpretation": "Publish transition is the chokepoint and the kill switch.",
+          "bible_ref": "ch. 09",
+          "load_bearing": true
+        },
+        {
+          "id": "Q4.2",
+          "question": "State persistence given ephemeral Sandbox?",
+          "answer": "All per-run session/agent/working-dir state persists to Supabase (system of record), never the Sandbox filesystem.",
+          "interpretation": "Sandbox is compute-only; Supabase is durable truth.",
+          "bible_ref": "ch. 09",
+          "load_bearing": true
+        }
+      ]
+    },
+    "risk_and_safety": {
+      "questions": [
+        {
+          "id": "Q5.1",
+          "question": "Top risk?",
+          "answer": "Cross-tenant leakage / voice bleed (the #1 agency-ending risk) + ungoverned YMYL content.",
+          "interpretation": "Fail-closed tenancy + no default-voice fallthrough + provable E-E-A-T preconditions.",
+          "bible_ref": "ch. 10",
+          "load_bearing": true
+        },
+        {
+          "id": "Q5.2",
+          "question": "Ingestion surface?",
+          "answer": "Web-fetch brief route (SSRF / prompt-injection from fetched pages) — covered despite private-by-default.",
+          "interpretation": "SSRF-guarded fetch contract; treat fetched content as untrusted.",
+          "bible_ref": "ch. 03",
+          "load_bearing": true
+        },
+        {
+          "id": "Q5.3",
+          "question": "D2xD3 grounding tension?",
+          "answer": "Hard gate + thin DDG grounding => high self-veto on YMYL drafts; instrument gate-block-by-sourcing rate as the D3 reversal trigger.",
+          "interpretation": "Market-validated by the content-farm deindexing tales; measured + reversible.",
+          "bible_ref": "ch. 17",
+          "load_bearing": true
+        }
+      ]
+    },
+    "constraints": {
+      "questions": [
+        {
+          "id": "Q6.1",
+          "question": "Build constraints?",
+          "answer": "Existing Sagemark monorepo; ported engine collapses cost to ~4 producer prompts + worker topology + transport; Phase-1 scope inflated by D1+D2+D5+D7; solo founder + agents.",
+          "interpretation": "Sequence the thinnest end-to-end slice first before widening surface area.",
+          "bible_ref": "ch. 07",
+          "load_bearing": true
+        },
+        {
+          "id": "Q6.2",
+          "question": "Pricing/packaging + wallet?",
+          "answer": "Per-seat / per-piece SaaS + separate AI-Gateway SEO ledger.",
+          "interpretation": "Productized SaaS; separate ledger measures cost-per-asset (incl. reviewer time) = the margin input.",
+          "bible_ref": "ch. 16",
+          "load_bearing": true
+        },
+        {
+          "id": "Q6.3",
+          "question": "North-star KPI?",
+          "answer": "AI-answer-engine citation / share-of-model.",
+          "interpretation": "Instrument hubs for answer-engine citation; pair with a client-outcome metric later.",
+          "bible_ref": "ch. 17",
+          "load_bearing": true
+        }
+      ]
+    },
+    "mid_domain_syntheses": [
+      {
+        "after_domain": 2,
+        "playback": "The wedge is governance, not speed; the moat is the fail-closed FSM + vertical depth.",
+        "human_confirmation": "confirmed (research + founder framing)"
+      },
+      {
+        "after_domain": 5,
+        "playback": "The binding constraint at go-live is the credentialed reviewer (D6), not tokens or infra.",
+        "human_confirmation": "confirmed; logged as the top open-question"
+      }
+    ],
+    "open_questions": [
+      {
+        "question": "Name the credentialed YMYL reviewer + a backup, and set the pages/week capacity ceiling.",
+        "domain": "risk_and_safety",
+        "target_resolution": "specialist-review",
+        "owner": "James",
+        "date_by": "2026-08-15"
+      },
+      {
+        "question": "Calibrate per-asset cost and finalize per-piece/seat pricing from the live SEO ledger after the first cluster.",
+        "domain": "constraints",
+        "target_resolution": "tech-spike",
+        "owner": "James"
+      },
+      {
+        "question": "Decide the D3 reversal: if gate-block-by-sourcing is the top blocker after the first cluster, fund a SERP/retrieval API.",
+        "domain": "technical_ai",
+        "target_resolution": "tech-spike",
+        "owner": "James"
+      }
+    ],
+    "synthesis_emphasis": [
+      "Governance (the non-compensatory gate) is the differentiator — the PRD's governing thought.",
+      "Vertical senior-living E-E-A-T depth is the durable moat against horizontal incumbents (AirOps).",
+      "Share-of-model is the north-star KPI; instrument AI-answer-engine citation.",
+      "The credentialed reviewer (D6) is the binding go-live constraint — staffing is the top open-question."
+    ]
+  },
+  "stakeholders": [
+    {
+      "name_or_role": "James Stone (founder/operator)",
+      "type": "builds",
+      "authority_level": "full",
+      "can_veto": true,
+      "signoff_required": "no",
+      "signoff_captured": false,
+      "contact": "james@sidekind.com"
+    },
+    {
+      "name_or_role": "Whispering Willows (pilot client)",
+      "type": "pays",
+      "authority_level": "input-only",
+      "can_veto": false,
+      "signoff_required": "no",
+      "signoff_captured": false,
+      "contact": "real client engagement (validates the build)"
+    },
+    {
+      "name_or_role": "Credentialed YMYL reviewer (UNSTAFFED)",
+      "type": "owns-risk",
+      "authority_level": "partial",
+      "can_veto": true,
+      "signoff_required": "no",
+      "signoff_captured": false,
+      "specialist_qualification": "health-content credential; holds release authority on YMYL content at publish time (product-level gate, not plan-level signoff)",
+      "contact": "OPEN QUESTION — not yet named (top go-live blocker)"
+    },
+    {
+      "name_or_role": "Agency editor / operator",
+      "type": "uses",
+      "authority_level": "input-only",
+      "can_veto": false,
+      "signoff_required": "no",
+      "signoff_captured": false
+    },
+    {
+      "name_or_role": "End families / prospective residents",
+      "type": "consumes",
+      "authority_level": "none",
+      "can_veto": false,
+      "signoff_required": "no",
+      "signoff_captured": false
+    }
+  ],
+  "bootstrap_state": {
+    "status": "complete",
+    "current_phase": 7,
+    "phase_progress": {
+      "phase_1_completed_at": "2026-06-25T12:05:00-04:00",
+      "phase_2_completed_at": "2026-06-25T12:25:00-04:00",
+      "phase_3_completed_at": "2026-06-25T12:45:00-04:00",
+      "phase_4_completed_at": "2026-06-25T13:30:00-04:00",
+      "phase_5_completed_at": "2026-06-25T16:30:00-04:00",
+      "phase_6_completed_at": "2026-06-25T16:55:00-04:00",
+      "phase_7_completed_at": "2026-06-25T17:00:00-04:00"
+    },
+    "next_action": "Hand to build-flywheel-blueprint (/seo-creator-build) or engineering team"
+  },
+  "assumptions": [
+    {
+      "claim": "No shipping competitor can refuse to publish on faithfulness/YMYL grounds; the field is empty on governance (the wedge).",
+      "evidence_strength": "strong",
+      "evidence_type": "competitor-precedent",
+      "owner": "James",
+      "source": "Phase 2 research across ~12 products (Jasper, Surfer SEO, Frase, Byword, Writesonic, Search Atlas, AirOps, Profound, Goodie, AthenaHQ); every tool nudges via a compensatory score or voice-consistency, none refuses to publish.",
+      "validation_path": "Re-run competitive scan by 2026-09-23 (commercial +90d trigger); monitor AirOps and AthenaHQ for refuse-to-publish gate-language drift.",
+      "expiry_date": "2026-09-23",
+      "body_section_references": [
+        "14",
+        "15a"
+      ]
+    },
+    {
+      "claim": "Whispering Willows is a real paying client engagement and the demo reflects real client work (commercial validation).",
+      "evidence_strength": "strong",
+      "evidence_type": "shipped-feature",
+      "owner": "James",
+      "source": "Signed client engagement (manifest stakeholders); live reference hub at whispering-willows-content-demo.vercel.app.",
+      "validation_path": "First paid pilot live + client sign-off on a generated cluster (success-section 60-day indicator).",
+      "body_section_references": [
+        "15a",
+        "16"
+      ],
+      "expiry_date": "n/a (validated)"
+    },
+    {
+      "claim": "Vertical senior-living E-E-A-T depth plus the opinionated fail-closed FSM is the durable moat that a horizontal incumbent (AirOps) will not prioritize within 6 months.",
+      "evidence_strength": "medium",
+      "evidence_type": "analyst-intuition",
+      "owner": "James",
+      "source": "Discovery Q1.2; AirOps ships an un-opinionated build-your-own toolkit, not a vertical gate (research-brief).",
+      "validation_path": "Track competitor roadmaps quarterly; measure vertical-depth lead (memory-care-specific gate rules + named clinician bylines) shipped vs. incumbent feature releases.",
+      "body_section_references": [
+        "14",
+        "15a",
+        "17"
+      ],
+      "expiry_date": "n/a (validated)"
+    },
+    {
+      "claim": "Share-of-model (AI-answer-engine citation, not rank) is the right north-star KPI.",
+      "evidence_strength": "medium",
+      "evidence_type": "competitor-precedent",
+      "owner": "James",
+      "source": "GEO trackers (Profound $35M Sequoia, Goodie, AthenaHQ) productize share-of-model; A Place for Mom Nov-2025 AIO pivot in the exact vertical; research-brief industry context.",
+      "validation_path": "Instrument hub citation frequency across at least 3 answer engines; confirm it moves with a client-outcome metric over the first 90 days.",
+      "body_section_references": [
+        "15a",
+        "16",
+        "17"
+      ],
+      "expiry_date": "n/a (validated)"
+    },
+    {
+      "claim": "Per-piece / per-seat SaaS pricing clears margin at the measured per-asset cost.",
+      "evidence_strength": "ASSUMED",
+      "evidence_type": "none",
+      "owner": "James",
+      "source": "Discovery Q6.2 default; the <=$2 editorial cost is a PRD target, not a measured number.",
+      "validation_path": "Measure cost-per-asset (incl. reviewer time) from the live AI-Gateway SEO ledger after the first Whispering Willows cluster; lock pricing only then (OQ-2).",
+      "body_section_references": [
+        "15",
+        "15a",
+        "16"
+      ],
+      "expiry_date": "2026-09-23"
+    },
+    {
+      "claim": "One credentialed reviewer clears enough pages/week to make YMYL publish-rate viable.",
+      "evidence_strength": "ASSUMED",
+      "evidence_type": "none",
+      "owner": "James",
+      "source": "D6 unstaffed; no engineering default; the reviewer is the binding throughput constraint under the D2 hard gate.",
+      "validation_path": "Staff the named reviewer + backup (OQ-1), then measure actual pages/week cleared and approval-debt (open-thread count + cycle time) per client in Phase 3/4; set the capacity ceiling from observed throughput.",
+      "expiry_date": "2026-08-15",
+      "body_section_references": [
+        "14",
+        "15",
+        "15a",
+        "16"
+      ]
+    },
+    {
+      "claim": "DuckDuckGo scraping (3 pages x 2,000 chars) grounds memory-care YMYL claims sufficiently to clear the hard faithfulness gate at acceptable throughput.",
+      "evidence_strength": "weak",
+      "evidence_type": "analyst-intuition",
+      "owner": "James",
+      "source": "D3 [OVERRIDE]; flagged D2xD3 tension in DECISIONS.md; content-farm deindexing cautionary tales show thin grounding is exactly what fails.",
+      "validation_path": "Instrument gate-block-by-sourcing rate (UNSOURCED_STAT + low-faithfulness from thin sources) in Phase 1; if sourcing is the top blocker after the first cluster, flip D3 to a funded SERP/retrieval API behind the same brief.sources contract (OQ-3).",
+      "body_section_references": [
+        "14",
+        "15",
+        "15a",
+        "17"
+      ],
+      "expiry_date": "2026-09-23"
+    },
+    {
+      "claim": "The ported deterministic engine (seo-gate, lifecycle-fsm, 22 scorers, voice/faithfulness gates) behaves identically to the flywheel-main origin/preview source.",
+      "evidence_strength": "medium",
+      "evidence_type": "internal-data",
+      "owner": "James",
+      "source": "Engine confirmed present at origin/preview (PRs #1668-1684); ported verbatim with production bug-fix scars preserved (faithfulness 12s timeout + 25-claim cap; voice 3s timeout; drafter !== verifier invariant).",
+      "validation_path": "Golden-set regression: capture the Whispering Willows hub as a human-labeled corpus (Phase 0); assert the ported gate reproduces expected Stage-A clean/veto + Stage-B verdict bands before any prompt is written, and on every kernel change.",
+      "body_section_references": [
+        "14",
+        "15a",
+        "17"
+      ],
+      "expiry_date": "n/a (validated)"
+    }
+  ],
+  "plan_v0_at": "2026-06-25T13:30:00-04:00",
+  "review_log": [
+    {
+      "round": 1,
+      "reviewer_type": "subagent",
+      "review_mechanism": "agent_tool",
+      "reviewer_detail": "Claude general-purpose adversarial reviewer (commercial)",
+      "gaps_count": 12,
+      "applied_count": 14,
+      "deferred_count": 0,
+      "rejected_count": 0,
+      "redacted": false,
+      "verdict": "Conditionally ready — strong plan; 5 must-fix gaps clustered on the split worker topology",
+      "ready_to_ship": false,
+      "trust_score": 0.72,
+      "trust_anchor": "0.70",
+      "completed_at": "2026-06-25T12:55:00-04:00",
+      "started_at": "2026-06-25T12:55:00-04:00"
+    },
+    {
+      "round": 2,
+      "reviewer_type": "external_model",
+      "review_mechanism": "cli",
+      "reviewer_detail": "Codex gpt-5.5 (xhigh) — cross-model adversarial reviewer, codex exec (round 1/4)",
+      "gaps_count": 8,
+      "applied_count": 8,
+      "deferred_count": 0,
+      "rejected_count": 0,
+      "redacted": true,
+      "verdict": "Strong governance-first plan; not production-ready as written — highest risk in operationalizing the Agent-SDK/Sandbox runtime control + durable web grounding",
+      "ready_to_ship": false,
+      "trust_score": 0.7,
+      "trust_anchor": "0.70",
+      "completed_at": "2026-06-25T13:05:00-04:00",
+      "started_at": "2026-06-25T13:05:00-04:00"
+    },
+    {
+      "round": 3,
+      "reviewer_type": "external_model",
+      "review_mechanism": "cli",
+      "reviewer_detail": "Codex gpt-5.5 (xhigh) — cross-model adversarial reviewer, codex exec (round 2/4)",
+      "gaps_count": 6,
+      "applied_count": 8,
+      "deferred_count": 0,
+      "rejected_count": 0,
+      "redacted": true,
+      "verdict": "Materially stronger than round 1; not yet production-ready — newly exposed contradictions (circular YMYL gate, BYOK ledger bypass, PRD/RFC name drift) block publish/accounting/ownership",
+      "ready_to_ship": false,
+      "trust_score": 0.74,
+      "trust_anchor": "0.70",
+      "completed_at": "2026-06-25T13:20:00-04:00",
+      "started_at": "2026-06-25T13:20:00-04:00"
+    },
+    {
+      "round": 4,
+      "reviewer_type": "external_model",
+      "review_mechanism": "cli",
+      "reviewer_detail": "Codex gpt-5.5 (xhigh) — cross-model adversarial reviewer, codex exec (round 3/4)",
+      "gaps_count": 4,
+      "applied_count": 4,
+      "deferred_count": 0,
+      "rejected_count": 0,
+      "redacted": true,
+      "verdict": "Converging — the gate/release split is coherent and the external-dependency ledger is complete; remaining blocker is that the release/signoff records are not yet in the data model",
+      "ready_to_ship": false,
+      "trust_score": 0.84,
+      "trust_anchor": "0.85",
+      "completed_at": "2026-06-25T13:50:00-04:00",
+      "started_at": "2026-06-25T13:50:00-04:00"
+    },
+    {
+      "round": 5,
+      "reviewer_type": "external_model",
+      "review_mechanism": "cli",
+      "reviewer_detail": "Codex gpt-5.5 (xhigh) — cross-model adversarial reviewer, codex exec (round 4/4, final)",
+      "gaps_count": 2,
+      "applied_count": 2,
+      "deferred_count": 0,
+      "rejected_count": 0,
+      "redacted": true,
+      "verdict": "Near-ready; the credentialed_release/client_signoff split landed durably. Two medium inconsistencies remained (thinnest-slice def, missing byline_authorizations table)",
+      "ready_to_ship": false,
+      "trust_score": 0.85,
+      "trust_anchor": "0.85",
+      "completed_at": "2026-06-25T15:55:00-04:00",
+      "started_at": "2026-06-25T15:55:00-04:00"
+    },
+    {
+      "round": 6,
+      "reviewer_type": "subagent",
+      "review_mechanism": "agent_tool",
+      "reviewer_detail": "Claude general-purpose convergence reviewer (post skill-correction)",
+      "gaps_count": 0,
+      "applied_count": 0,
+      "deferred_count": 1,
+      "rejected_count": 0,
+      "redacted": false,
+      "verdict": "CONVERGED — internally consistent and ready to build; four-skill chain + kernel-route host-enforcement + release-split all coherent; 1 cosmetic documented rename (review_comments->comment_threads) accepted",
+      "ready_to_ship": true,
+      "trust_score": 0.93,
+      "trust_anchor": "0.95",
+      "completed_at": "2026-06-25T16:30:00-04:00",
+      "started_at": "2026-06-25T16:30:00-04:00"
+    }
+  ],
+  "retro": {
+    "completed_at": "2026-06-25T17:00:00-04:00",
+    "time_spent_minutes": 10,
+    "phase_friction": {
+      "phase_1": "low",
+      "phase_2": "low",
+      "phase_3": "low",
+      "phase_4": "medium",
+      "phase_5": "high",
+      "phase_6": "low",
+      "phase_7": "low"
+    },
+    "trust_signal": {
+      "score_0_to_1": 0.85,
+      "trust_anchor_matched": "0.85",
+      "gate_threshold_for_mode": 0.7,
+      "gate_passed": true,
+      "would_run_build_next_session": true,
+      "acknowledged_low_score_override": false,
+      "override_reason": null,
+      "qualitative_why": "Research-grounded wedge, a 6-round cross-model gauntlet that converged at 0.93, git-verified reuse claims, and a clean lint. Held from 0.95 only by two honestly-ledgered unknowns (Sandbox capability-denial enforceability, DDG-grounding sufficiency under the hard YMYL gate), each with a de-risking spike/reversal-trigger."
+    },
+    "discovery_quality": "Condensed (plan pre-existed); interviewed only the load-bearing gaps (validation/pricing/D6/KPI). Sharp.",
+    "plan_quality": "Strongest on gate/governance/tenancy + the corrected four-skill kernel-route architecture; thin spots caught and fixed by the gauntlet.",
+    "research_brief_utility": "High — confirmed the wedge, surfaced AirOps as the displacement risk, and the cautionary tales that ground the YMYL thesis.",
+    "review_cycle_effectiveness": "High — Claude and Codex caught complementary gap classes; trust 0.72->0.93 over 6 rounds (4 Codex, floor met).",
+    "journeys_lint_signal": "12 journeys across all categories; lint caught a real NextSchool leak + schema completeness gaps.",
+    "improvement_suggestions": [
+      {
+        "target": "this-flywheel",
+        "category": "lint",
+        "note": "a prior-build product name inherited-bug reference leaked into PRD (3x) — generalized.",
+        "action": "applied",
+        "applied_at": "2026-06-25T16:50:00-04:00"
+      },
+      {
+        "target": "this-flywheel",
+        "category": "plan",
+        "note": "review_log missing completed_at; top-level handoff object not in schema — fixed.",
+        "action": "applied",
+        "applied_at": "2026-06-25T16:45:00-04:00"
+      },
+      {
+        "target": "blueprint",
+        "category": "lint",
+        "note": "lint #8-10 read PRs from a manifest.pr_map the schema does not define; should parse RFC ### PR NNN markdown.",
+        "action": "filed",
+        "applied_at": null
+      },
+      {
+        "target": "blueprint",
+        "category": "lint",
+        "note": "HANDOFF template instructs writing a handoff manifest object the schema forbids (additionalProperties:false).",
+        "action": "filed",
+        "applied_at": null
+      },
+      {
+        "target": "blueprint",
+        "category": "journeys",
+        "note": "journey-measurability (#12) does not detect table-format metric thresholds; false-negative on well-formed journeys.",
+        "action": "filed",
+        "applied_at": null
+      }
+    ],
+    "redacted": false
+  },
+  "lint": {
+    "last_run_at": "2026-06-25T17:00:00-04:00",
+    "checks_run": 19,
+    "errors": 0,
+    "warnings": 3,
+    "violations": [
+      {
+        "check": "decision-density",
+        "severity": "warning",
+        "location": "PRD title/§0/§10",
+        "message": "H1 title (parse artifact), TL;DR (governing-thought prose), and Data model (decision TABLE) lack inline decision markers.",
+        "accepted_with_reason": "TL;DR is the Pyramid governing-thought summary; §10 is a decision table; the H1 title is a parser artifact. All carry decisions in adjacent/table form."
+      },
+      {
+        "check": "mode-appropriate-density",
+        "severity": "warning",
+        "location": "prd.md",
+        "message": "PRD 868 lines vs commercial 1500-3500 expected.",
+        "accepted_with_reason": "Dense markdown (127KB) with long prose lines; all 17 sections + 15a ledger + stakeholder map present; gauntlet-hardened to trust 0.93. The line-count heuristic undercounts dense tables/prose."
+      },
+      {
+        "check": "journey-measurability",
+        "severity": "warning",
+        "location": "journeys.md",
+        "message": "Parser reports 0 metrics per journey.",
+        "accepted_with_reason": "All 12 journeys carry >=5 measurable threshold rows as Markdown tables (verified); the lint metric-detector does not parse table-row thresholds. Filed as a blueprint improvement."
+      }
+    ]
+  }
+}
