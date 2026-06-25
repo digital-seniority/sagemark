@@ -40,4 +40,17 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Setup landed:** PR #1 (auto-loop compaction hooks + installer fix).
 - **Checkpoint:** `checkpoints/run-001-2026-06-25.md`
 
-*Loop continues to Run #002 — next batch: P0.E.2 (port scorers) + P0.S.1 (tenancy schema).*
+## Run #002 — 2026-06-25
+
+- **Duration:** ~00:20 · **Mode:** auto (iteration 2/8)
+- **PRs merged:** 2 (`P0.E.2` — port 10 scorers + faithfulness/voice gates into @sagemark/core, PR #5 a74a1c7; `P0.S.1` — @sagemark/schema-flywheel tenancy schema + release split + fail-closed RLS, PR #6 895507e)
+- **PRs open / human-gated:** (carried) `P0.W.1` PR #3
+- **PRs blocked / preview-failed:** 0
+- **Process score:** 5.0/5 · **Product score:** 4.5/5
+- **Top issue:** P0.S.1 PR rebased through a pnpm-lock.yaml conflict (both run-#2 PRs touched the lockfile); compose.ts (P0.E.2) pre-empts PR 003's composer.
+- **Top improvement:** commit a drizzle meta/ baseline + non-skippable rls-contract CI gate (DR-006).
+- **Decisions:** DR-005 (compose.ts provisional, PR 003 absorbs), DR-006 (schema drift + Supabase CI).
+- **Phase 0 progress:** 3/11 merged (was 1/11).
+- **Checkpoint:** `checkpoints/run-002-2026-06-25.md`
+
+*Loop continues to Run #003 — next: P0.E.3 (port seo-gate + lifecycle-fsm + failure-codes).*
