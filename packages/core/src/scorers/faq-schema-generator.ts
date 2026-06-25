@@ -78,7 +78,9 @@ function firstSentenceFrom(text: string): string {
   const t = cleanText(text);
   // Split on sentence-ending punctuation
   const match = t.match(/^(.+?[.!?])(?:\s|$)/);
-  return match ? match[1].trim() : t.slice(0, MAX_ANSWER_CHARS);
+  // Capture group 1 is always present when `match` is truthy (the pattern has a
+  // single mandatory group). Compile-time assertion only — no runtime change.
+  return match ? match[1]!.trim() : t.slice(0, MAX_ANSWER_CHARS);
 }
 
 // ── Candidate extraction ──────────────────────────────────────────────────────
@@ -97,7 +99,9 @@ function extractCandidates(draft: string): Candidate[] {
   let offset = 0;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by construction: `i < lines.length` guarantees `lines[i]` exists.
+    // Compile-time assertion only — no runtime change.
+    const line = lines[i]!;
     const lineStart = offset;
     offset += line.length + 1; // +1 for the \n
 
@@ -106,7 +110,9 @@ function extractCandidates(draft: string): Candidate[] {
     // ── Priority 1: Explicit "Q:" or "Q." prefix ─────────────────────────────
     const explicitMatch = trimmed.match(/^Q[:.]\s+(.+)$/i);
     if (explicitMatch) {
-      const question = cleanText(explicitMatch[1]);
+      // Group 1 is mandatory in the pattern, so it exists whenever the match
+      // does. Compile-time assertion only — no runtime change.
+      const question = cleanText(explicitMatch[1]!);
       if (question.length >= 10) {
         candidates.push({
           question,
@@ -120,7 +126,9 @@ function extractCandidates(draft: string): Candidate[] {
     // ── Priority 2: Headings ending in "?" ───────────────────────────────────
     const headingMatch = trimmed.match(/^(#{2,3})\s+(.+\?)$/);
     if (headingMatch) {
-      const question = cleanText(headingMatch[2]);
+      // Group 2 is mandatory in the pattern, so it exists whenever the match
+      // does. Compile-time assertion only — no runtime change.
+      const question = cleanText(headingMatch[2]!);
       if (question.length >= 15) {
         candidates.push({
           question,
@@ -134,7 +142,9 @@ function extractCandidates(draft: string): Candidate[] {
     // ── Priority 3: Headings starting with question words ────────────────────
     const headingWordMatch = trimmed.match(/^(#{2,3})\s+(.+)$/);
     if (headingWordMatch) {
-      const headingText = headingWordMatch[2];
+      // Group 2 is mandatory in the pattern, so it exists whenever the match
+      // does. Compile-time assertion only — no runtime change.
+      const headingText = headingWordMatch[2]!;
       const startsWithQuestion = QUESTION_STARTERS.some((starter) =>
         headingText.startsWith(starter),
       );
@@ -158,7 +168,9 @@ function extractCandidates(draft: string): Candidate[] {
     const sentencePattern = /[^.!?]*\?/g;
     let sentMatch: RegExpExecArray | null;
     while ((sentMatch = sentencePattern.exec(line)) !== null) {
-      const sentence = cleanText(sentMatch[0]);
+      // Index 0 (the full match) is always present on a non-null exec result.
+      // Compile-time assertion only — no runtime change.
+      const sentence = cleanText(sentMatch[0]!);
       if (sentence.length >= 30 && sentence.length <= 120) {
         const sentEnd = lineStart + sentMatch.index + sentMatch[0].length;
         candidates.push({
@@ -191,7 +203,9 @@ function extractAnswer(
     // Take the very next non-empty line as the answer
     const nextLineMatch = window.match(/^\s*([^\n]+)/);
     if (!nextLineMatch) return null;
-    const answerLine = cleanText(nextLineMatch[1]);
+    // Group 1 is mandatory in the pattern, so it exists whenever the match does.
+    // Compile-time assertion only — no runtime change.
+    const answerLine = cleanText(nextLineMatch[1]!);
     // Strip "A:" / "A." prefix if present
     const strippedAnswer = answerLine.replace(/^A[:.]\s*/i, "");
     return strippedAnswer.length >= 5 ? truncateAnswer(strippedAnswer) : null;
