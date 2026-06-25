@@ -16,9 +16,11 @@ _(none — loop terminated **depleted** after Run #004; P0.W.1 gate since CONFIR
 
 ## Blocked / awaiting input
 
-- **PR P0.W.1 (PR 000 — capability-denial spike)** — `PR_CREATED`, OPEN at PR #3. **Live Vercel Sandbox adversarial run COMPLETE (2026-06-25) — gate result: VERCEL SANDBOX CONFIRMED (hardened profile), 4/4 controls PASS.** A fresh team-scoped `VERCEL_TOKEN` cleared the prior `403 invalidToken` blocker; the two initial FAILs (egress MMDS, fs unconstrained shell) were **remediated in-tree and re-verified PASS** (commits `3771081`, `df1205f`). Decisions recorded: **DR-010** (egress = networkPolicy + in-VM MMDS `iptables` block) and **DR-011** (no-shell worker + workdir-scoped file tool). See PR #3 `RESULTS.md`.
-  - **Remaining human action: ratify + MERGE PR #3.** Still human-gated per DR-002 (a human ratifies the confirmation + the hardened-profile architecture). On merge, the worker-runtime lane unblocks.
-  - **Worker-lane consequence:** once P0.W.1 merges, **P0.W.2 (worker host) is reachable** and must implement the hardened profile (DR-010 + DR-011). P0.W.3/W.4/W.5/P0.S.2/P1.W.1 follow. Independent lanes (engine-port, schema-tenancy) were already complete for Phase 0's reachable set.
+_(none currently blocking — the P0.W.1 architecture gate is resolved.)_
+
+- **PR P0.W.1 (PR 000 — capability-denial spike)** — **MERGED** at PR #3 (squash `54731a1`, 2026-06-25). Live Vercel Sandbox adversarial run CONFIRMED 4/4 PASS under the hardened profile; the two initial FAILs (egress MMDS, fs unconstrained shell) were remediated in-tree and re-verified. Decisions: **DR-010** (egress = networkPolicy + in-VM MMDS `iptables` block), **DR-011** (no-shell worker + workdir-scoped file tool).
+  - **Worker-lane consequence:** **P0.W.2 (worker host) is now reachable** and must implement the hardened profile (DR-010 + DR-011); the spike's `_harness.ts` carries the reference `hardenSandbox` / `readViaWorkdirTool` / boot-refusal contract. P0.W.3/W.4/W.5/P0.S.2/P1.W.1 follow.
+  - **Audit gate:** STATE flags an audit is due (4 runs since last; threshold 5) — the orchestrator runs it before the next work-doing run (P0.W.2).
 
 ## Recent learnings (last 5)
 
@@ -40,7 +42,7 @@ _(none — loop terminated **depleted** after Run #004; P0.W.1 gate since CONFIR
 
 | ID | Title | Lane | Status | Run merged | Commit | PR |
 |---|---|---|---|---|---|---|
-| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | PR_CREATED (live run COMPLETE — **CONFIRMED 4/4 PASS**; awaiting human merge) | — | df1205f | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
+| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | **MERGED** (live run CONFIRMED 4/4 PASS, hardened profile) | post-#004 | 54731a1 | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
 | P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | MERGED | 1 | ec13f1c | [#2](https://github.com/digital-seniority/sagemark/pull/2) |
 | P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | MERGED | 2 | a74a1c7 | [#5](https://github.com/digital-seniority/sagemark/pull/5) |
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
