@@ -78,3 +78,15 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Checkpoint:** `checkpoints/run-004-2026-06-25.md`
 
 *LOOP TERMINATED — terminal_reason: depleted. All remaining PRs need the worker-runtime lane, gated on P0.W.1's live Vercel Sandbox run (human action). Audit due before resuming (4 runs since last).*
+
+## Run #005 — 2026-06-25  (AUDIT — no engineering)
+
+- **Duration:** ~00:15 · Mode: `audit full` (first run after the P0.W.1 merge; audit was due)
+- **PRs merged:** 0 (audit run — no engineering work by design)
+- **Output:** `audits/audit-001-2026-06-25.md` — 5 parallel auditors (architecture/convention/spec/tests/state).
+- **Findings:** 1 Critical (`A.005.1` — `content_clients` has no RLS → anon tenancy-map leak), 4 High (`A.005.2` Approach-B spec contradicts D5/D9 + shipped code → misdirects P0.W.2; `A.005.3` faithfulness/voice gates bypass the metered Gateway via direct OpenRouter; `A.005.4` no CI runs any test + RLS suite invoked by nothing; `A.005.5` Tier-2 RLS assertions skip without Postgres), plus Mediums (core barrel re-exports server-only; passive-voice regex drift vs source; dual route namespace; console.* logging) and Lows.
+- **Headline:** the deterministic moat (kernel, gates, FSM, tenancy split, host-side enforcement) is spec-faithful and well-tested (zero hollow tests). Risks are at the edges: anon-RLS, the governance spec contradiction, un-metered model spend, and absent CI.
+- **Process fixes:** (1) **reconciled `flywheel-events.jsonl`** (applied) — appended the missing P0.W.1 gate-resolution events (merge + DR-010/011 + GATE_RESOLVED) the out-of-loop manual session never emitted; (2) **drafted** the `source-consumed-integration-build` structured check for `judge-prompt.md` (the DR-008 lesson C.004.1 corrected but was never propagated to the judge) — **reverted pending user approval** (auto-mode guardrail correctly blocks the agent self-editing its own judging skill). Apply before P0.W.2's judge.
+- **Audit counter:** reset to 0.
+- **Next:** P0.W.2 (worker host) is the next work-doing PR — **resolve A.005.2 (spec reconcile) first** so the agent reads the correct worker topology. Audit-finding PRs A.005.x are human-merge.
+- **Checkpoint:** `audits/audit-001-2026-06-25.md` (the audit report IS the run-005 checkpoint).
