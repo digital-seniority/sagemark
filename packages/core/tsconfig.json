@@ -1,5 +1,16 @@
 {
   "extends": "@sagemark/config/tsconfig.base.json",
+  "compilerOptions": {
+    // The PR 002 scorers + gates are ported VERBATIM from flywheel-main
+    // (origin/preview), whose tsconfig does NOT enable noUncheckedIndexedAccess.
+    // The ports use unguarded array/regex-group index access (e.g.
+    // `match[1].trim()`, `lines[i].trim()`) that is safe in context but trips
+    // the base config's noUncheckedIndexedAccess. Relax it for this
+    // source-consumed package (DR-004) so the ports — and their tests — compile
+    // unmodified. Code authored in-tree (PR 001's ai/*) is unaffected: turning
+    // the flag off never breaks code that was correct with it on.
+    "noUncheckedIndexedAccess": false
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }
