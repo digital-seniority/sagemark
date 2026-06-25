@@ -8,11 +8,19 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
+    "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "echo \"no lint config\""
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.0",
+    "@ai-sdk/gateway": "^4.0.0",
+    "@ai-sdk/provider": "^4.0.0"
   },
   "devDependencies": {
     "@sagemark/config": "workspace:*",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.0"
   }
 }

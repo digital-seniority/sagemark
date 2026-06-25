@@ -17,12 +17,18 @@
         "IMAGEGEN_SERVICE_URL",
         "VIDEOGEN_SERVICE_URL",
         "PPC_SERVICE_URL",
-        "INTELLIGENCE_SERVICE_URL"
+        "INTELLIGENCE_SERVICE_URL",
+        "ANTHROPIC_API_KEY",
+        "AI_GATEWAY_API_KEY",
+        "AI_GATEWAY_BASE_URL"
       ]
     },
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"]
     },
     "lint": {
       "dependsOn": ["^build"]
