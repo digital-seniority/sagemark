@@ -204,12 +204,109 @@ function policyReflectsAllowlist(applied: NetworkPolicy | undefined, profile: Ru
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Egress hardening — close the hypervisor-local MMDS residual
+// ---------------------------------------------------------------------------
+
+/** The link-local range the Firecracker MMDS (`169.254.169.254`) lives in. The
+ *  SDK `networkPolicy.subnets.deny` is an EGRESS control and cannot refuse the
+ *  MMDS because it is answered locally by the hypervisor (never leaves the VM).
+ *  We close it in-VM with an iptables DROP at launch — proven on the live run to
+ *  turn the MMDS reach from `401` into a timeout. RFC-1918 ranges are NOT blocked
+ *  here (the `networkPolicy` already refuses them, and an in-VM /8 DROP risks the
+ *  DNS resolver / gateway if either sits in a private range). */
+export const LINK_LOCAL_CIDR = '169.254.0.0/16';
+
+/**
+ * Apply the in-VM egress hardening the real `sandbox-launch` (PR 006) must run at
+ * boot, BEFORE the worker loop starts: drop all traffic to the link-local MMDS
+ * range, then PROVE the MMDS is now unreachable. Throws `[CONTROL-UNVERIFIABLE]`
+ * if the block did not take, so the egress probe can never PASS on an
+ * un-hardened VM. Returns the evidence the boot-refusal launcher records.
+ */
+export async function hardenSandbox(sandbox: SandboxInstance): Promise<{ mmdsBlocked: boolean }> {
+  // sudo: true so the rule applies regardless of the run user's caps.
+  await sandbox.runCommand({
+    cmd: 'iptables',
+    args: ['-A', 'OUTPUT', '-d', LINK_LOCAL_CIDR, '-j', 'DROP'],
+    sudo: true,
+  });
+  // Prove it: the MMDS must now refuse (timeout / no-connect), not answer 401.
+  const probe = await sandbox.runCommand({
+    cmd: 'curl',
+    args: ['-sS', '--connect-timeout', '4', '-m', '5', '-o', '/dev/null', '-w', 'HTTPCODE=%{http_code}', 'http://169.254.169.254/latest/meta-data/'],
+  });
+  const code = /HTTPCODE=(\d+)/.exec(await probe.stdout())?.[1] ?? '000';
+  const mmdsBlocked = probe.exitCode !== 0 || code === '000';
+  if (!mmdsBlocked) {
+    await sandbox.stop().catch(() => undefined);
+    throw new Error(
+      `[CONTROL-UNVERIFIABLE] in-VM link-local DROP did not take — MMDS still answered http=${code}. ` +
+        'Refusing to report an egress verdict on an un-hardened VM.',
+    );
+  }
+  return { mmdsBlocked };
+}
+
+// ---------------------------------------------------------------------------
+// No-shell worker contract — the enforced fs control (the control 3 fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve `requested` against `workdir` (handling `..`, `.`, and absolute paths)
+ * and report whether it stays INSIDE the workdir jail. Pure + POSIX-only — the
+ * reference jail check `sandbox-launch`'s file tool uses. Out-of-workdir reads
+ * (host secrets, sibling runs, `../` traversal, absolute paths) resolve outside
+ * and are refused WITHOUT touching the filesystem.
+ */
+export function pathWithinWorkdir(workdir: string, requested: string): boolean {
+  const norm = (p: string): string[] => {
+    const segs: string[] = [];
+    for (const seg of p.split('/')) {
+      if (seg === '' || seg === '.') continue;
+      if (seg === '..') segs.pop();
+      else segs.push(seg);
+    }
+    return segs;
+  };
+  const base = norm(workdir);
+  // Absolute requests are resolved from root; relative ones from the workdir.
+  const target = requested.startsWith('/') ? norm(requested) : norm(`${workdir}/${requested}`);
+  if (target.length < base.length) return false;
+  return base.every((seg, i) => target[i] === seg);
+}
+
+/**
+ * The ONLY filesystem read the no-shell worker exposes to the model: a workdir-
+ * scoped tool. It refuses any path outside the run's ephemeral workdir at the
+ * TOOL layer (so it never reaches a shell), and only then reads inside it. This
+ * is the enforced control that replaces "jail the VM shell" (unachievable on a
+ * stock Sandbox VM): the model is never handed raw `bash`/`cat`, only this.
+ */
+export async function readViaWorkdirTool(
+  sandbox: SandboxInstance,
+  workdir: string,
+  requested: string,
+): Promise<{ allowed: boolean; detail: string }> {
+  if (!pathWithinWorkdir(workdir, requested)) {
+    return { allowed: false, detail: `tool refused: '${requested}' resolves outside workdir jail '${workdir}'` };
+  }
+  const r = await sandbox.runCommand({
+    cmd: 'sh',
+    args: ['-c', `cat ${requested} >/dev/null 2>&1 && echo READ || echo MISSING`],
+  });
+  const ok = (await r.stdout()).trim().includes('READ');
+  return { allowed: ok, detail: `tool read in-jail path: exit=${r.exitCode}` };
+}
+
 /**
  * Stand up a sandbox provisioned with the run profile under test, applying the
  * egress allowlist (via the SDK `networkPolicy` field) + scrubbed env the way
- * `sandbox-launch` would. The `createOverrides` arg lets a probe deliberately
+ * `sandbox-launch` would, then HARDENING it (in-VM MMDS block) the way the real
+ * launcher does at boot. The `createOverrides` arg lets a probe deliberately
  * MISCONFIGURE the launch (e.g. boot-refusal probe drops a required control) to
- * assert the failure path.
+ * assert the failure path; `opts.harden:false` skips the MMDS block for probes
+ * that are not testing egress.
  *
  * READ-BACK VERIFICATION: after create, we read `sandbox.networkPolicy` back off
  * the instance and assert it reflects the intended default-deny allowlist. If
@@ -220,6 +317,7 @@ function policyReflectsAllowlist(applied: NetworkPolicy | undefined, profile: Ru
 export async function createProbeSandbox(
   profile: RunProfile,
   createOverrides: Partial<SandboxCreateParams> = {},
+  opts: { harden?: boolean } = {},
 ): Promise<SandboxInstance> {
   const Sandbox = await loadSandbox();
   const snapshotId = process.env.SPIKE_SANDBOX_SNAPSHOT_ID;
@@ -256,6 +354,13 @@ export async function createProbeSandbox(
 
   const instance = sandbox as SandboxInstance;
   instance.appliedNetworkPolicy = applied as NetworkPolicy;
+
+  // Apply the in-VM egress hardening the real launcher runs at boot (closes the
+  // hypervisor-local MMDS the networkPolicy cannot). Skipped only when a probe
+  // explicitly opts out (e.g. it is not exercising egress).
+  if (opts.harden ?? true) {
+    await hardenSandbox(instance);
+  }
   return instance;
 }
 
@@ -274,6 +379,11 @@ export interface ProbeAssertion {
   observed: string;
   /** PASS = control enforced (hostile action refused). FAIL = control bypassed. */
   verdict: Verdict;
+  /** When true this assertion is a THREAT BASELINE — it demonstrates the
+   *  unmitigated attack surface (e.g. raw-shell reads on a stock VM) to motivate
+   *  the enforced control, and is EXCLUDED from the verdict rollup. The verdict is
+   *  driven only by the assertions that exercise the actual enforced control. */
+  informational?: boolean;
 }
 
 export interface ProbeReport {
@@ -285,10 +395,13 @@ export interface ProbeReport {
   inconclusive?: string;
 }
 
-/** A probe's overall verdict = worst of its assertions (FAIL > ERROR > PASS). */
+/** A probe's overall verdict = worst of its NON-informational assertions
+ *  (FAIL > ERROR > PASS). Threat-baseline (`informational`) assertions are shown
+ *  but never drive the verdict — only the enforced-control assertions do. */
 export function rollup(assertions: ProbeAssertion[]): Verdict {
-  if (assertions.some((a) => a.verdict === 'FAIL')) return 'FAIL';
-  if (assertions.some((a) => a.verdict === 'ERROR')) return 'ERROR';
+  const scored = assertions.filter((a) => !a.informational);
+  if (scored.some((a) => a.verdict === 'FAIL')) return 'FAIL';
+  if (scored.some((a) => a.verdict === 'ERROR')) return 'ERROR';
   return 'PASS';
 }
 
@@ -303,10 +416,17 @@ export function emit(report: ProbeReport): void {
     console.log(`VERDICT: INCONCLUSIVE — ${report.inconclusive}`);
   }
   for (const a of report.assertions) {
-    const mark = a.verdict === 'PASS' ? '✅' : a.verdict === 'FAIL' ? '❌' : '⚠️';
+    const mark = a.informational
+      ? 'ℹ️'
+      : a.verdict === 'PASS'
+        ? '✅'
+        : a.verdict === 'FAIL'
+          ? '❌'
+          : '⚠️';
+    const tag = a.informational ? `${a.verdict} (threat baseline — not scored)` : a.verdict;
     // eslint-disable-next-line no-console
     console.log(
-      `  ${mark} ${a.verdict}\n     attempt:     ${a.attempt}\n` +
+      `  ${mark} ${tag}\n     attempt:     ${a.attempt}\n` +
         `     expectation: ${a.expectation}\n     observed:    ${a.observed}`,
     );
   }

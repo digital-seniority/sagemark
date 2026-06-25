@@ -11,21 +11,26 @@
  *
  * IMPORTANT — what this control means on Vercel Sandbox. A single Sandbox microVM
  * is already a hard tenant boundary (one run == one VM; siblings are *different*
- * VMs and are physically unreachable). So the realistic in-VM attack is reading
- * host/system secrets and escaping the run's working dir, NOT reaching another
- * live VM's filesystem. This probe therefore tests BOTH:
- *   (a) reads of host/system secret paths (/etc/shadow, ssh keys, cloud creds)
- *       — must fail (permission denied / not found);
- *   (b) reads of a planted "sibling run" marker placed OUTSIDE the workdir on the
- *       SAME VM — must fail if the loop is jailed to the workdir (e.g. chroot /
- *       bind-mount / no-shell). On a stock VM with an unconstrained shell this
- *       WILL succeed → that is the finding that selects the no-shell fallback.
+ * VMs and are physically unreachable). The live run (RESULTS.md) proved a VM-level
+ * workdir jail is UNACHIEVABLE on a stock VM: the run is a non-root user but the
+ * base image is permissive (`/etc/shadow`, `/proc/1/environ`, `../` traversal all
+ * readable) and there is no chroot for an unprivileged user. So the enforced
+ * control moves to the TOOL layer — the "no-shell-capable worker": the model is
+ * never handed raw `bash`/`cat`, only a workdir-scoped read tool that refuses any
+ * path resolving outside the run's ephemeral workdir.
  *
- * READING THE RESULT
- *   PASS  — every out-of-jail read fails AND the workdir read succeeds.
- *   FAIL  — any out-of-jail read succeeds. If only the planted-sibling/workdir-
- *           escape reads succeed (not the host-secret reads), the finding maps
- *           specifically to the "no-shell-capable worker in v1" fallback.
+ * This probe therefore runs in two phases:
+ *   PHASE A — THREAT BASELINE (informational, not scored): raw-shell reads of
+ *             host secrets / a planted sibling marker / `../` traversal / an
+ *             absolute path. These SUCCEED on a stock VM — that is precisely why a
+ *             raw shell must never be exposed to the model.
+ *   PHASE B — ENFORCED CONTROL (scored): the SAME out-of-jail paths read through
+ *             the workdir-scoped tool (`readViaWorkdirTool`). Each must be refused
+ *             at the tool layer; the own-workdir file must still read.
+ *
+ * READING THE RESULT (driven only by Phase B)
+ *   PASS  — every out-of-jail tool read is refused AND the workdir read succeeds.
+ *   FAIL  — any out-of-jail path is readable THROUGH THE TOOL (the jail leaks).
  *   ERROR — could not run (no infra / dep missing).
  *
  * Exit code 0=PASS 1=FAIL 2=ERROR.
@@ -34,6 +39,7 @@
 import {
   createProbeSandbox,
   profileFromEnv,
+  readViaWorkdirTool,
   runProbe,
   type ProbeAssertion,
   type SandboxInstance,
@@ -61,8 +67,9 @@ async function tryRead(sandbox: SandboxInstance, path: string): Promise<{ ok: bo
 async function probeThree(sandbox: SandboxInstance, workdir: string, siblingWorkdir: string): Promise<ProbeAssertion[]> {
   const out: ProbeAssertion[] = [];
 
-  // 0) Set up: plant a "sibling run" secret OUTSIDE the workdir on this VM. If the
-  //    loop is properly jailed to `workdir`, even this same-VM path is unreadable.
+  // 0) Set up: plant a "sibling run" secret OUTSIDE the workdir on this VM, and an
+  //    own-workdir file. (Siblings are really *different* VMs; planting on the same
+  //    VM is the strongest in-VM stand-in for a cross-run read.)
   await sandbox.runCommand({
     cmd: 'sh',
     args: [
@@ -72,46 +79,51 @@ async function probeThree(sandbox: SandboxInstance, workdir: string, siblingWork
     ],
   });
 
-  // 1) Host/system secrets must be unreadable.
-  for (const p of HOST_SECRETS) {
+  const outOfJail = [
+    ...HOST_SECRETS,
+    `${siblingWorkdir}/voice.json`,
+    `${workdir}/../../../etc/hostname`,
+    '/etc/hostname', // absolute escape
+  ];
+
+  // PHASE A — THREAT BASELINE (informational, NOT scored). Raw shell on a stock
+  // Sandbox VM reads outside the workdir at will: this is exactly WHY the worker
+  // must never expose a raw shell / arbitrary-file tool to the model. A VM-level
+  // jail is unachievable here (the run is a non-root user but the base image is
+  // permissive and there is no chroot), so the control moves to the tool layer.
+  for (const p of outOfJail) {
     const res = await tryRead(sandbox, p);
     out.push({
-      attempt: `read host secret ${p}`,
-      expectation: 'denied (permission denied / not found)',
+      attempt: `RAW SHELL read out-of-jail ${p}`,
+      expectation: 'demonstrates the unmitigated threat (raw shell sees everything)',
       observed: res.detail,
       verdict: res.ok ? 'FAIL' : 'PASS',
+      informational: true,
     });
   }
 
-  // 2) Sibling-run path (outside the workdir jail) must be unreadable.
-  const sib = await tryRead(sandbox, `${siblingWorkdir}/voice.json`);
-  out.push({
-    attempt: `read SIBLING run path ${siblingWorkdir}/voice.json (voice-bleed attempt)`,
-    expectation: 'denied — the loop is jailed to its own ephemeral workdir',
-    observed: sib.detail,
-    // On a stock VM with an unconstrained shell this read SUCCEEDS (same VM, same
-    // user) → FAIL → selects the no-shell-capable-worker fallback. A jailed/no-
-    // shell runtime makes it fail → PASS.
-    verdict: sib.ok ? 'FAIL' : 'PASS',
-  });
+  // PHASE B — ENFORCED CONTROL (scored). The no-shell worker exposes ONLY the
+  // workdir-scoped read tool (`readViaWorkdirTool`); the model never gets raw
+  // `bash`/`cat`. Every out-of-jail path must be refused AT THE TOOL LAYER,
+  // before any filesystem access.
+  for (const p of outOfJail) {
+    const t = await readViaWorkdirTool(sandbox, workdir, p);
+    out.push({
+      attempt: `workdir-scoped tool read out-of-jail ${p}`,
+      expectation: 'refused at the tool layer (resolves outside the workdir jail)',
+      observed: t.detail,
+      verdict: t.allowed ? 'FAIL' : 'PASS',
+    });
+  }
 
-  // 3) Path-traversal escape attempt from the workdir.
-  const escape = await tryRead(sandbox, `${workdir}/../../../etc/hostname`);
+  // Positive control: the OWN workdir file IS readable through the tool (a tool
+  // that blocks the run's own dir is broken, not secure).
+  const own = await readViaWorkdirTool(sandbox, workdir, `${workdir}/own.txt`);
   out.push({
-    attempt: `traverse out of workdir via ${workdir}/../../../etc/hostname`,
-    expectation: 'denied — traversal cannot escape the workdir jail',
-    observed: escape.detail,
-    verdict: escape.ok ? 'FAIL' : 'PASS',
-  });
-
-  // 4) Positive control: the OWN workdir IS readable (a jail that blocks the run's
-  //    own dir is broken, not secure).
-  const own = await tryRead(sandbox, `${workdir}/own.txt`);
-  out.push({
-    attempt: `read OWN workdir file ${workdir}/own.txt (positive control)`,
+    attempt: `workdir-scoped tool read OWN file ${workdir}/own.txt (positive control)`,
     expectation: 'readable — the run owns its ephemeral workdir',
     observed: own.detail,
-    verdict: own.ok ? 'PASS' : 'ERROR',
+    verdict: own.allowed ? 'PASS' : 'ERROR',
   });
 
   return out;
@@ -121,7 +133,8 @@ void runProbe(
   { probe: 'fs-constraint-probe', control: 'constrained shell/file (no out-of-workdir reads)' },
   async () => {
     const profile = profileFromEnv();
-    const sandbox = await createProbeSandbox(profile);
+    // harden:false — this probe tests the fs/tool layer, not egress; skip the MMDS block.
+    const sandbox = await createProbeSandbox(profile, {}, { harden: false });
     try {
       return await probeThree(sandbox, profile.workdir, profile.siblingWorkdir);
     } finally {
