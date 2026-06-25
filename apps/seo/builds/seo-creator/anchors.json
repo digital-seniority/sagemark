@@ -8,8 +8,8 @@
       "build_phase": "Phase 0 — Foundations",
       "hash_algo": "sha256",
       "current_hash": "4dd82dfa9c9e72af4b26b1880d69e041a7e1e932",
-      "last_updated_run": 2,
-      "last_updated_at": "2026-06-25T20:05:00Z",
+      "last_updated_run": 3,
+      "last_updated_at": "2026-06-25T20:25:00Z",
       "assertions": []
     },
     {
@@ -17,8 +17,8 @@
       "build_phase": "Phase 0 — Foundations",
       "hash_algo": "sha256",
       "current_hash": "16b799f895c74743eba162b6cfefe500ef7c32ef",
-      "last_updated_run": 2,
-      "last_updated_at": "2026-06-25T20:05:00Z",
+      "last_updated_run": 3,
+      "last_updated_at": "2026-06-25T20:25:00Z",
       "assertions": []
     },
     {
@@ -26,8 +26,8 @@
       "build_phase": "Phase 0 — Foundations",
       "hash_algo": "sha256",
       "current_hash": "5188f9f1bcd3c88fa0491a2cb770bf396f2cd218",
-      "last_updated_run": 2,
-      "last_updated_at": "2026-06-25T20:05:00Z",
+      "last_updated_run": 3,
+      "last_updated_at": "2026-06-25T20:25:00Z",
       "assertions": []
     }
   ]

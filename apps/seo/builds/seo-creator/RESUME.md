@@ -1,46 +1,32 @@
 # RESUME — SEO Creator build (intra-run cursor)
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`.
-> Never restart from scratch. Never re-merge MERGED PRs. Trust this cursor + STATE.md + `gh pr view`.
+> Never restart from scratch. Never re-merge MERGED PRs.
 
-**Status:** Run #002 active — agents spawning
+**Status:** Run #003 active — agent spawning
 
 ## Cursor
-
 | Field | Value |
 |---|---|
-| Run # | 002 |
-| Loop iteration | 2 / 8 |
+| Run # | 003 |
+| Loop iteration | 3 / 8 |
 | Lock phase | agents_spawning |
-| Updated at | 2026-06-25T19:46Z |
+| Updated at | 2026-06-25T20:09Z |
 
-## In-flight PRs (this batch)
+## In-flight (this batch)
+| id | lane | status |
+|---|---|---|
+| P0.E.3 | engine-port | IN_FLIGHT — port seo-gate + lifecycle-fsm + failure-codes + stage-b-weights into @sagemark/core; ABSORB compose.ts (DR-005) |
 
-| id | lane | worktree | status |
-|---|---|---|---|
-| P0.E.2 | engine-port | (isolation:worktree) | IN_FLIGHT — port 12 scorers + faithfulness/voice gates from flywheel-main into @sagemark/core |
-| P0.S.1 | schema-tenancy | (isolation:worktree) | IN_FLIGHT — bootstrap packages/schema-flywheel + content schema + RLS + contract test |
-
-## Already done (do NOT redo)
-
-- Run #001: **P0.E.1 MERGED** (PR #2, ec13f1c). **P0.W.1 open + human-gated** (PR #3 — live Sandbox run gates PR 006; DR-002 — do NOT mark REQUIRES_HUMAN_MERGE, do NOT auto-merge).
-- Setup PR #1 (hooks) + state PR #4 merged.
+## Already MERGED (do NOT redo): P0.E.1 (#2), P0.E.2 (#5), P0.S.1 (#6). Open+gated: P0.W.1 (#3).
 
 ## Key facts
-
-- Port-source root = `C:/Users/stone/Code/flywheel-main/` (DR-001).
-  - P0.E.2 scorers/gates: `flywheel-main/apps/agents/src/lib/content/*` (faithfulness-gate.ts, voice-gate.ts, flesch-kincaid.ts, etc.). Some named files (broken-chunk-linter, banned-lexicon-linter, geo-citation) may differ — agent locates closest + ports faithfully.
-  - P0.S.1 content schema: flywheel-main `packages/schema-flywheel` — content tables are on flywheel-main's **origin/preview** (local stops at 0029).
-- **packages/schema-flywheel does NOT exist in sagemark** — P0.S.1 agent bootstraps it.
-- **No Supabase wired in sagemark** — P0.S.1 live RLS contract test = Tier-3 NEEDS-INPUT unless a local Docker pg is reachable (Tier-2). Don't fake.
+- Port-source root = `C:/Users/stone/Code/flywheel-main/`; seo-gate/lifecycle-fsm/failure-codes on its **origin/preview** at `apps/agents/src/lib/content/`.
+- **DR-005:** P0.E.3's seo-gate MUST absorb/delete the provisional `packages/core/src/scorers/compose.ts` — one fail-closed composer, no fork.
+- canPublish() reads `credentialed_releases` (P0.S.1 schema), NEVER `client_signoffs`.
 - Auto-merge ON. Hooks installed.
 
 ## Next action
+Agent spawning (Phase 3). On return → judge (engine-port) → commit + auto-merge → state → Phase 7c: next is **P0.E.4** (deps P0.E.3 + P0.S.1 ✓), then loop DEPLETES (everything after needs the worker lane gated on P0.W.1).
 
-Both agents spawning (Phase 3). When both return → Phase 4 lane-sharded judge (engine-port, schema-tenancy) → Phase 5/5.5 commit + auto-merge approved → Phase 6 state → Phase 7c loop-back (next: P0.E.3; P0.E.4 once P0.S.1 merges).
-
-## Resume command
-```
-/seo-creator-build auto
-```
-Halt: delete `apps/seo/builds/seo-creator/.auto-loop.json`. Pause: create `.auto-loop.pause`.
+## Resume: `/seo-creator-build auto` · Halt: delete `.auto-loop.json`
