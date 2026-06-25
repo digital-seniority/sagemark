@@ -1,13 +1,13 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-25 (Run #003 complete)
+**Last updated:** 2026-06-25 (Run #004 complete — LOOP TERMINAL: depleted)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 4 / 23 engineering PRs merged
-**Runs since last audit:** 3 (audit threshold: 5)
+**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1)
+**Runs since last audit:** 4 (audit threshold: 5 — audit due before any further work-doing run)
 
 ## Currently in flight
 
-_(none — Run #003 batch resolved; loop continuing to Run #004)_
+_(none — loop terminated **depleted** after Run #004)_
 
 ## Next up (dependencies satisfied)
 
@@ -42,7 +42,7 @@ _(none — Run #003 batch resolved; loop continuing to Run #004)_
 | P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | MERGED | 2 | a74a1c7 | [#5](https://github.com/digital-seniority/sagemark/pull/5) |
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
 | P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | MERGED | 2 | 895507e | [#6](https://github.com/digital-seniority/sagemark/pull/6) |
-| P0.E.4 | PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | NOT_STARTED | — | — | — |
+| P0.E.4 | PR 005 — /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | MERGED | 4 | ca776f0 | [#11](https://github.com/digital-seniority/sagemark/pull/11) |
 | P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | NOT_STARTED (GATED by P0.W.1 live run) | — | — | — |
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | NOT_STARTED | — | — | — |
@@ -73,6 +73,7 @@ _(none — Run #003 batch resolved; loop continuing to Run #004)_
 | 001 | 4.5 | 4.0 | 0% | 0% |
 | 002 | 5.0 | 4.5 | 0% | 0% |
 | 003 | 5.0 | 4.0 | 0% | 0% |
+| 004 | 5.0 | 4.75 | 0% | 0% |
 
 ## Status legend
 
@@ -80,6 +81,6 @@ _(none — Run #003 batch resolved; loop continuing to Run #004)_
 
 ---
 
-*Run #003 complete · 4/23 merged (P0.E.1, P0.E.2, P0.E.3, P0.S.1) · P0.W.1 open + human-gated · next: P0.E.4 (last reachable) · auto-loop iteration 3/8*
+*Run #004 complete · 5/23 merged + 1 corrective · LOOP TERMINAL (depleted) · blocked on P0.W.1 live Sandbox run (human) · audit due (4 runs since last)*
 
 > **Autonomous reachability note:** with the worker lane gated behind P0.W.1's live Sandbox run, the dependency-eligible-without-the-worker set is P0.E.3 → P0.E.4, after which everything remaining (P0.S.2, P0.W.2+, all of Phase 1) transitively needs the worker lane. The loop will run P0.E.3 + P0.E.4, then terminate "depleted" and surface that the rest needs the human Sandbox run + the worker host.
