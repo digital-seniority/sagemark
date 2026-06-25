@@ -1,0 +1,488 @@
+/**
+ * SEO Creator content store — Drizzle table definitions (PR 004, lane
+ * schema-tenancy). Ported from flywheel-main `origin/preview`
+ * `packages/schema-flywheel/src/index.ts` (the `content_clients` /
+ * `content_pieces` / `content_piece_versions` / `voice_specs` tables), with
+ * three additions required by the SEO Creator RFC § PR 004:
+ *
+ *   1. `cluster_role` + `funnel_stage` promoted to first-class CHECK-constrained
+ *      columns on `content_pieces` (D7). Migration: drizzle/0031.
+ *   2. `review_comments` — the per-version reviewer annotation table referenced
+ *      by the RLS contract (anon must see zero rows). It does not exist on
+ *      flywheel-main origin/preview; authored here. Migration: drizzle/0030.
+ *   3. The byline-authorization + release/signoff split as THREE distinct
+ *      tables — `byline_authorizations` (the §11.5 consent record + FK target),
+ *      `client_signoffs` (advisory), and `credentialed_releases` (the only
+ *      record canPublish() accepts). Migration: drizzle/0032.
+ *
+ * The authoritative target for the NEW release-split tables (0032) is the RFC
+ * inline SQL. The content tables (0030) are faithful ports of origin/preview.
+ *
+ * RLS lives in the migration SQL, not here (Drizzle does not model policies).
+ * Fail-closed: anon may read ONLY `content_pieces` rows with status='published';
+ * every other table has no anon policy at all.
+ */
+
+import {
+  pgTable,
+  text,
+  timestamp,
+  integer,
+  boolean,
+  uuid,
+  pgEnum,
+  index,
+  jsonb,
+  uniqueIndex,
+  check,
+} from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
+
+// ---------------------------------------------------------------------------
+// Enums (ported from origin/preview).
+// ---------------------------------------------------------------------------
+
+export const contentStatusEnum = pgEnum("content_status", [
+  "draft",
+  "review",
+  "approved",
+  "published",
+  "archived",
+]);
+
+export const contentVerdictEnum = pgEnum("content_verdict", [
+  "PUBLISH",
+  "REVIEW",
+  "REVISE",
+  "REJECT",
+]);
+
+// cluster_role / funnel_stage are modelled as CHECK-constrained `text` columns
+// (NOT pgEnum) to mirror the RFC inline 0031 SQL exactly — the migration uses a
+// `CHECK (... IN (...))`, not a Postgres enum type. Keeping the Drizzle column a
+// plain `text` with a `check()` means `drizzle:generate` reproduces the same
+// constraint and produces no drift against the hand-written 0031 migration.
+export const CLUSTER_ROLES = [
+  "pillar",
+  "cornerstone",
+  "spoke",
+  "faq",
+  "checklist",
+] as const;
+export const FUNNEL_STAGES = [
+  "awareness",
+  "consideration",
+  "decision",
+  "retention",
+] as const;
+export type ClusterRole = (typeof CLUSTER_ROLES)[number];
+export type FunnelStage = (typeof FUNNEL_STAGES)[number];
+
+// ---------------------------------------------------------------------------
+// Content tenant root (separate from any accounting `clients` — OQ-1).
+// `workspace_id` is the layer-3 workspace_id -> client_id tenancy bridge.
+// ---------------------------------------------------------------------------
+
+export const contentClients = pgTable(
+  "content_clients",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    blogSlug: text("blog_slug").notNull().unique(),
+    // Owning workspace — the layer-3 workspace_id->client_id tenancy bridge.
+    workspaceId: uuid("workspace_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("content_clients_workspace_idx").on(t.workspaceId)],
+);
+
+// One row per content piece. Slug is unique *per client*.
+export const contentPieces = pgTable(
+  "content_pieces",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    body: text("body").default("").notNull(),
+    excerpt: text("excerpt"),
+    metaDescription: text("meta_description"),
+    status: contentStatusEnum("status").default("draft").notNull(),
+    version: integer("version").default(1).notNull(),
+    isYmyl: boolean("is_ymyl").default(false).notNull(),
+    // Soft reference into the voice-spec `authors[]` registry, not a hard FK.
+    authorId: uuid("author_id"),
+    evalScore: integer("eval_score"),
+    verdict: contentVerdictEnum("verdict"),
+    // D7 — cluster_role + funnel_stage promoted to first-class columns.
+    clusterRole: text("cluster_role"),
+    funnelStage: text("funnel_stage"),
+    dimensions: jsonb("dimensions"),
+    faqData: jsonb("faq_data"),
+    briefSnapshot: jsonb("brief_snapshot"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("content_pieces_client_slug_unique").on(t.clientId, t.slug),
+    index("content_pieces_client_status_idx").on(t.clientId, t.status),
+    index("content_pieces_client_published_at_idx").on(
+      t.clientId,
+      t.publishedAt,
+    ),
+    index("content_pieces_cluster_idx").on(
+      t.clientId,
+      t.clusterRole,
+      t.funnelStage,
+    ),
+    check(
+      "content_pieces_cluster_role_check",
+      sql`${t.clusterRole} IN ('pillar','cornerstone','spoke','faq','checklist')`,
+    ),
+    check(
+      "content_pieces_funnel_stage_check",
+      sql`${t.funnelStage} IN ('awareness','consideration','decision','retention')`,
+    ),
+  ],
+);
+
+// Immutable snapshot written before every forward FSM move. `client_id` is
+// denormalized so a future tenant-read policy needs no join.
+export const contentPieceVersions = pgTable(
+  "content_piece_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").notNull(),
+    version: integer("version").notNull(),
+    body: text("body").notNull(),
+    dimensions: jsonb("dimensions"),
+    verdict: contentVerdictEnum("verdict"),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("content_piece_versions_piece_version_unique").on(
+      t.pieceId,
+      t.version,
+    ),
+    index("content_piece_versions_client_idx").on(t.clientId),
+  ],
+);
+
+// Canonical brand voice. A row with `approved_at IS NULL` is a draft spec; the
+// pipeline hard-stops unless an approved spec exists.
+export const voiceSpecs = pgTable(
+  "voice_specs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    spec: jsonb("spec").notNull(),
+    bootstrappedFrom: text("bootstrapped_from"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("voice_specs_client_version_unique").on(t.clientId, t.version),
+    index("voice_specs_approved_idx")
+      .on(t.clientId)
+      .where(sql`${t.approvedAt} IS NOT NULL`),
+  ],
+);
+
+// Per-version reviewer annotation. Not present on flywheel-main origin/preview;
+// authored here because the RLS contract requires anon to read zero rows.
+// `client_id` is denormalized (same pattern as content_piece_versions) so a
+// future tenant-read policy needs no join.
+export const reviewComments = pgTable(
+  "review_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").notNull(),
+    version: integer("version").notNull(),
+    authorId: uuid("author_id").notNull(),
+    body: text("body").notNull(),
+    resolved: boolean("resolved").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("review_comments_piece_idx").on(t.pieceId, t.version),
+    index("review_comments_client_idx").on(t.clientId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Byline authorization + release/signoff split (RFC § PR 004, migration 0032).
+// THREE distinct tables — the split is load-bearing for PR 009's canPublish().
+// ---------------------------------------------------------------------------
+
+export const BYLINE_SCOPES = ["client", "cluster", "piece"] as const;
+export const RELEASE_SCOPES = ["piece", "section"] as const;
+export type BylineScope = (typeof BYLINE_SCOPES)[number];
+export type ReleaseScope = (typeof RELEASE_SCOPES)[number];
+
+// The §11.5 consent/authorization record backing every published byline.
+// Created BEFORE credentialed_releases so the authorization_id FK target
+// exists. A byline is attachable only while an ACTIVE authorization exists
+// (granted_at set, revoked_at IS NULL, expires_at NULL or in the future).
+export const bylineAuthorizations = pgTable(
+  "byline_authorizations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    // → voice_specs.authors[] entry (soft reference).
+    authorId: uuid("author_id").notNull(),
+    // Snapshot {name, credentials} captured at grant time.
+    credential: jsonb("credential").notNull(),
+    scope: text("scope").notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    // Nullable: no expiry.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // Nullable: revocation is a new state, never a delete.
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    // The operator who recorded the authorization.
+    authorizedBy: uuid("authorized_by").notNull(),
+  },
+  (t) => [
+    index("byline_authorizations_client_idx").on(t.clientId),
+    index("byline_authorizations_author_idx").on(t.authorId),
+    // active-authorization lookup (granted ∧ ¬revoked ∧ ¬expired)
+    index("byline_authorizations_active_idx").on(
+      t.clientId,
+      t.authorId,
+      t.revokedAt,
+      t.expiresAt,
+    ),
+    check("byline_authorizations_scope_check", sql`${t.scope} IN ('client','cluster','piece')`),
+  ],
+);
+
+// ADVISORY client/agency-contact approval — can NEVER release or supply a
+// byline. Deliberately NO credential, NO authorization_id: a client_signoff
+// cannot satisfy canPublish() nor populate a byline. `release_type` is pinned.
+export const clientSignoffs = pgTable(
+  "client_signoffs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "restrict" }),
+    version: integer("version").notNull(),
+    // Structurally fixed — a client_signoff can ONLY ever be a client_signoff.
+    releaseType: text("release_type").default("client_signoff").notNull(),
+    // The client/agency contact.
+    actorId: uuid("actor_id").notNull(),
+    releaseScope: text("release_scope").notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("client_signoffs_piece_idx").on(t.pieceId, t.version),
+    index("client_signoffs_client_idx").on(t.clientId),
+    check(
+      "client_signoffs_release_type_check",
+      sql`${t.releaseType} = 'client_signoff'`,
+    ),
+    check(
+      "client_signoffs_release_scope_check",
+      sql`${t.releaseScope} IN ('piece','section')`,
+    ),
+  ],
+);
+
+// The ONLY record that satisfies canPublish()'s human-release precondition
+// (D6 credentialed reviewer). Carries a non-null credential snapshot + a
+// non-null FK → byline_authorizations (the §11.5 consent record). UNIQUE per
+// (piece, version): one credentialed release per version.
+export const credentialedReleases = pgTable(
+  "credentialed_releases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "restrict" }),
+    version: integer("version").notNull(),
+    releaseType: text("release_type").default("credentialed_release").notNull(),
+    // The credentialed reviewer (D6).
+    actorId: uuid("actor_id").notNull(),
+    // Snapshot {name, credentials} at release (byline evidence).
+    credential: jsonb("credential").notNull(),
+    // FK → §11.5 byline-authorization record. Non-null, ON DELETE RESTRICT.
+    authorizationId: uuid("authorization_id")
+      .notNull()
+      .references(() => bylineAuthorizations.id, { onDelete: "restrict" }),
+    releaseScope: text("release_scope").notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("credentialed_releases_piece_version_unique").on(
+      t.pieceId,
+      t.version,
+    ),
+    index("credentialed_releases_client_idx").on(t.clientId),
+    index("credentialed_releases_auth_idx").on(t.authorizationId),
+    check(
+      "credentialed_releases_release_type_check",
+      sql`${t.releaseType} = 'credentialed_release'`,
+    ),
+    check(
+      "credentialed_releases_release_scope_check",
+      sql`${t.releaseScope} IN ('piece','section')`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Relations.
+// ---------------------------------------------------------------------------
+
+export const contentClientsRelations = relations(
+  contentClients,
+  ({ many }) => ({
+    pieces: many(contentPieces),
+    voiceSpecs: many(voiceSpecs),
+    bylineAuthorizations: many(bylineAuthorizations),
+  }),
+);
+
+export const contentPiecesRelations = relations(
+  contentPieces,
+  ({ one, many }) => ({
+    client: one(contentClients, {
+      fields: [contentPieces.clientId],
+      references: [contentClients.id],
+    }),
+    versions: many(contentPieceVersions),
+    reviewComments: many(reviewComments),
+    clientSignoffs: many(clientSignoffs),
+    credentialedReleases: many(credentialedReleases),
+  }),
+);
+
+export const contentPieceVersionsRelations = relations(
+  contentPieceVersions,
+  ({ one }) => ({
+    piece: one(contentPieces, {
+      fields: [contentPieceVersions.pieceId],
+      references: [contentPieces.id],
+    }),
+  }),
+);
+
+export const voiceSpecsRelations = relations(voiceSpecs, ({ one }) => ({
+  client: one(contentClients, {
+    fields: [voiceSpecs.clientId],
+    references: [contentClients.id],
+  }),
+}));
+
+export const reviewCommentsRelations = relations(reviewComments, ({ one }) => ({
+  piece: one(contentPieces, {
+    fields: [reviewComments.pieceId],
+    references: [contentPieces.id],
+  }),
+}));
+
+export const bylineAuthorizationsRelations = relations(
+  bylineAuthorizations,
+  ({ one, many }) => ({
+    client: one(contentClients, {
+      fields: [bylineAuthorizations.clientId],
+      references: [contentClients.id],
+    }),
+    releases: many(credentialedReleases),
+  }),
+);
+
+export const clientSignoffsRelations = relations(clientSignoffs, ({ one }) => ({
+  client: one(contentClients, {
+    fields: [clientSignoffs.clientId],
+    references: [contentClients.id],
+  }),
+  piece: one(contentPieces, {
+    fields: [clientSignoffs.pieceId],
+    references: [contentPieces.id],
+  }),
+}));
+
+export const credentialedReleasesRelations = relations(
+  credentialedReleases,
+  ({ one }) => ({
+    client: one(contentClients, {
+      fields: [credentialedReleases.clientId],
+      references: [contentClients.id],
+    }),
+    piece: one(contentPieces, {
+      fields: [credentialedReleases.pieceId],
+      references: [contentPieces.id],
+    }),
+    authorization: one(bylineAuthorizations, {
+      fields: [credentialedReleases.authorizationId],
+      references: [bylineAuthorizations.id],
+    }),
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Inferred types.
+// ---------------------------------------------------------------------------
+
+export type ContentClient = typeof contentClients.$inferSelect;
+export type NewContentClient = typeof contentClients.$inferInsert;
+export type ContentPiece = typeof contentPieces.$inferSelect;
+export type NewContentPiece = typeof contentPieces.$inferInsert;
+export type ContentPieceVersion = typeof contentPieceVersions.$inferSelect;
+export type NewContentPieceVersion = typeof contentPieceVersions.$inferInsert;
+export type VoiceSpec = typeof voiceSpecs.$inferSelect;
+export type NewVoiceSpec = typeof voiceSpecs.$inferInsert;
+export type ReviewComment = typeof reviewComments.$inferSelect;
+export type NewReviewComment = typeof reviewComments.$inferInsert;
+export type BylineAuthorization = typeof bylineAuthorizations.$inferSelect;
+export type NewBylineAuthorization = typeof bylineAuthorizations.$inferInsert;
+export type ClientSignoff = typeof clientSignoffs.$inferSelect;
+export type NewClientSignoff = typeof clientSignoffs.$inferInsert;
+export type CredentialedRelease = typeof credentialedReleases.$inferSelect;
+export type NewCredentialedRelease = typeof credentialedReleases.$inferInsert;
+export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
+export type ContentVerdict = (typeof contentVerdictEnum.enumValues)[number];
