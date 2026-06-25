@@ -55,3 +55,14 @@ export {
   type VoiceSection,
   type VoiceGateResult,
 } from "./gates/voice-gate";
+
+// ── Non-compensatory SEO gate + lifecycle FSM (PR 003) ──────────────────────
+// The product moat. `seo-gate` (Stage-A ordered vetoes → Stage-B 8-dim
+// composite) consumes the single fail-closed composer (`runScorersFailClosed`
+// from `./scorers/compose`, above) per DR-005 — exactly one composition path.
+// `seo-gate` re-exports `STAGE_B_WEIGHTS`; the stage-b-weights module additionally
+// contributes only its `StageBDimension` type (no duplicate `STAGE_B_WEIGHTS`).
+export * from "./gate/failure-codes";
+export * from "./gate/seo-gate";
+export { type StageBDimension } from "./gate/stage-b-weights";
+export * from "./lifecycle/lifecycle-fsm";
