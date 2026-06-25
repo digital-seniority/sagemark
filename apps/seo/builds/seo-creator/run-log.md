@@ -23,4 +23,21 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Checkpoint:** `checkpoints/run-NNN-YYYY-MM-DD.md`
 -->
 
-*Bootstrapped — no runs yet. First entry will appear after Run #001.*
+## Run #001 — 2026-06-25
+
+- **Duration:** ~00:20 (engineering + judge + merge)
+- **Mode:** `auto` (autonomous loop, iteration 1/8)
+- **PRs merged:** 1 (`P0.E.1` — scaffold apps/seo + provider seam + CostAccountant into @sagemark/core) — PR #2, ec13f1c
+- **PRs open / human-gated:** 1 (`P0.W.1` — capability-denial spike) — PR #3, judge-APPROVED-as-artifact, held open pending a live Vercel Sandbox run (gates PR 006; DR-002)
+- **PRs blocked / preview-failed:** 0
+- **Process score:** 4.5/5 (avg of engine-port 4, worker-runtime 5)
+- **Product score:** 4.0/5
+- **Top issue:** P0.W.1 architecture-gate spike requires real infra no unattended agent can provision — honest Tier-3 NEEDS-INPUT, escalated to human.
+- **Top improvement:** wire "fails-the-build" acceptance criteria to a real build/CI step (the worker-env lint is tested but not invoked).
+- **Decisions recorded:** DR-001 (port-source root = flywheel-main), DR-002 (spike held open, not REQUIRES_HUMAN_MERGE, to avoid loop hard-stop), DR-003 (auth placeholder seam), DR-004 (core source-consumed build).
+- **Phase 0 progress:** 1/11 merged (was 0/11).
+- **Blockers added:** worker-runtime lane gated on the P0.W.1 live Sandbox run (human action).
+- **Setup landed:** PR #1 (auto-loop compaction hooks + installer fix).
+- **Checkpoint:** `checkpoints/run-001-2026-06-25.md`
+
+*Loop continues to Run #002 — next batch: P0.E.2 (port scorers) + P0.S.1 (tenancy schema).*
