@@ -9,47 +9,58 @@
 
 ---
 
-## ⛔ STATUS: PENDING LIVE RUN — Tier-3 NEEDS-INPUT
+## ⛔ STATUS: LIVE RUN BLOCKED — Tier-2 NEEDS-INPUT (Sandbox API auth rejected)
 
-**The four per-control verdicts below are NOT YET RECORDED because the real
-adversarial run on Vercel Sandbox has not been executed.** This spike was
-authored in an environment with **no access to provision or run a live Vercel
-Sandbox** (no Sandbox project, no infra credentials). Per the spec's own Tier-3
-path, the honest outcome is: the probes are **written, type-clean, and runnable**,
-the **decision framework + fallback tree are fixed**, and the **live execution is
-explicitly deferred** to whoever runs them on real infra. **No control verdict
-has been fabricated. A control is "confirmed" only after the live run records it
-here.**
+**The live adversarial run WAS executed (2026-06-25) with `@vercel/sandbox@2.2.1`
+installed and the harness bug fixed, but the three infra-dependent controls
+(1 egress, 2 env scrub, 3 fs) could not record a verdict: every `Sandbox.create`
+call was rejected by the Vercel Sandbox API with HTTP 403
+`{"error":{"code":"forbidden","message":"Not authorized","invalidToken":true}}`.**
+A plain `Sandbox.create({ runtime: 'node24' })` with no network policy fails
+identically, so this is an **account/credential authorization blocker — not a
+probe or harness defect, and not a control finding.** No microVM was provisioned
+(the 403 is returned before any VM is created), so there is nothing to bill or
+clean up. Control 4 (boot refusal) needs no infra and **PASSed**.
+
+**No control verdict has been fabricated.** Controls 1–3 are honestly recorded as
+**ERROR (unverifiable — infra auth blocked)**, which by the decision rule blocks
+PR 006 from merging on a "Sandbox confirmed" basis until the auth blocker is
+cleared and the run is repeated.
 
 What IS done (✅):
-- All four probe scripts written as real, runnable adversarial probes.
-- `boot-refusal-probe.ts` executed locally (needs no infra) → **PASS** (refuses
-  every broken-control profile, allows the valid one).
-- All five spike `.ts` files typecheck clean under the project's strict tsconfig
+- The **harness bug is fixed**: `_harness.ts` now applies the egress control via
+  the REAL SDK field `networkPolicy` (default-deny + allowlist + private/link-local
+  subnet deny), not the bogus `egressAllowlist`, and **reads the policy back** off
+  the created instance (`sandbox.networkPolicy`), throwing if it did not apply so
+  the egress probe can never PASS/FAIL on an unconfigured allow-all VM.
+- `@vercel/sandbox@2.2.1` installed; all five spike `.ts` files + `_harness.ts`
+  typecheck clean against the REAL SDK types under the project's strict tsconfig
   (`strict` + `noUncheckedIndexedAccess`, `moduleResolution: Bundler`).
-- The fallback-runtime decision tree (below) is fixed, so PR 006/006b have the
-  contingency even before the live run.
+- `boot-refusal-probe.ts` executed (needs no infra) → **PASS** (refuses every
+  broken-control profile, allows the valid one). Exit 0.
+- The harness loads the real SDK at runtime (verified: `Sandbox.create` resolves).
 
-What is NEEDS-INPUT (the live run):
-- Controls **1 (egress)**, **2 (env scrub)**, **3 (fs constraint)** require a
-  live Sandbox target to record PASS/FAIL. Their verdict cells read
-  `PENDING LIVE RUN`.
-- Control **4 (boot refusal)** logic passes locally, but its **live wiring** to
-  the real `sandbox-launch` preflight (re-running the broken profiles against the
-  actual launcher) is part of the live run.
+What is NEEDS-INPUT (blocks the gate):
+- Controls **1 (egress)**, **2 (env scrub)**, **3 (fs constraint)** ran but
+  **ERROR**ed at sandbox creation with a 403 invalid-token. They need **a Vercel
+  token/team/project authorized for Sandbox on the Digital Seniority team** (the
+  current `VERCEL_TOKEN` is rejected as `invalidToken`). Re-run once a valid,
+  Sandbox-scoped credential is provided.
+- Control **4 (boot refusal)** logic passes locally; its **live wiring** to the
+  real `sandbox-launch` preflight remains part of the (re)run.
 
-**This gate is not closed until the table below is filled by a real run.**
+**This gate is not closed until controls 1–3 record real PASS/FAIL on infra.**
 
 ---
 
-## Verdict table (to be completed by the live run)
+## Verdict table — live run 2026-06-25 (`@vercel/sandbox@2.2.1`)
 
-| # | Control | Probe | Verdict | Recorded by / when |
+| # | Control | Probe | Verdict | Evidence (recorded 2026-06-25) |
 |---|---------|-------|---------|--------------------|
-| 1 | Network egress allowlist | `egress-probe.ts` | `PENDING LIVE RUN` | — |
-| 2 | Env scrub | `env-scrub-probe.ts` | `PENDING LIVE RUN` | — |
-| 3 | Constrained shell/file | `fs-constraint-probe.ts` | `PENDING LIVE RUN` | — |
-| 4 | Boot refusal (fail-closed launch) | `boot-refusal-probe.ts` | `PASS (logic, local)` · live wiring `PENDING` | local run, this PR |
+| 1 | Network egress allowlist | `egress-probe.ts` | `ERROR` | `Sandbox.create` → HTTP 403 `forbidden / invalidToken`; control unverifiable on infra (auth blocked, not a bypass). Exit 2. |
+| 2 | Env scrub | `env-scrub-probe.ts` | `ERROR` | same 403 at sandbox creation; no VM, env never readable. Exit 2. |
+| 3 | Constrained shell/file | `fs-constraint-probe.ts` | `ERROR` | same 403 at sandbox creation; no VM, no FS to probe. Exit 2. |
+| 4 | Boot refusal (fail-closed launch) | `boot-refusal-probe.ts` | `PASS` (logic, local) · live wiring `PENDING` | all 6 assertions PASS — refuses each broken profile, allows the valid one. Exit 0. |
 
 > Decision rule (from the spec):
 > - If **all four** record PASS → write **"Vercel Sandbox confirmed"** in the
@@ -57,6 +68,11 @@ What is NEEDS-INPUT (the live run):
 > - If **any** records FAIL → record the specific failure here **and** adopt the
 >   matching fallback from the decision tree; PR 006/006b are re-scoped against
 >   that fallback **before** the worker is built.
+> - **This run: 1 PASS + 3 ERROR (infra auth blocked).** An ERROR is *not* a FAIL
+>   (no control was bypassed) but it is *not* a PASS either — the gate stays open.
+>   The fix to the egress harness is landed and verified by typecheck + read-back
+>   logic; the platform verdict for controls 1–3 is deferred to a re-run with a
+>   Sandbox-authorized credential.
 
 ---
 
@@ -87,11 +103,21 @@ then `curl`s one allowlisted host as a sanity control.
 - **ERROR** — allowlisted host unreachable too (allowlist misconfigured to block
   everything) or `curl` missing from the image. Not a pass.
 
-> Note recorded for the live run: the harness passes the allowlist to
-> `Sandbox.create()` under the field name `egressAllowlist`. Confirm against the
-> installed `@vercel/sandbox` version's network-policy field name; if it differs,
-> update `_harness.ts:createProbeSandbox` and **re-run** — a silently-ignored
-> field would let everything through and must surface as a FAIL, not a skip.
+> **FIXED (2026-06-25):** the harness originally passed the allowlist under a
+> bogus top-level `egressAllowlist` field — **not** a real `@vercel/sandbox` field,
+> so it was silently dropped and the VM booted **allow-all**, making this probe
+> test an unconfigured control. Verified against installed `@vercel/sandbox@2.2.1`:
+> the real egress control is the **`networkPolicy`** create param, type
+> `NetworkPolicy = "allow-all" | "deny-all" | { allow?: string[] |
+> Record<string, NetworkPolicyRule[]>; subnets?: { allow?: string[]; deny?:
+> string[] } }`. `_harness.ts:createProbeSandbox` now sets
+> `networkPolicy: { allow: [...egressAllowlist], subnets: { deny: [169.254.0.0/16,
+> 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/8] } }` (default-deny + allowlist, plus
+> explicit private/link-local subnet deny so IP-literal egress to IMDS/RFC-1918 is
+> blocked, not just the domain allowlist). It then **reads the policy back** from
+> the instance getter `sandbox.networkPolicy` and **throws** if it does not reflect
+> the intended allowlist — so a silently-ignored field surfaces as **ERROR**
+> (control unverifiable), never a false PASS/FAIL on an allow-all VM.
 
 ### Control 2 — Env scrub (`env-scrub-probe.ts`)
 
@@ -319,25 +345,45 @@ the egress/env platform verdicts (controls 1–2) are confirmed on real infra.
 
 ## Final decision
 
-> **NOT YET RECORDED — awaiting the live run.** Fill this in after the verdict
-> table is complete:
+> **NOT "Vercel Sandbox confirmed" — gate stays OPEN (live run 2026-06-25).**
 >
-> - If all four PASS → write **"Vercel Sandbox confirmed"** and note PR 006/006b
->   proceed as written.
-> - If any FAIL → name the control(s), the recorded failure, and the adopted
->   fallback(s) from the tree above, and note that PR 006/006b are re-scoped
->   accordingly **before** the worker is built.
+> - **Control 4 (boot refusal): PASS** — the fail-closed launch contract holds.
+> - **Controls 1–3 (egress / env scrub / fs): ERROR — not verifiable on infra.**
+>   The Vercel Sandbox API rejected every `Sandbox.create` with HTTP 403
+>   `forbidden / invalidToken`. This is an **authorization blocker on the supplied
+>   credential**, not a platform-control FAIL and not a probe defect (a no-policy
+>   create fails identically). No fallback from the decision tree is triggered,
+>   because **no control was observed to be bypassed** — we simply have no platform
+>   verdict for 1–3 yet.
+> - **Required to close the gate (NEEDS-INPUT):** a `VERCEL_TOKEN` (+ team/project)
+>   that is authorized to create Sandboxes on the Digital Seniority team. Re-run
+>   `egress-probe.ts`, `env-scrub-probe.ts`, `fs-constraint-probe.ts`; the egress
+>   harness fix (real `networkPolicy` + read-back) is already in place, so the
+>   re-run will record a genuine PASS/FAIL for the allowlist control.
+> - **PR 006/006b posture meanwhile:** per the "default posture" note below, adopt
+>   **Fallback B (no-shell-capable worker) + the boot-refusal fix** pre-emptively
+>   (pure wins, no platform dependency) so the worker stays buildable fail-closed
+>   while the egress/env/fs platform verdicts are pending the authorized re-run.
+>   **PR 006 must not merge on a "Sandbox confirmed" basis until 1–3 record PASS.**
 
 ---
 
 ## Notes / deviations
 
-- **Live-run criterion is NEEDS-INPUT, by the spec's own Tier-3 path.** This
-  spike was produced without access to live Vercel Sandbox infra; fabricating a
-  pass would defeat the entire point of an architecture gate. The probes are real
-  and runnable; the verdicts are deferred to the human/CI run documented above.
-- **Run-time deps not installed.** `@vercel/sandbox` (and a `tsx` runner) are
-  intentionally absent — this is a spike that ships nothing. `_harness.ts` loads
-  the SDK via a guarded dynamic import that fails fast with a `[NEEDS-DEP]`
-  message, never a broken import; the four probes typecheck clean without it.
+- **Live-run criterion is NEEDS-INPUT — the run executed but was blocked at the
+  Sandbox API.** `@vercel/sandbox@2.2.1` is now installed and the run was attempted
+  on real infra; the 403 `invalidToken` auth rejection (not a probe/harness defect)
+  blocked controls 1–3. Fabricating a pass would defeat the architecture gate; the
+  platform verdicts are honestly recorded as ERROR pending an authorized re-run.
+- **Harness ↔ SDK binding (the fix).** `_harness.ts` now imports the real
+  `@vercel/sandbox` types (`Sandbox`, `NetworkPolicy`, `CommandFinished`) and binds
+  `SandboxInstance`/`SandboxCreateParams` to them. The runtime load is still a
+  guarded dynamic import (precise `[NEEDS-DEP]` message if the dep is ever absent).
+  Confirmed SDK facts used: network-egress control = `networkPolicy` create param;
+  read-back getter = `sandbox.networkPolicy`; command API = `runCommand({ cmd, args })`
+  → `CommandFinished` with `.exitCode` + `.stdout()`/`.stderr()`; cleanup =
+  `sandbox.stop()`.
+- **`tsconfig.json` added** in this spike dir (extends `@sagemark/config`'s base,
+  `include: ["*.ts"]`) so the spike typechecks in isolation — the app's own
+  tsconfig only includes `src/**`.
 - **Rollback:** n/a — this PR produces a decision and ships no runtime.
