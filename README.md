@@ -11,8 +11,7 @@ a shared service registry when a job needs more than one of them.
 ```
 sagemark/
 ├── apps/
-│   ├── retirement-pilot/   Demo client site (Cedar Hollow Senior Living) — also the SEO test fixture
-│   ├── seo/                SEO Engine — search-first content + on-page structure        :3001
+│   ├── seo/                SEO Engine — gate-backed SEO/GEO content hubs (first app — see plans/seo-creator)  :3001
 │   ├── imagegen/           Image Generation — brand-consistent campaign imagery          :3002
 │   ├── videogen/           Video Generation — tour videos, explainers, social clips      :3003
 │   ├── ppc/                PPC Manager — paid search/social for occupancy goals          :3004
@@ -32,10 +31,10 @@ deployed URL via env var). A service calls a sibling with the typed client:
 ```ts
 import { callService } from "@sagemark/core";
 
-// e.g. the intelligence layer asking the SEO engine to score a page
-const result = await callService<{ score: number }>("seo", "/api/score", {
+// e.g. the SEO engine asking imagegen for a hero image for a content guide
+const result = await callService<{ url: string }>("imagegen", "/api/run", {
   method: "POST",
-  body: { url: "https://cedarhollow.example/about" },
+  body: { brief: "warm, reassuring photo for a memory-care guide" },
 });
 ```
 
