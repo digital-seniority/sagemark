@@ -1,13 +1,14 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-25 (Run #004 complete — LOOP TERMINAL: depleted)
+**Last updated:** 2026-06-25 (post-#004 manual remediation — P0.W.1 gate CONFIRMED, ready to merge + resume)
 **Current build phase:** Phase 0 — Foundations
 **Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1)
-**Runs since last audit:** 4 (audit threshold: 5 — audit due before any further work-doing run)
+**Runs since last audit:** 4 (audit threshold: 5 — audit due before the next work-doing run)
+**Loop status:** was TERMINAL (depleted); P0.W.1 live run now COMPLETE + CONFIRMED (4/4 PASS, hardened profile). On human merge of PR #3, the worker lane unblocks and the loop can resume (`/seo-creator-build auto`) with P0.W.2 reachable.
 
 ## Currently in flight
 
-_(none — loop terminated **depleted** after Run #004)_
+_(none — loop terminated **depleted** after Run #004; P0.W.1 gate since CONFIRMED out-of-loop via the manual live Sandbox run + remediation. Next action is human merge of PR #3, then resume.)_
 
 ## Next up (dependencies satisfied)
 
@@ -15,11 +16,13 @@ _(none — loop terminated **depleted** after Run #004)_
 
 ## Blocked / awaiting input
 
-- **PR P0.W.1 (PR 000 — capability-denial spike)** — `PR_CREATED`, OPEN at PR #3, **judge-APPROVED as a landable artifact but human-gated**: the live Vercel Sandbox adversarial run needs infra a human/CI must run. **This gates PR 006 (worker host) and the whole worker-runtime lane downstream of it.** Held open (not auto-merged) per DR-002. See PR #3 body for the exact live-run steps.
-  - **Worker-lane consequence:** P0.W.2 / P0.W.3 / P0.W.4 / P0.W.5 / P0.S.2 / P1.W.1 (and the agent-ui / render / client-review PRs transitively under them) stay deferred until P0.W.1 is merged after the live run. Independent lanes (engine-port, schema-tenancy) continue.
+- **PR P0.W.1 (PR 000 — capability-denial spike)** — `PR_CREATED`, OPEN at PR #3. **Live Vercel Sandbox adversarial run COMPLETE (2026-06-25) — gate result: VERCEL SANDBOX CONFIRMED (hardened profile), 4/4 controls PASS.** A fresh team-scoped `VERCEL_TOKEN` cleared the prior `403 invalidToken` blocker; the two initial FAILs (egress MMDS, fs unconstrained shell) were **remediated in-tree and re-verified PASS** (commits `3771081`, `df1205f`). Decisions recorded: **DR-010** (egress = networkPolicy + in-VM MMDS `iptables` block) and **DR-011** (no-shell worker + workdir-scoped file tool). See PR #3 `RESULTS.md`.
+  - **Remaining human action: ratify + MERGE PR #3.** Still human-gated per DR-002 (a human ratifies the confirmation + the hardened-profile architecture). On merge, the worker-runtime lane unblocks.
+  - **Worker-lane consequence:** once P0.W.1 merges, **P0.W.2 (worker host) is reachable** and must implement the hardened profile (DR-010 + DR-011). P0.W.3/W.4/W.5/P0.S.2/P1.W.1 follow. Independent lanes (engine-port, schema-tenancy) were already complete for Phase 0's reachable set.
 
 ## Recent learnings (last 5)
 
+0. **P0.W.1 gate CONFIRMED via live run + remediation (2026-06-25).** Vercel Sandbox is a viable worker runtime *with a hardened profile*: (a) egress = SDK `networkPolicy` allowlist + in-VM `iptables` DROP on `169.254.0.0/16` (the Firecracker MMDS is hypervisor-local and token-gated — the egress policy can't refuse it; the iptables block can) [[DR-010]]; (b) fs = **no-shell worker** + a workdir-scoped file tool — a VM shell jail is unachievable (non-root run, permissive image, no chroot), so the control lives at the tool layer [[DR-011]]. All 4 probes PASS. The `vercel-sandbox` run user is uid 1000 but can `sudo` and the base image is permissive. PR 006 must build this profile.
 1. **Port sources live in `C:/Users/stone/Code/flywheel-main/`** (DR-001), not in sagemark. RFC `apps/trailhead`/`apps/agents` paths are relative to that sibling repo (read-only). Agents read them by absolute path.
 2. **Spike PRs that need real infra** can't complete unattended — deliver the artifact + an honest Tier-3 NEEDS-INPUT, hold the PR open, gate the dependent host PR. Don't fabricate verdicts.
 3. **`auth.ts` is a no-op placeholder seam** (DR-003) until a schema-tenancy PR fills it — studio surfaces are NOT actually access-controlled yet.
@@ -37,7 +40,7 @@ _(none — loop terminated **depleted** after Run #004)_
 
 | ID | Title | Lane | Status | Run merged | Commit | PR |
 |---|---|---|---|---|---|---|
-| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | PR_CREATED | — | c38de48 | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
+| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | PR_CREATED (live run COMPLETE — **CONFIRMED 4/4 PASS**; awaiting human merge) | — | df1205f | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
 | P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | MERGED | 1 | ec13f1c | [#2](https://github.com/digital-seniority/sagemark/pull/2) |
 | P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | MERGED | 2 | a74a1c7 | [#5](https://github.com/digital-seniority/sagemark/pull/5) |
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
@@ -81,6 +84,6 @@ _(none — loop terminated **depleted** after Run #004)_
 
 ---
 
-*Run #004 complete · 5/23 merged + 1 corrective · LOOP TERMINAL (depleted) · blocked on P0.W.1 live Sandbox run (human) · audit due (4 runs since last)*
+*Run #004 complete · 5/23 merged + 1 corrective · P0.W.1 live Sandbox run COMPLETE → **CONFIRMED 4/4 PASS** (hardened profile; DR-010 + DR-011) · next: human merge of PR #3 → resume loop (P0.W.2 reachable) · audit due (4 runs since last)*
 
 > **Autonomous reachability note:** with the worker lane gated behind P0.W.1's live Sandbox run, the dependency-eligible-without-the-worker set is P0.E.3 → P0.E.4, after which everything remaining (P0.S.2, P0.W.2+, all of Phase 1) transitively needs the worker lane. The loop will run P0.E.3 + P0.E.4, then terminate "depleted" and surface that the rest needs the human Sandbox run + the worker host.
