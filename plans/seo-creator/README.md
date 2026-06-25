@@ -26,8 +26,13 @@ canvas (`PinOverlay`, `PreviewClickHandler`, `useIframePinDrop`, `VersionHub`,
 
 ## Documents
 
+> **Locked calls live in [DECISIONS.md](DECISIONS.md)** — James resolved D1/D2/D3/D7
+> on 2026-06-25 (three overrode the plan's recommendation). The docs below are the
+> *analysis*; DECISIONS.md is the *resolution* and the build's source of truth.
+
 | # | Doc | What it covers |
 |---|---|---|
+| — | [**DECISIONS.md**](DECISIONS.md) | **The locked D1–D8 calls + the two flagged tensions** (authoritative) |
 | 00 | [Vision & Top-Level Decisions](00-vision-and-decisions.md) | North star, the decisions table, **the five questions answered**, what "on-thesis" means |
 | 01 | [Architecture](01-architecture.md) | Agent runtime, harness port, request/stream lifecycle, data model, inter-service calls |
 | 02 | [Interface & UX](02-interface-and-ux.md) | The three-zone agent canvas, streaming, conversational fine-tune, UI states |
