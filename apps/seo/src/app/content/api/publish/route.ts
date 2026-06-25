@@ -1,0 +1,256 @@
+/**
+ * POST /content/api/publish — host-enforced `canPublish()` + FSM transition.
+ * Contract: `content-engine/1.0` (PR 005, lane engine-port).
+ *
+ * THE LOAD-BEARING GATE. The transition into `published` is decided HOST-SIDE by
+ * `@sagemark/core`'s `assertTransition` (which consults `canPublish`), never by
+ * the caller. All preconditions are read from the PERSISTED row + release
+ * records (never request input):
+ *   1. global publish flag on (default OFF — fail-safe);
+ *   2. verdict === PUBLISH (persisted);
+ *   3. the eval actually ran (a scorecard is persisted);
+ *   4. a recorded human release exists — a `credentialed_release`, NEVER a
+ *      `client_signoff` (a signoff resolves to NO_HUMAN_RELEASE);
+ *   5. that release's `authorization_id` resolves to an ACTIVE byline
+ *      authorization (not revoked / expired) — an inactive authorization is a
+ *      fail-closed block;
+ *   6. (YMYL) a named author + credentials + citations.
+ *
+ * Any blocked clause throws `IllegalTransitionError` -> 422 with a stable reason
+ * (never prose). The handler is `handlePublish(request, deps)` for injection.
+ *
+ * PII rule: log only ids + action + outcome.
+ */
+
+import "server-only";
+import { NextResponse } from "next/server";
+
+import { getCurrentWorkspace } from "@/lib/auth";
+import type { Workspace } from "@/lib/auth";
+import {
+  assertTransition,
+  IllegalTransitionError,
+  type HumanRelease,
+  type ReleaseAuthor,
+  type TransitionContext,
+  type LifecycleState,
+} from "@sagemark/core";
+import {
+  PublishRequestSchema,
+  CONTENT_CONTRACT_VERSION,
+  checkContractVersion,
+} from "@/lib/content/contract";
+import {
+  bindRequestContext,
+  assertTenancyMatch,
+  NOT_WIRED_DATA_ACCESS,
+  type ContentDataAccess,
+  type ContentPieceRow,
+  type PersistedRelease,
+} from "@/lib/content/context";
+
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
+export interface PublishDeps {
+  data: ContentDataAccess;
+  resolveWorkspace: () => Promise<Workspace | null>;
+  /** Global publish kill switch (default reads CONTENT_PUBLISH_ENABLED). */
+  publishEnabled: () => boolean;
+}
+
+function defaultPublishEnabled(): boolean {
+  return process.env.CONTENT_PUBLISH_ENABLED === "1";
+}
+
+const DEFAULT_DEPS: PublishDeps = {
+  data: NOT_WIRED_DATA_ACCESS,
+  resolveWorkspace: getCurrentWorkspace,
+  publishEnabled: defaultPublishEnabled,
+};
+
+function json(body: unknown, status: number): NextResponse {
+  return NextResponse.json(body, { status });
+}
+
+/**
+ * Resolve the persisted release into the FSM's `HumanRelease` shape, applying the
+ * §11.5 fail-closed authorization check. A `client_signoff` is returned as-is
+ * (the FSM rejects it as NO_HUMAN_RELEASE). A `credentialed_release` whose
+ * authorization is revoked/expired/missing is DOWNGRADED to null so the FSM
+ * blocks publish (the byline is never resolved from an inactive authorization).
+ */
+async function resolveRelease(
+  release: PersistedRelease | null,
+  clientId: string,
+  data: Pick<ContentDataAccess, "getAuthorization">,
+  now: Date,
+): Promise<HumanRelease> {
+  if (!release) return null;
+  if (release.releaseType === "client_signoff") {
+    // Structurally cannot release — pass through so the FSM resolves NO_HUMAN_RELEASE.
+    return { releaseType: "client_signoff", actorId: release.actorId };
+  }
+  // credentialed_release — verify the backing authorization is ACTIVE (§11.5).
+  if (!release.authorizationId) return null;
+  const auth = await data.getAuthorization(release.authorizationId, clientId);
+  if (!auth) return null; // dangling authorization → fail closed
+  if (auth.revokedAt) return null; // revoked → fail closed
+  if (auth.expiresAt && new Date(auth.expiresAt).getTime() <= now.getTime()) {
+    return null; // expired → fail closed
+  }
+  return {
+    releaseType: "credentialed_release",
+    actorId: release.actorId,
+    credential: release.credential ?? {},
+    authorizationId: release.authorizationId,
+  };
+}
+
+export async function handlePublish(
+  request: Request,
+  deps: PublishDeps = DEFAULT_DEPS,
+): Promise<Response> {
+  // 1. Parse + validate.
+  let raw: unknown;
+  try {
+    raw = await request.json();
+  } catch {
+    return json({ error: "invalid json", code: "bad-request" }, 400);
+  }
+  const parsed = PublishRequestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return json({ error: "invalid request body", code: "bad-request" }, 400);
+  }
+  const body = parsed.data;
+
+  const mismatch = checkContractVersion(body.contractVersion);
+  if (mismatch) return json({ error: "contract version mismatch", ...mismatch }, 409);
+
+  const flagOn = deps.publishEnabled();
+  // A publish attempt with the global flag off is refused up front (fail-safe).
+  if (body.action === "publish" && !flagOn) {
+    return json({ error: "publishing is disabled", code: "publish-disabled" }, 403);
+  }
+
+  // 2. Bind tenancy SERVER-side (criterion 7).
+  const bound = await bindRequestContext(body.clientId, deps.data, deps.resolveWorkspace);
+  if (!bound.ok) {
+    return json({ error: bound.code, code: bound.code }, bound.status);
+  }
+  const ctx = bound.context;
+
+  // 3. REJECT a request-supplied tenancy mismatch (403).
+  if (!assertTenancyMatch({ workspaceId: body.workspaceId, clientId: body.clientId }, ctx)) {
+    return json(
+      { error: "request tenancy does not match the bound context", code: "tenancy-mismatch" },
+      403,
+    );
+  }
+
+  // 4. Load the persisted piece (scoped by client).
+  const piece = await deps.data.loadPiece(body.pieceId, ctx.clientId);
+  if (!piece) {
+    return json({ error: "not found", code: "not-found" }, 404);
+  }
+
+  // 5. Build the transition. Publish goes piece.status -> published; unpublish
+  //    goes published -> review|archived.
+  const from = piece.status as LifecycleState;
+  const to: LifecycleState = body.action === "publish" ? "published" : (body.to ?? "review");
+
+  // For publish, assemble the FSM context from PERSISTED state only.
+  if (body.action === "publish") {
+    const release = await deps.data.getRelease(body.pieceId, ctx.clientId, piece.version);
+    const humanRelease = await resolveRelease(
+      release,
+      ctx.clientId,
+      deps.data,
+      new Date(),
+    );
+    // Byline author resolved from the credentialed release's credential snapshot
+    // (server-side), NEVER from request input.
+    const author: ReleaseAuthor | null =
+      humanRelease && humanRelease.releaseType === "credentialed_release"
+        ? {
+            id: piece.authorId ?? undefined,
+            name: humanRelease.credential?.name,
+            credentials: humanRelease.credential?.credentials,
+          }
+        : null;
+
+    const transitionCtx: TransitionContext = {
+      verdict: piece.verdict,
+      evalRan: piece.evalScore !== null || piece.verdict !== null,
+      humanRelease,
+      isYmyl: piece.isYmyl,
+      author,
+      // YMYL citation presence is read from the persisted brief snapshot
+      // (graded sources present == citations available).
+      hasCitations: (piece.briefSnapshot?.sources?.length ?? 0) > 0,
+      publishEnabled: flagOn,
+    };
+
+    try {
+      assertTransition(from, to, transitionCtx);
+    } catch (err) {
+      if (err instanceof IllegalTransitionError) {
+        console.log(
+          `[content/publish] blocked workspaceId=${ctx.workspaceId} clientId=${ctx.clientId} pieceId=${body.pieceId} from=${err.from} to=${err.to} reason=${err.rejection}`,
+        );
+        return json(
+          { error: "transition blocked", code: "transition-blocked", reason: err.rejection },
+          422,
+        );
+      }
+      throw err;
+    }
+  } else {
+    // Unpublish: a structurally-legal revert (published -> review|archived).
+    const transitionCtx: TransitionContext = {
+      verdict: piece.verdict,
+      evalRan: piece.evalScore !== null || piece.verdict !== null,
+      isYmyl: piece.isYmyl,
+      publishEnabled: flagOn,
+    };
+    try {
+      assertTransition(from, to, transitionCtx);
+    } catch (err) {
+      if (err instanceof IllegalTransitionError) {
+        return json(
+          { error: "transition blocked", code: "transition-blocked", reason: err.rejection },
+          422,
+        );
+      }
+      throw err;
+    }
+  }
+
+  // 6. The transition is permitted — apply the status mutation (the ONLY write).
+  try {
+    await deps.data.transitionPieceStatus(body.pieceId, ctx.clientId, to);
+  } catch (err) {
+    console.error("[content/publish] status write failed", {
+      workspaceId: ctx.workspaceId,
+      clientId: ctx.clientId,
+      message: err instanceof Error ? err.message : "unknown",
+    });
+    return json({ error: "internal error", code: "internal" }, 500);
+  }
+
+  console.log(
+    `[content/publish] ok workspaceId=${ctx.workspaceId} clientId=${ctx.clientId} pieceId=${body.pieceId} action=${body.action} status=${to}`,
+  );
+
+  return json(
+    { contractVersion: CONTENT_CONTRACT_VERSION, pieceId: body.pieceId, status: to },
+    200,
+  );
+}
+
+export async function POST(request: Request): Promise<Response> {
+  return handlePublish(request);
+}
+
+/** Re-exported so a future caller could narrow on the persisted-piece shape. */
+export type { ContentPieceRow };
