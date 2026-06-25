@@ -1,0 +1,21 @@
+{
+  "name": "@sagemark/seo-spike-capability-enforcement",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PR 000 Phase-0 de-risking spike: adversarial probes that prove (or falsify) Vercel Sandbox + Claude Agent SDK capability-denial. Ships no production runtime.",
+  "type": "module",
+  "scripts": {
+    "probe:egress": "tsx egress-probe.ts",
+    "probe:env-scrub": "tsx env-scrub-probe.ts",
+    "probe:fs": "tsx fs-constraint-probe.ts",
+    "probe:boot-refusal": "tsx boot-refusal-probe.ts",
+    "probe:all": "tsx boot-refusal-probe.ts && tsx egress-probe.ts && tsx env-scrub-probe.ts && tsx fs-constraint-probe.ts"
+  },
+  "comment": "Run-time deps are NOT installed in this workspace by default (this is a spike, not a shipped surface). The live Sandbox run requires `@vercel/sandbox` (and a `tsx`/`ts-node` runner). See RESULTS.md → 'How to run the live adversarial run'.",
+  "peerDependencies": {
+    "@vercel/sandbox": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4"
+  }
+}
