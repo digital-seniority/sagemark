@@ -17,6 +17,7 @@ consequence spelled out. Decided 2026-06-25.
 | **D6** | Reviewer capacity + backup | **PENDING — James must supply a number + a name** | Open — no engineering default |
 | **D7** | Generated hub homepage | **Generate it in v1** (curated resource-library homepage as a real artifact) | **[OVERRIDE]** James (plan recommended hand-building for the pilot) |
 | **D8** | Client-review hosting | In-app tokenized route (one piece/version, fail-closed RLS) | Default (recommended) |
+| **D9** | Agent-SDK worker host (opened by D5) | **Vercel Sandbox** — ephemeral microVMs, closest to the rest of the stack; hosts the long-lived Agent-SDK loop per run | James |
 
 ## What the four overrides change
 
@@ -28,9 +29,9 @@ docs): the Claude Agent SDK **spawns and supervises a `claude` CLI subprocess** 
 a shell + on-disk working directory and is a long-lived, stateful process — it does
 **not** run in a Vercel serverless function. Consequences:
 - **Topology splits in two.** `apps/seo` (Vercel) becomes a thin UI + orchestration
-  API; a **separate long-running Agent-SDK worker container** runs the autonomous
-  loop. Host the worker on Modal / Trigger.dev / Vercel Sandbox / Bedrock AgentCore /
-  a plain Node container — **this is a new open decision (D9, below).**
+  API; a **separate Agent-SDK worker** runs the autonomous loop on **Vercel Sandbox**
+  (D9, locked) — ephemeral microVMs, so all per-run session/agent/working-dir state
+  must persist to Supabase (system of record), never the Sandbox filesystem across runs.
 - **The gate/scorers/DB are exposed to the worker as host-side tools**, not rebuilt.
   The worker's loop calls back into the deterministic kernel (the ported `seo-gate`,
   22 scorers, `canPublish()`, Supabase writes) as tools the agent cannot reason past —
@@ -105,13 +106,6 @@ before the surface area widens.
 
 ## Still needed from James
 
-- **D9 — where the Agent-SDK worker runs (new, opened by D5).** The self-hosted
-  harness needs a long-lived container host. Candidates: **Vercel Sandbox** (closest
-  to the rest of the stack, ephemeral microVMs), **Modal** or **Trigger.dev** (purpose-
-  built for long agent jobs, durable), a **plain Node container** (Fly/Render/ECS), or
-  **Bedrock AgentCore** (if AWS-aligned). This decides the worker's persistence,
-  scaling, and per-run cost model, and gates the Phase-1 transport design. No default
-  yet — needs a call before the worker is stood up.
 - **D6 — reviewer ceiling + backup name.** With D2 = hard gate, the credentialed
   reviewer is the binding constraint on YMYL publish rate. No YMYL page should go
   live until a backup-reviewer path exists. This is a number (pages/week one

@@ -67,7 +67,7 @@ git-verified. **D1/D2/D3/D5/D7 are locked** (see [DECISIONS.md](DECISIONS.md)) �
 notably **D5 = Claude Agent SDK self-hosted worker** (overrides the in-process AI SDK
 runtime in docs 00/01: `apps/seo` on Vercel orchestrates a separate Agent-SDK worker
 container that runs the autonomous loop and calls host-side tools for the gate).
-**Still open:** **D9** (where the worker runs — Vercel Sandbox / Modal / Trigger.dev /
-container), **D6** (reviewer ceiling + backup name), **D4** (ledger confirm). **Next:**
-pick D9, then build the roadmap's thinnest end-to-end slice across the worker↔Vercel
-boundary.
+**D9 = Vercel Sandbox** (the worker host) is now locked too. **Still open:** **D6**
+(reviewer ceiling + backup name), **D4** (ledger confirm) — neither blocks the build.
+**Next:** run the plan through `plan-flywheel` to compile a build-ready, audit-passed
+PR map for the worker↔Vercel slice.
