@@ -229,3 +229,10 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **DR:** [[DR-030]] (rate-limiter in-process → distributed before multi-instance).
 - **State:** 16/23 engineering (Phase 1: 6/12). **Next:** Run #019 = P1.U.4 (version hub), then likely terminal (rest non-eng-blocked + budget).
 - **Checkpoint:** `checkpoints/run-018-2026-06-26.md`
+
+## Run #019 — 2026-06-26 — P1.U.4 → ★ LOOP TERMINAL ★
+- **Merged:** P1.U.4 (PR 013 — version hub + undeletable named sign-off) [#41](https://github.com/digital-seniority/sagemark/pull/41) `63c65e5` (judge 5/5·5/5; immutability seam-enforced).
+- **DR:** [[DR-031]] (sign-off DB immutability + version migration → schema lane).
+- **★ AUTO-LOOP ENDED (active:false) ★** terminal: eligible mapped engineering depleted + audit-due (5 since audit-003) + ~9.2h/10h budget. Remaining Phase-1 (P1.R.3/P1.C.1-4) non-eng-blocked (imagegen keys, D6 reviewer, ≥3-engine SoM).
+- **State:** 17/23 engineering (Phase 1: 7/12). **Next session:** audit (DUE) → unblock non-eng items.
+- **Checkpoint:** `checkpoints/run-019-2026-06-26.md`

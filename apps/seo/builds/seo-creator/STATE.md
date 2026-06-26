@@ -2,9 +2,9 @@
 
 **Last updated:** 2026-06-26 (Run #013 — P0.S.2 #28 MERGED → ★ PHASE 0 COMPLETE ★; phase-close audit next, then Phase 1)
 **Current build phase:** Phase 1 — Pilot (ENTERED — Phase 0 complete; audit-003 phase-close CLEAR, no Critical/High)
-**Phase progress:** **16 / 23 engineering PRs merged** — all 10 Phase-0 + **Phase 1: 6/12** (P1.R.1 #31, P1.W.1 #32, P1.R.2 #34, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39 edit loop) · **★ SLICE 1 CLOSED ★** (+3 correctives · +1 spike · 4 audit fixes · suite #24)
-**Runs since last audit:** 4 (audit-003 was Run #014; **audit due before Run #020**)
-**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **Phase 1 (6/12) · ★ SLICE 1 CLOSED ★** (audit-003 CLEAR). Runs #015–#018 merged P1.R.1/R.2/W.1/U.1/U.2/U.3 — all judge-APPROVED 5/5·5/5. P1.U.3 (#39) closed Slice 1 end-to-end (brief→draft→gate→persist→render→edit→re-gate→version, judge-confirmed). ~8.9h of the 10h window used (~1.1h left). **Next: Run #019 = P1.U.4 (PR 013 — version hub switch/name/compare + undeletable named sign-off, ←P1.U.3).** After P1.U.4 the remaining Phase-1 PRs (P1.R.3, P1.C.1-4) are **NON-ENG-blocked** (imagegen keys, D6 reviewer, ≥3-engine SoM) → expect a clean loop terminal (eligible engineering depleted + budget ceiling ~14:14Z). Audit due before Run #020.
+**Phase progress:** **17 / 23 engineering PRs merged** — all 10 Phase-0 + **Phase 1: 7/12** (P1.R.1 #31, P1.W.1 #32, P1.R.2 #34, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41 version hub) · **★ SLICE 1 CLOSED ★** (+3 correctives · +1 spike · 4 audit fixes · suite #24)
+**Runs since last audit:** 5 — **AT THRESHOLD: `/seo-creator-build audit full` is DUE before the next work-doing run** (audit-003 was Run #014)
+**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **Phase 1 (7/12) · ★ SLICE 1 CLOSED ★ · ⏹ AUTO-LOOP ENDED (active:false)** — the 10h unattended run completed cleanly. Runs #015–#019 merged P1.R.1/R.2/W.1/U.1/U.2/U.3/U.4 (all judge-APPROVED 5/5·5/5). **Terminal reason:** eligible *mapped engineering* depleted + **audit DUE** (5 runs since audit-003) + ~9.2h/10h budget. **Remaining Phase-1 PRs are blocked on NON-ENGINEERING deliverables** — P1.R.3 (imagegen keys), P1.C.1 (←P1.R.3), P1.C.2 (←D6 credentialed reviewer), P1.C.3/P1.C.4 (←≥3-engine share-of-model measurement; + the DR-013 Gateway-only-metering corrective). **To resume:** run `/seo-creator-build audit full` (DUE) first, then provide the non-eng inputs to reach P1.R.3 / client-review. Dependency-free engineering still available if desired: the DR-013 metering corrective + the [[DR-031]] schema follow-up (sign-off DB immutability + version-metadata columns).
 
 ## Currently in flight
 
@@ -99,7 +99,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P1.U.1 | PR 010 — Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas) | agent-ui | **MERGED** (judge 5/5·5/5 fit-for-shell; SSE-wired; DOM-test-runner gap flagged) | Run #016 | aef8fad | [#35](https://github.com/digital-seniority/sagemark/pull/35) |
 | P1.U.2 | PR 011 — Live token streaming into the center editor + Inspector gate scorecard | agent-ui | **MERGED** (judge 5/5·5/5; scorecard-honesty + jsdom runner [[DR-028]]/[[DR-029]]) | Run #017 | 92192bd | [#37](https://github.com/digital-seniority/sagemark/pull/37) |
 | P1.U.3 | PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning | agent-ui | **MERGED** (judge 5/5·5/5; ★Slice-1 close★; 409/429/403 guards; [[DR-030]]) | Run #018 | 13e409c | [#39](https://github.com/digital-seniority/sagemark/pull/39) |
-| P1.U.4 | PR 013 — Version hub: switch / name / compare + undeletable named sign-off | agent-ui | NOT_STARTED | — | — | — |
+| P1.U.4 | PR 013 — Version hub: switch / name / compare + undeletable named sign-off | agent-ui | **MERGED** (judge 5/5·5/5; sign-off immutable at the seam; [[DR-031]] DB follow-up) | Run #019 | 63c65e5 | [#41](https://github.com/digital-seniority/sagemark/pull/41) |
 | P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | **MERGED** (judge 5/5·5/5; N=3 cap [[DR-027]]; A.014.1+A.014.5 folded) | Run #015 | 659b083 | [#32](https://github.com/digital-seniority/sagemark/pull/32) |
 | P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; escape-first [[DR-026]]) | Run #015 | 6258732 | [#31](https://github.com/digital-seniority/sagemark/pull/31) |
 | P1.R.2 | PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions) | render-geo | **MERGED** (judge 5/5·5/5; both-directions + failing-case proofs; ci.yml step) | Run #016 | 2232ee3 | [#34](https://github.com/digital-seniority/sagemark/pull/34) |
@@ -131,6 +131,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 016 | 5.0 | 5.0 | 0% | 0% |
 | 017 | 5.0 | 5.0 | 0% | 0% |
 | 018 | 5.0 | 5.0 | 0% | 0% |
+| 019 | 5.0 | 5.0 | 0% | 0% |
 
 ## Status legend
 
@@ -138,6 +139,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #018 · Phase 1 (6/12) · ★ SLICE 1 CLOSED ★: P1.U.3 [#39](https://github.com/digital-seniority/sagemark/pull/39) /api/edit + re-gate + versioning MERGED · judge 5/5·5/5 · DR-030 · auto-loop unattended (~8.9h/10h) → Run #019 = P1.U.4 (version hub), then likely terminal (rest non-eng-blocked + budget)*
+*Run #019 · Phase 1 (7/12) · ⏹ AUTO-LOOP ENDED (10h unattended complete): P1.U.4 [#41](https://github.com/digital-seniority/sagemark/pull/41) version hub MERGED · judge 5/5·5/5 · DR-031 · 17/23 engineering · terminal: audit-due + remaining Phase-1 non-eng-blocked + budget. Resume with `/seo-creator-build audit full`.*
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.

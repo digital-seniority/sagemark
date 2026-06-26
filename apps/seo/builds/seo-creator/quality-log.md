@@ -29,3 +29,4 @@ These can diverge. Watch for declining slopes across 3+ rows — that's the Laye
 | 016 | 2026-06-26 | 2 | 5.0 | 5.0 | apps/seo has no DOM test runner (UI interaction untested, Tier-3) | UI lane: add jsdom/@testing-library or Playwright CT before PR 011 (live editor streaming) | checkpoints/run-016-2026-06-26.md |
 | 017 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — scorecard honesty + build-safety both PASS) | DR-028 subpath imports + DR-029 jsdom now standing UI-lane conventions | checkpoints/run-017-2026-06-26.md |
 | 018 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — Slice-1 close; GATE-BYPASS/TENANCY PASS) | move stale-check ahead of rate-limit take(); distributed limiter before multi-instance (DR-030) | checkpoints/run-018-2026-06-26.md |
+| 019 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — sign-off immutability seam-enforced) | LOOP TERMINAL: audit due + remaining Phase-1 non-eng-blocked + budget; DR-031 schema follow-up | checkpoints/run-019-2026-06-26.md |
