@@ -278,6 +278,11 @@ export const bylineAuthorizations = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
     // The operator who recorded the authorization.
     authorizedBy: uuid("authorized_by").notNull(),
+    // DR-037 go-live guard (migration 0038). TRUE only on the seeded PILOT
+    // placeholder reviewer ("Pending Clinical Reviewer", RN). A real
+    // authorization is `false`. signoff.ts REFUSES a credentialed-release write
+    // backed by a placeholder authorization in a non-pilot/production context.
+    placeholder: boolean("placeholder").default(false).notNull(),
   },
   (t) => [
     index("byline_authorizations_client_idx").on(t.clientId),
