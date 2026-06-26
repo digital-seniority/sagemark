@@ -30,3 +30,4 @@ These can diverge. Watch for declining slopes across 3+ rows — that's the Laye
 | 017 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — scorecard honesty + build-safety both PASS) | DR-028 subpath imports + DR-029 jsdom now standing UI-lane conventions | checkpoints/run-017-2026-06-26.md |
 | 018 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — Slice-1 close; GATE-BYPASS/TENANCY PASS) | move stale-check ahead of rate-limit take(); distributed limiter before multi-instance (DR-030) | checkpoints/run-018-2026-06-26.md |
 | 019 | 2026-06-26 | 1 | 5.0 | 5.0 | (none — sign-off immutability seam-enforced) | LOOP TERMINAL: audit due + remaining Phase-1 non-eng-blocked + budget; DR-031 schema follow-up | checkpoints/run-019-2026-06-26.md |
+| 020 | 2026-06-26 | 0 (audit + imagegen) | audit | audit | audit-004: no Critical; P1.R.3 clear; F-LICENSE-1 landmine (DR-033) | wire 3 structured judge checks (incl. migration-pooled-role); land DR-033 with P1.R.3 | audits/audit-004-2026-06-26.md |

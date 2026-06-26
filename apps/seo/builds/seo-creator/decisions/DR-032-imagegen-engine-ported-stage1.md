@@ -36,6 +36,9 @@ The **Pexels stock-photo path is fully unblocked** (key provisioned local + sage
 - Predecessors: [[DR-001]] (port-source = flywheel-main), [[DR-013]] (Gateway-only metering)
 - Unblocks: P1.R.3 (PR 017)
 
+## Stage-2 UPDATE (audit-004) — SHIPPED + APPLIED
+Stage 2 is no longer deferred: merged PR #45 (`2478669`, judge 5/5; CI fix `0817379` removed `storage.*` SQL from the migration per the live-pooled-role failure class) — `store-supabase.ts` + `0035_generated_images` + fail-closed RLS + gated `/api/run` (refuse-before-spend). Migration **applied to Sagemark** (`rilaycjkksfosnxvenzt`) + the private `seo-generated-images` bucket **created** (event M020-E03). The "bucket provisioning is storage-admin, NOT a SQL migration" decision is load-bearing (see DR header / 0035). **Still open before flipping the live generated path on:** set `IMAGEGEN_LIVE=1` + service-role creds on the deploy; confirm the 4 Gateway image-model ids via a smoke; true-up `ESTIMATED_USD_PER_IMAGE_BY_TIER` (all `null` today). Publish-side license enforcement for referenced images → [[DR-033]].
+
 ---
 
-*Authored by /seo-creator-build · user-directed imagegen build · 2026-06-26*
+*Authored by /seo-creator-build · user-directed imagegen build · 2026-06-26 (Stage-2 update: audit-004)*
