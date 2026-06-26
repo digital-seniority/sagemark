@@ -208,3 +208,10 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **DRs:** [[DR-026]] (escape-first render + public-data seam), [[DR-027]] (revise-cap in worker loop). **A.014.1 funnel-enum discharged** in P1.W.1.
 - **Next:** Run #016 = P1.R.2 (reachability gate) + P1.U.1 (canvas shell).
 - **Checkpoint:** `checkpoints/run-015-2026-06-26.md`
+
+## Run #016 — 2026-06-26 — Phase 1 batch 2 (P1.R.2 + P1.U.1)
+- **Merged:** P1.R.2 (PR 016 CI reachability gate) [#34](https://github.com/digital-seniority/sagemark/pull/34) `2232ee3` (judge 5/5·5/5); P1.U.1 (PR 010 three-zone canvas shell + SSE) [#35](https://github.com/digital-seniority/sagemark/pull/35) `aef8fad` (judge 5/5·5/5 fit-for-shell).
+- **Process 5.0 · Product 5.0.** No new DRs.
+- **Escalation:** apps/seo has no DOM test runner — UI lane decide jsdom/Playwright before PR 011.
+- **State:** 14/23 engineering (Phase 1: 4/12). **Next:** Run #017 = P1.U.2 (PR 011).
+- **Checkpoint:** `checkpoints/run-016-2026-06-26.md`
