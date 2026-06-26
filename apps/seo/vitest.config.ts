@@ -15,6 +15,8 @@ export default defineConfig({
     // excluded here to avoid a runner clash.
     include: [
       "test/content/**/*.test.ts",
+      // PR 009 / P0.S.2: the fail-closed publish truth table (studio /api/publish).
+      "test/publish/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
       // PR 008 / P0.W.5 (DR-019 append-only carve-out): the golden-set regression

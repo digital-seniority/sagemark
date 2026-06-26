@@ -12,6 +12,7 @@ import type {
   ApprovedVoiceSpec,
   PersistedRelease,
   PersistedAuthorization,
+  PersistedGateResult,
   PersistedBriefSnapshot,
 } from "@/lib/content/context";
 import type { AuthorityClass } from "@/lib/content/contract";
@@ -86,6 +87,18 @@ export function pieceRow(over: Partial<ContentPieceRow> = {}): ContentPieceRow {
   };
 }
 
+export function gateResult(
+  over: Partial<PersistedGateResult> = {},
+): PersistedGateResult {
+  return {
+    evalRan: true,
+    stageBScore: 90,
+    verdict: "PUBLISH",
+    sourcingBlocked: false,
+    ...over,
+  };
+}
+
 /** A spying data-access mock. `writes` counts every mutation call. */
 export interface MockDataAccess extends ContentDataAccess {
   writes: { insertDraftPiece: number; transitionPieceStatus: number };
@@ -104,6 +117,7 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
     ),
     getRelease: vi.fn(async (): Promise<PersistedRelease | null> => null),
     getAuthorization: vi.fn(async (): Promise<PersistedAuthorization | null> => null),
+    getGateResult: vi.fn(async (): Promise<PersistedGateResult | null> => gateResult()),
     insertDraftPiece: vi.fn(async () => {
       writes.insertDraftPiece += 1;
       return { id: PIECE_A, slug: "test-piece" };

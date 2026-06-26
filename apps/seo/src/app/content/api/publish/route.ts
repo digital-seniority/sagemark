@@ -30,7 +30,6 @@ import type { Workspace } from "@/lib/auth";
 import {
   assertTransition,
   IllegalTransitionError,
-  type HumanRelease,
   type ReleaseAuthor,
   type TransitionContext,
   type LifecycleState,
@@ -46,8 +45,9 @@ import {
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
   type ContentPieceRow,
-  type PersistedRelease,
 } from "@/lib/content/context";
+import { readCredentialedRelease } from "@/lib/release/read-credentialed-release";
+import { resolveBylineAuthor } from "@/lib/byline/resolve-author";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -75,40 +75,6 @@ const DEFAULT_DEPS: PublishDeps = {
 
 function json(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status });
-}
-
-/**
- * Resolve the persisted release into the FSM's `HumanRelease` shape, applying the
- * §11.5 fail-closed authorization check. A `client_signoff` is returned as-is
- * (the FSM rejects it as NO_HUMAN_RELEASE). A `credentialed_release` whose
- * authorization is revoked/expired/missing is DOWNGRADED to null so the FSM
- * blocks publish (the byline is never resolved from an inactive authorization).
- */
-async function resolveRelease(
-  release: PersistedRelease | null,
-  clientId: string,
-  data: Pick<ContentDataAccess, "getAuthorization">,
-  now: Date,
-): Promise<HumanRelease> {
-  if (!release) return null;
-  if (release.releaseType === "client_signoff") {
-    // Structurally cannot release — pass through so the FSM resolves NO_HUMAN_RELEASE.
-    return { releaseType: "client_signoff", actorId: release.actorId };
-  }
-  // credentialed_release — verify the backing authorization is ACTIVE (§11.5).
-  if (!release.authorizationId) return null;
-  const auth = await data.getAuthorization(release.authorizationId, clientId);
-  if (!auth) return null; // dangling authorization → fail closed
-  if (auth.revokedAt) return null; // revoked → fail closed
-  if (auth.expiresAt && new Date(auth.expiresAt).getTime() <= now.getTime()) {
-    return null; // expired → fail closed
-  }
-  return {
-    releaseType: "credentialed_release",
-    actorId: release.actorId,
-    credential: release.credential ?? {},
-    authorizationId: release.authorizationId,
-  };
 }
 
 export async function handlePublish(
@@ -174,26 +140,29 @@ export async function handlePublish(
   // For publish, assemble the FSM context from PERSISTED state only.
   if (body.action === "publish") {
     const release = await deps.data.getRelease(body.pieceId, ctx.clientId, piece.version);
-    const humanRelease = await resolveRelease(
+    // Resolve the release (centralized): a client_signoff is passed through (the
+    // FSM rejects it NO_HUMAN_RELEASE); a credentialed_release is honored ONLY if
+    // its authorization is ACTIVE (§11.5 fail-closed). DR-013/extracted module.
+    const humanRelease = await readCredentialedRelease(
       release,
       ctx.clientId,
       deps.data,
       new Date(),
     );
-    // Byline author resolved from the credentialed release's credential snapshot
-    // (server-side), NEVER from request input.
-    const author: ReleaseAuthor | null =
-      humanRelease && humanRelease.releaseType === "credentialed_release"
-        ? {
-            id: piece.authorId ?? undefined,
-            name: humanRelease.credential?.name,
-            credentials: humanRelease.credential?.credentials,
-          }
-        : null;
+    // Byline author resolved SERVER-side from the (authorization-checked) release's
+    // credential snapshot + the PERSISTED author_id — NEVER from request input.
+    const author: ReleaseAuthor | null = resolveBylineAuthor(
+      humanRelease,
+      piece.authorId,
+    );
 
+    // A.011.7: bind evalRan to the PERSISTED gate_results.eval_ran row, not the
+    // loose `evalScore != null || verdict != null` heuristic (a Stage-A veto sets
+    // a verdict with no eval_score → the heuristic would mis-read evalRan=true).
+    const gate = await deps.data.getGateResult(body.pieceId, ctx.clientId, piece.version);
     const transitionCtx: TransitionContext = {
       verdict: piece.verdict,
-      evalRan: piece.evalScore !== null || piece.verdict !== null,
+      evalRan: gate?.evalRan === true,
       humanRelease,
       isYmyl: piece.isYmyl,
       author,
@@ -218,10 +187,13 @@ export async function handlePublish(
       throw err;
     }
   } else {
-    // Unpublish: a structurally-legal revert (published -> review|archived).
+    // Unpublish: a structurally-legal revert (published -> review|archived). The
+    // FSM does not gate reversible moves on evalRan; bind it from the persisted
+    // gate_results row anyway (A.011.7) rather than the loose verdict heuristic.
+    const gate = await deps.data.getGateResult(body.pieceId, ctx.clientId, piece.version);
     const transitionCtx: TransitionContext = {
       verdict: piece.verdict,
-      evalRan: piece.evalScore !== null || piece.verdict !== null,
+      evalRan: gate?.evalRan === true,
       isYmyl: piece.isYmyl,
       publishEnabled: flagOn,
     };
