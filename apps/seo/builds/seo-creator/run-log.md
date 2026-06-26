@@ -157,3 +157,13 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Loop:** NOT re-armed (discrete corrective, not "resume auto").
 - **Blocked / next:** P0.W.5 (PR 008) still blocked on the human-labeled golden corpus (non-engineering) + the suite-skill→Sandbox delivery decision. **Audit now due** (5 runs since last; threshold 5) before the next work-doing run.
 - **Checkpoint:** `checkpoints/run-010-2026-06-26.md`
+
+## Run #011 — 2026-06-26 (AUDIT)
+
+- **Mode:** audit-002 (full) — 5 parallel auditors (architecture, convention, spec-reconciler, test-quality, state-historian). No engineering work. Report: `audits/audit-002-2026-06-26.md`.
+- **Result:** **NO Critical findings.** Build sound — MERGED-PR integrity 9/9, no hollow/flaky tests, module boundaries clean, cross-tenant tenancy fully closed, **audit-001 RLS Tier-2 orphan CLOSED** (17/17 executing in CI).
+- **Highs (→ active risks, fold into P0.W.5):** A.011.1 worker tool-allowlist single-source drift (`agent-worker.ts` hardcodes literals vs `WORKER_ALLOWED_TOOLS`); A.011.2 RFC stale suite path vs DR-022.
+- **Meds:** A.011.3 modelToolAllowlist boot-refusal untested; A.011.4 no agent-worker/emit tests; A.011.5 no-console; A.011.6 VERDICT_NOT_PUBLISH enum; A.011.7 evalRan binding; A.011.8 schema-flywheel test; A.011.9 Dockerfile COPY suite; A.011.10 STATE↔DR-022 (reconciled).
+- **DRs filed:** [[DR-023]] (RLS-enabled-zero-policy v1 posture — back-fills the run-006 DR-NEEDED).
+- **runs_since_last_audit → 0.** Context: this audit was triggered inside the James-directed 10h unattended window.
+- **Next:** Run #012 = P0.W.5 (now unblocked by DR-022), folding A.011.1/A.011.2/A.011.9.
