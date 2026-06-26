@@ -277,42 +277,32 @@ test("[T1] byline_authorizations is the FK target with scope CHECK + nullable ex
 
 type PgRunner = (sqlText: string, opts?: { role?: "anon" }) => string;
 
-// The role is applied at SESSION STARTUP via PGOPTIONS (`-c role=anon`) rather
-// than an in-band `SET ROLE` statement, so the query output contains ONLY the
-// SELECT's tuples — a `SET` command tag never leaks into the parsed rows (and
-// `-A -t` does not suppress that tag). RLS still binds because the session's
-// effective role is `anon` from the first statement.
+// The anon role is applied IN-BAND via `SET ROLE anon;` prepended to the SQL in
+// the SAME psql `-c` session — NOT a connection-startup `PGOPTIONS=-c role=anon`.
+// The Supabase pooler (Supavisor) STRIPS startup options, so that approach left
+// the session as the owner role (which bypasses RLS) and "anon" saw every row
+// (the CI failure on Sagemark, 2026-06-26). `SET ROLE` survives the pooler; `-q`
+// suppresses the `SET` command tag so only the SELECT's tuples reach the parser.
+function withAnonRole(sqlText: string, opts?: { role?: "anon" }): string {
+  return opts?.role === "anon" ? `SET ROLE anon;\n${sqlText}` : sqlText;
+}
 function detectRunner(): { runner: PgRunner; engine: string } | null {
   const url = process.env.DATABASE_URL;
   if (url) {
-    const runner: PgRunner = (sqlText, opts) => {
-      const env = { ...process.env };
-      if (opts?.role === "anon") env.PGOPTIONS = "-c role=anon";
-      return execFileSync("psql", [url, "-v", "ON_ERROR_STOP=1", "-At", "-c", sqlText], {
+    const runner: PgRunner = (sqlText, opts) =>
+      execFileSync("psql", [url, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", withAnonRole(sqlText, opts)], {
         encoding: "utf8",
-        env,
       });
-    };
     return { runner, engine: `psql DATABASE_URL` };
   }
   const container = process.env.RLS_TEST_PG_CONTAINER;
   if (container) {
-    const runner: PgRunner = (sqlText, opts) => {
-      const dockerArgs = ["exec", "-i"];
-      if (opts?.role === "anon") dockerArgs.push("-e", "PGOPTIONS=-c role=anon");
-      dockerArgs.push(
-        container,
-        "psql",
-        "-U",
-        "postgres",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-At",
-        "-c",
-        sqlText,
+    const runner: PgRunner = (sqlText, opts) =>
+      execFileSync(
+        "docker",
+        ["exec", "-i", container, "psql", "-U", "postgres", "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", withAnonRole(sqlText, opts)],
+        { encoding: "utf8" },
       );
-      return execFileSync("docker", dockerArgs, { encoding: "utf8" });
-    };
     return { runner, engine: `docker exec ${container} psql` };
   }
   return null;
