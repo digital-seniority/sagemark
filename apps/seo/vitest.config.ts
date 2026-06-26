@@ -13,7 +13,11 @@ export default defineConfig({
     // under vitest. The PR 004 `test/tenancy/rls-contract.test.ts` uses Node's
     // built-in `node:test` runner (run via `node --test`), so it is intentionally
     // excluded here to avoid a runner clash.
-    include: ["test/content/**/*.test.ts", "test/worker/**/*.test.ts"],
+    include: [
+      "test/content/**/*.test.ts",
+      "test/worker/**/*.test.ts",
+      "test/stream/**/*.test.ts",
+    ],
   },
   resolve: {
     alias: {
