@@ -45,9 +45,17 @@ import {
   type RunBinding,
 } from "./host-tool-bridge";
 import { pathWithinWorkdir } from "./sandbox-launch";
+// A.011.1: the model tool allowlist is the capability-profile's single source of
+// truth — import it, never re-declare the strings here.
+import { WORKER_ALLOWED_TOOLS } from "./capability-profile";
+import {
+  loadSuite,
+  SINGLE_DRAFTER_SKILL,
+  type LoadedSuite,
+} from "./skills/load-suite";
 
 /** The skill the worker loads — the existing `seo-blog-writer` suite entry. */
-export const WORKER_SKILL_NAME = "seo-blog-writer";
+export const WORKER_SKILL_NAME = SINGLE_DRAFTER_SKILL;
 
 /**
  * Resolve the worker's model + bridge config from the SCRUBBED Sandbox env
@@ -210,6 +218,8 @@ export interface RunLoopOptions {
   timeoutMs?: number;
   /** Injectable `query` for tests; defaults to the SDK's. */
   queryImpl?: (args: { prompt: string; options: Record<string, unknown> }) => AsyncIterable<any>;
+  /** Injectable suite loader for tests; defaults to the real `loadSuite` off disk. */
+  loadSuiteImpl?: (args: { kernelBaseUrl: string }) => LoadedSuite;
   /** Called with the resolved Agent-SDK session id (for host-side persistence). */
   onSessionId?: (sessionId: string) => void | Promise<void>;
   /** Called on terminal failure so the host can release the lease (acceptance #4). */
@@ -250,6 +260,20 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       workdir: workerEnv.workdir,
     });
 
+    // Load the REAL seo-blog-writer SKILL.md from the vendored suite (DR-022) and
+    // point its kernel host at the apps/seo /content/api contract — the skill is
+    // run DIRECTLY (not re-authored) and drives the route (acceptance #2). The
+    // loaded set is the single-drafter slice (PR 008).
+    const suite: LoadedSuite =
+      opts.loadSuiteImpl?.({ kernelBaseUrl: workerEnv.hostBaseUrl }) ??
+      loadSuite({
+        // appRoot defaults to process.cwd() (the worker app root /home/worker/app
+        // in the image, where the Dockerfile COPYs the vendored suite — A.011.9).
+        // workdir is the draft FS jail, NOT the suite root, so it is NOT passed here.
+        kernelBaseUrl: workerEnv.hostBaseUrl,
+        requested: [WORKER_SKILL_NAME],
+      });
+
     let queryImpl = opts.queryImpl;
     if (!queryImpl) {
       try {
@@ -276,13 +300,14 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // only the curated host-tool MCP surface is reachable ([[DR-011]]).
         tools: [],
         mcpServers: { "seo-worker-host-tools": toolServer },
-        allowedTools: [
-          "mcp__seo-worker-host-tools__persistPiece",
-          "mcp__seo-worker-host-tools__readWorkdirFile",
-        ],
-        // Load ONLY the seo-blog-writer suite skill.
+        // A.011.1: the allowlist is the capability-profile's single source of
+        // truth — spread the imported constant (no string literals here).
+        allowedTools: [...WORKER_ALLOWED_TOOLS],
+        // Load the REAL seo-blog-writer SKILL.md from the vendored suite (DR-022)
+        // — COPY'd into the Sandbox image by the Dockerfile (A.011.9), so we no
+        // longer rely on settingSources:["project"] resolving in the VM.
         settingSources: ["project"],
-        skills: [WORKER_SKILL_NAME],
+        skills: suite.skillNames,
         permissionMode: "default",
       },
     });

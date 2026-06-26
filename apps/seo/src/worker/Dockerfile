@@ -15,6 +15,16 @@
 #     the workdir-scoped tool ([[DR-011]]), not a VM-level jail.
 #
 # Base: node24 to match the Sandbox `runtime: 'node24'` the launcher requests.
+#
+# BUILD CONTEXT (A.011.9, judge fix #2): this Dockerfile MUST be built from the
+# REPO ROOT so that every COPY source resolves under one consistent context — the
+# worker manifests/artifacts under `apps/seo/...` AND the vendored suite under
+# `skills/...`. There is no single sub-tree context that satisfies both, so all
+# COPY sources below are repo-root-relative. Build invocation:
+#
+#   docker build -f apps/seo/src/worker/Dockerfile .
+#
+# (run from the repo root; the trailing `.` is the repo-root build context).
 
 FROM node:24-bookworm-slim
 
@@ -44,12 +54,26 @@ WORKDIR /home/worker/app
 
 # Install the worker runtime deps + the Claude Agent SDK (which vendors the
 # `claude` CLI the SDK spawns). Copy manifests first for layer caching.
-COPY package.json ./
+# Repo-root-relative source (build context = repo root): the worker shares the
+# apps/seo manifest (no separate worker package.json exists).
+COPY apps/seo/package.json ./
 RUN npm install --omit=dev \
   && npm install @anthropic-ai/claude-agent-sdk @vercel/sandbox
 
-# The compiled worker entrypoint (built from src/worker/*.ts).
-COPY dist/ ./dist/
+# The compiled worker entrypoint (built from apps/seo/src/worker/*.ts to
+# apps/seo/dist/, so ENTRYPOINT below resolves dist/worker/entry.js). Repo-root-
+# relative source for the single consistent build context.
+COPY apps/seo/dist/ ./dist/
+
+# A.011.9: COPY the vendored seo-copywriter suite tree into the image so the
+# worker can load the REAL seo-blog-writer SKILL.md (DR-022) IN the Sandbox VM.
+# Without this the load would rely on settingSources:["project"] resolving an
+# on-disk skills dir that does not exist in the image. The loader
+# (`skills/load-suite.ts`) resolves `skills/seo-copywriter-skill-package/
+# seo-copywriter` RELATIVE to the worker app root (process.cwd() == WORKDIR ==
+# /home/worker/app), so the tree is COPY'd to exactly that relative path. The
+# build context root is the repo root, so the source is the in-repo package.
+COPY skills/seo-copywriter-skill-package/seo-copywriter ./skills/seo-copywriter-skill-package/seo-copywriter
 
 USER worker
 
