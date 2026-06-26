@@ -15,6 +15,8 @@ import type {
   PersistedGateResult,
   PersistedBriefSnapshot,
   PersistedPieceVersion,
+  PersistedCommentThread,
+  PersistedApprovalEvent,
 } from "@/lib/content/context";
 import { SignoffImmutableError } from "@/lib/content/context";
 import type { AuthorityClass } from "@/lib/content/contract";
@@ -27,6 +29,7 @@ export const CLIENT_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 export const PIECE_A = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 export const AUTHOR_A = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 export const AUTH_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+export const COMMENT_A = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 
 export function workspace(id: string = WORKSPACE_A): Workspace {
   return { id, ownerType: "user", ownerId: "owner", name: "Test WS" };
@@ -121,6 +124,27 @@ export function pieceVersion(
   };
 }
 
+/** A `request-changes` comment-thread fixture (PR 019 — routing input). The
+ * default elementHint uses the `heading:` convention so it self-addresses a
+ * section; pass `anchor: null` to force the operator-region-required path. */
+export function commentThread(
+  over: Partial<PersistedCommentThread> = {},
+): PersistedCommentThread {
+  return {
+    id: COMMENT_A,
+    pieceId: PIECE_A,
+    clientId: CLIENT_A,
+    version: 3,
+    kind: "request-changes",
+    anchor: { x: 0.4, y: 0.6, elementHint: "heading:Costs" },
+    body: "Please soften the pricing claim in this section.",
+    author: "client:kate",
+    status: "open",
+    createdAt: "2026-01-04T00:00:00.000Z",
+    ...over,
+  };
+}
+
 /** A spying data-access mock. `writes` counts every mutation call. */
 export interface MockDataAccess extends ContentDataAccess {
   writes: {
@@ -129,6 +153,9 @@ export interface MockDataAccess extends ContentDataAccess {
     insertPieceVersion: number;
     nameVersion: number;
     setActiveVersion: number;
+    insertClientSignoff: number;
+    insertCredentialedRelease: number;
+    resolveCommentThread: number;
   };
 }
 
@@ -139,6 +166,9 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
     insertPieceVersion: 0,
     nameVersion: 0,
     setActiveVersion: 0,
+    insertClientSignoff: 0,
+    insertCredentialedRelease: 0,
+    resolveCommentThread: 0,
   };
   // Versions already marked as an (immutable) sign-off. A test can pre-seed this
   // by passing a `nameVersion` override; by default version 2 is the sign-off
@@ -206,6 +236,38 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
         writes.setActiveVersion += 1;
         return pieceVersion({ version: input.version, isActive: true });
       },
+    ),
+    // PR 019 / P1.C.2 — client-review routing + dual sign-off + approval-debt.
+    loadCommentThread: vi.fn(
+      async (): Promise<PersistedCommentThread | null> => null,
+    ),
+    listCommentThreads: vi.fn(
+      async (): Promise<PersistedCommentThread[]> => [],
+    ),
+    resolveCommentThread: vi.fn(
+      async (input: {
+        commentId: string;
+        clientId: string;
+        addressedInVersion: number;
+      }) => {
+        writes.resolveCommentThread += 1;
+        return commentThread({
+          id: input.commentId,
+          clientId: input.clientId,
+          status: "resolved",
+        });
+      },
+    ),
+    insertClientSignoff: vi.fn(async () => {
+      writes.insertClientSignoff += 1;
+      return { id: "signoff-1" };
+    }),
+    insertCredentialedRelease: vi.fn(async () => {
+      writes.insertCredentialedRelease += 1;
+      return { id: "release-1" };
+    }),
+    listApprovalEvents: vi.fn(
+      async (): Promise<PersistedApprovalEvent[]> => [],
     ),
     ...over,
   };

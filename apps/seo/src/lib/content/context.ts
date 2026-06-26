@@ -137,6 +137,30 @@ export interface PersistedAuthorization {
   id: string;
   revokedAt: string | null;
   expiresAt: string | null;
+  /**
+   * The byline-evidence snapshot {name, credentials} captured at grant time
+   * (`byline_authorizations.credential` jsonb). Present so the sign-off WRITE can
+   * snapshot the reviewer's credential onto the `credentialed_releases` row from
+   * the authorization it is releasing against — the byline evidence, never request
+   * input. Optional on the projection so existing read-only fixtures (which only
+   * need the active flags) need no change.
+   */
+  credential?: { name?: string; credentials?: string };
+  /**
+   * The authorization scope (`byline_authorizations.scope` ∈ client|cluster|piece).
+   * Optional; surfaced for completeness — the active check does not read it.
+   */
+  scope?: string;
+  /**
+   * DR-037 go-live guard. TRUE iff this is the seeded PILOT PLACEHOLDER reviewer
+   * authorization ("Pending Clinical Reviewer", RN). A placeholder authorization
+   * can NEVER back a real `credentialed_releases` write in a non-pilot/production
+   * context — the sign-off writer refuses it (the byline must resolve to a real
+   * credentialed person before a YMYL piece is published). Defaults to false /
+   * undefined for a real authorization. (Migration 0038 adds the column; the seed
+   * SQL sets it true on the placeholder row only.)
+   */
+  placeholder?: boolean;
 }
 
 /**
@@ -218,6 +242,81 @@ export interface PieceVersionInsert {
   verdict: Verdict | null;
   /** The Stage-B dimensions JSON for this version (null when a veto suppressed scoring). */
   dimensions: unknown | null;
+}
+
+/**
+ * Insert payload for an ADVISORY `client_signoffs` row (PR 019 / P1.C.2). The
+ * client/agency contact's approval or comment-resolution — it can NEVER release a
+ * piece nor supply a byline. STRUCTURALLY it carries NO `credential` and NO
+ * `authorizationId`: the row shape is incapable of populating the reviewer
+ * byline, mirroring the `client_signoffs` table (which has no such columns). The
+ * `clientId`/`workspaceId` are the BOUND tenancy (never request input).
+ */
+export interface ClientSignoffInsert {
+  workspaceId: string;
+  clientId: string;
+  pieceId: string;
+  version: number;
+  /** The client/agency contact who approved (opaque id). */
+  actorId: string;
+  /** Whether the sign-off covers the whole piece or a section. */
+  releaseScope: "piece" | "section";
+}
+
+/**
+ * Insert payload for a `credentialed_releases` row (PR 019 / P1.C.2) — the ONLY
+ * record that satisfies `canPublish()`'s human-release precondition. It writes the
+ * named, undeletable release version recording the reviewer's identity +
+ * `credential` snapshot + `authorizationId` (the byline evidence). The
+ * `credential` is snapshot from the ACTIVE backing authorization at write time;
+ * `authorizationId` FK → `byline_authorizations`. Tenancy is the BOUND pair.
+ */
+export interface CredentialedReleaseInsert {
+  workspaceId: string;
+  clientId: string;
+  pieceId: string;
+  version: number;
+  /** The credentialed reviewer (D6) who released. */
+  actorId: string;
+  /** The {name, credentials} byline snapshot captured at release (byline evidence). */
+  credential: { name?: string; credentials?: string };
+  /** FK → an ACTIVE byline_authorizations row (§11.5). */
+  authorizationId: string;
+  /** Whether the release covers the whole piece or a section. */
+  releaseScope: "piece" | "section";
+}
+
+/**
+ * A `comment_threads` row projection the routing + approval-debt reads use (PR
+ * 019 / P1.C.2). Scoped by the BOUND tenancy at the seam. `anchor` carries the
+ * `elementHint` the router maps to a section region. Read-only.
+ */
+export interface PersistedCommentThread {
+  id: string;
+  pieceId: string;
+  clientId: string;
+  version: number;
+  kind: string; // pin | section-approve | request-changes
+  anchor: { x?: number; y?: number; elementHint?: string } | null;
+  body: string;
+  author: string;
+  status: string; // open | resolved
+  createdAt: string;
+}
+
+/**
+ * A recorded approval-cycle EVENT projection for the approval-debt metric (PR 019
+ * / P1.C.2). Each event is a timestamped lifecycle milestone for a piece, scoped
+ * by the BOUND tenancy. The metric pairs `link_sent`→`client_signoff` and
+ * `draft_review`→`credentialed_release` to compute cycle times, and counts open
+ * `request-changes` threads as "approval debt".
+ */
+export interface PersistedApprovalEvent {
+  pieceId: string;
+  /** The milestone kind (see APPROVAL_EVENT_KINDS in metrics/approval-debt). */
+  kind: string;
+  /** ISO timestamp the milestone occurred. */
+  at: string;
 }
 
 /**
@@ -333,6 +432,74 @@ export interface ContentDataAccess {
     clientId: string;
     version: number;
   }): Promise<PersistedPieceVersion>;
+
+  // ── Client-review routing + dual sign-off (PR 019 / P1.C.2) ──────────────────
+
+  /**
+   * Load a single `comment_threads` row scoped by (id, clientId), or null. The
+   * route-to-edit handler reads the `request-changes` comment it is asked to
+   * triage; the `clientId` is the BOUND tenancy (a cross-tenant comment id
+   * resolves to null). READ-ONLY. (PR 019 — fail-closed seam extension; flagged.)
+   */
+  loadCommentThread(
+    commentId: string,
+    clientId: string,
+  ): Promise<PersistedCommentThread | null>;
+
+  /**
+   * List ALL `comment_threads` rows for a piece+client (the approval-debt open-
+   * thread count + the resolve sweep). Scoped by the BOUND `clientId`. READ-ONLY.
+   * (PR 019 — fail-closed seam extension; flagged.)
+   */
+  listCommentThreads(
+    pieceId: string,
+    clientId: string,
+  ): Promise<PersistedCommentThread[]>;
+
+  /**
+   * Mark a `comment_threads` row RESOLVED + append a host-authored note that it
+   * was addressed in a given version ("addressed in vN — see diff"). APPEND-ONLY
+   * w.r.t. the thread's audit: it flips `status` open→resolved and records the
+   * addressing version; it never deletes the row. Scoped by the BOUND `clientId`.
+   * (PR 019 — fail-closed seam extension; flagged.)
+   */
+  resolveCommentThread(input: {
+    commentId: string;
+    clientId: string;
+    addressedInVersion: number;
+  }): Promise<PersistedCommentThread>;
+
+  /**
+   * Insert ONE ADVISORY `client_signoffs` row. This row can NEVER release a piece
+   * nor populate a byline — it carries no credential / authorization_id by
+   * construction (the payload has no such fields). Tenancy is the BOUND pair.
+   * Returns the new row id. (PR 019 — fail-closed seam extension; flagged.)
+   */
+  insertClientSignoff(insert: ClientSignoffInsert): Promise<{ id: string }>;
+
+  /**
+   * Insert ONE `credentialed_releases` row — the ONLY record `canPublish()` reads
+   * as a human release (the named, undeletable release version with the reviewer's
+   * `credential` snapshot + `authorizationId`). The CALLER (`signoff.ts`) has
+   * already verified the backing authorization is ACTIVE (§11.5) and is NOT the
+   * DR-037 placeholder; this method only persists. The `(piece_id, version)`
+   * unique index makes a duplicate release throw. Returns the new row id.
+   * (PR 019 — fail-closed seam extension; flagged.)
+   */
+  insertCredentialedRelease(
+    insert: CredentialedReleaseInsert,
+  ): Promise<{ id: string }>;
+
+  /**
+   * List the recorded approval-cycle EVENTS for a piece+client (link-sent,
+   * client-signoff, draft→review, credentialed-release). Scoped by the BOUND
+   * `clientId`. Feeds the approval-debt cycle-time metric. READ-ONLY.
+   * (PR 019 — fail-closed seam extension; flagged.)
+   */
+  listApprovalEvents(
+    pieceId: string,
+    clientId: string,
+  ): Promise<PersistedApprovalEvent[]>;
 
   /**
    * Resolve the `[photo:slug]` references a piece body carries to their
@@ -624,6 +791,24 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   },
   setActiveVersion: () => {
     throw new DataAccessNotWiredError("setActiveVersion");
+  },
+  loadCommentThread: () => {
+    throw new DataAccessNotWiredError("loadCommentThread");
+  },
+  listCommentThreads: () => {
+    throw new DataAccessNotWiredError("listCommentThreads");
+  },
+  resolveCommentThread: () => {
+    throw new DataAccessNotWiredError("resolveCommentThread");
+  },
+  insertClientSignoff: () => {
+    throw new DataAccessNotWiredError("insertClientSignoff");
+  },
+  insertCredentialedRelease: () => {
+    throw new DataAccessNotWiredError("insertCredentialedRelease");
+  },
+  listApprovalEvents: () => {
+    throw new DataAccessNotWiredError("listApprovalEvents");
   },
   resolveReferencedAssets: () => {
     throw new DataAccessNotWiredError("resolveReferencedAssets");

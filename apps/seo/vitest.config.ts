@@ -64,6 +64,11 @@ export default defineConfig({
       // clash. The two vitest files are listed explicitly.
       "test/review/comments-route.test.ts",
       "test/review/client-surface-exposure.test.ts",
+      // PR 019 / P1.C.2 (DR-019 append-only carve-out): the request-changes ->
+      // edit-loop routing + the dual sign-off (client_signoffs advisory vs the
+      // credentialed_releases release) + the §11.5 active-authorization fail-closed
+      // write + DR-037 placeholder go-live guard + the approval-debt KPI.
+      "test/review/route-to-edit.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
