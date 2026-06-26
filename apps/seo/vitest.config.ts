@@ -55,6 +55,15 @@ export default defineConfig({
       // globbed above as test/render/**/*.test.ts); the imagegen hero-image
       // provenance/license suite is under test/tools/.
       "test/tools/**/*.test.ts",
+      // PR 018 / P1.C.1 (DR-019 append-only carve-out): the tokenized
+      // client-review suites — the comments-route token-scoped persist + the
+      // client-surface-exposure render (react-dom/server). NOTE:
+      // test/review/token-scope.test.ts is INTENTIONALLY NOT globbed here — it
+      // uses Node's built-in node:test runner (run via `node --test`), like
+      // test/tenancy/rls-contract.test.ts, so it is excluded to avoid a runner
+      // clash. The two vitest files are listed explicitly.
+      "test/review/comments-route.test.ts",
+      "test/review/client-surface-exposure.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
