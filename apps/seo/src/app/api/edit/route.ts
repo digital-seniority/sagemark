@@ -11,20 +11,24 @@
  *      belong to it. A foreign client id is 404 (no existence leak); a request
  *      tenancy that disagrees with the bound context is 403 (criterion 2/7).
  *      WORKSPACE-OWNERSHIP guard => 403/404.
- *   2. RATE-LIMIT per tenant (criterion: a runaway edit loop cannot hammer the
+ *   2. DRAFT-STATUS guard: ONLY a `status='draft'` piece is editable. A
+ *      review/approved/published/archived piece is FROZEN => 409, NOTHING applied.
+ *      This cheap fail-closed guard runs BEFORE the rate-limit take()/model spend so
+ *      a frozen piece consumes no budget (RFC PR 012 §7; DR-030 ordering principle).
+ *   3. RATE-LIMIT per tenant (criterion: a runaway edit loop cannot hammer the
  *      model/DB). Over the per-tenant window => 429, NOTHING applied.
- *   3. STALE-EDIT guard: the request's `baseVersionHash` (SHA-256 of the body the
+ *   4. STALE-EDIT guard: the request's `baseVersionHash` (SHA-256 of the body the
  *      operator saw) MUST equal the current persisted version's hash. A stale
  *      edit => 409, NOTHING applied — a no-lost-update guard.
- *   4. BOUNDED EDIT: resolve the addressed region to an exact span, call the
+ *   5. BOUNDED EDIT: resolve the addressed region to an exact span, call the
  *      injected `EditModel` for a bounded diff (scoped replacement + summary, NOT
  *      a free rewrite), and splice ONLY that span. An edit that breaks its bound
  *      (bad region / oversized replacement) => 422, NOTHING applied.
- *   5. FULL GATE RE-RUN: the SAME `@sagemark/core` gate (faithfulness +
+ *   6. FULL GATE RE-RUN: the SAME `@sagemark/core` gate (faithfulness +
  *      seo-gate Stage-A/Stage-B) runs over the EDITED body. We drive the gate; we
  *      do NOT fork it. A faithfulness-breaking edit is CAUGHT here — its verdict
  *      regresses and that regressed verdict is what gets persisted.
- *   6. APPEND-ONLY VERSION: a NEW `content_piece_versions` row at version+1 with
+ *   7. APPEND-ONLY VERSION: a NEW `content_piece_versions` row at version+1 with
  *      the edited body + the re-gated verdict/dimensions. A prior version is NEVER
  *      mutated.
  *
@@ -267,21 +271,38 @@ export async function handleEdit(
     );
   }
 
-  // 4. RATE-LIMIT per tenant (429). Keyed on the BOUND tenancy, after the
-  //    ownership check (so an unauthenticated/foreign caller is rejected first and
-  //    cannot consume the victim tenant's budget).
-  const tenantKey = `${ctx.workspaceId}:${ctx.clientId}`;
-  if (!deps.rateLimiter.take(tenantKey)) {
-    return json({ error: "edit rate limit exceeded", code: "rate-limited" }, 429);
-  }
-
-  // 5. Load the persisted piece (scoped by the bound client). is_ymyl/verdict from HERE.
+  // 4. Load the persisted piece (scoped by the bound client). is_ymyl/verdict from HERE.
+  //    Loaded BEFORE the rate-limit take() so the cheap fail-closed editability guard
+  //    below can reject a non-draft piece WITHOUT consuming the tenant's rate budget
+  //    (DR-030: move cheap fail-closed guards ahead of take()).
   const piece = await deps.data.loadPiece(body.pieceId, ctx.clientId);
   if (!piece) {
     return json({ error: "not found", code: "not-found" }, 404);
   }
 
-  // 6. STALE-EDIT guard (409). The client's baseVersionHash must equal the SHA-256
+  // 5. DRAFT-STATUS guard (409). Only a `draft` piece is editable. A
+  //    review/approved/published/archived piece is FROZEN — editing it would silently
+  //    mutate a reviewed/approved/live artifact, violating PR-012's acceptance criteria
+  //    (RFC PR 012 §7). This is the CHEAPEST fail-closed product guard, so it runs
+  //    BEFORE the rate-limit take(), any model spend, the gate re-run, and any version
+  //    write — NOTHING (rate token, tokens, DB write) is consumed for a non-draft piece.
+  if (piece.status !== "draft") {
+    return json(
+      { error: "piece-not-editable", code: "piece-not-editable", status: piece.status },
+      409,
+    );
+  }
+
+  // 6. RATE-LIMIT per tenant (429). Keyed on the BOUND tenancy, after the ownership +
+  //    editability checks (so an unauthenticated/foreign caller — or an edit on a
+  //    frozen non-draft piece — is rejected first and cannot consume the victim
+  //    tenant's budget).
+  const tenantKey = `${ctx.workspaceId}:${ctx.clientId}`;
+  if (!deps.rateLimiter.take(tenantKey)) {
+    return json({ error: "edit rate limit exceeded", code: "rate-limited" }, 429);
+  }
+
+  // 7. STALE-EDIT guard (409). The client's baseVersionHash must equal the SHA-256
   //    of the CURRENT persisted version's body. A stale edit is rejected BEFORE any
   //    model call or write — a no-lost-update guard.
   const stale = await checkBaseVersionHash(
@@ -306,7 +327,7 @@ export async function handleEdit(
   const currentBody = stale.current.body;
   const baseVersion = stale.current.version;
 
-  // 7. BOUNDED EDIT. Resolve the region to an exact span (host-computed), call the
+  // 8. BOUNDED EDIT. Resolve the region to an exact span (host-computed), call the
   //    model for a bounded diff, and splice ONLY that span. A bound break is 422.
   const region: EditRegion = body.region;
   const brief = gateBriefFromPiece(piece);
@@ -355,7 +376,7 @@ export async function handleEdit(
     throw err;
   }
 
-  // 8. FULL GATE RE-RUN on the EDITED body — the SAME @sagemark/core gate the audit
+  // 9. FULL GATE RE-RUN on the EDITED body — the SAME @sagemark/core gate the audit
   //    route drives (faithfulness + Stage-A/Stage-B). We DRIVE it, never fork it. A
   //    faithfulness-breaking edit is CAUGHT here: its verdict regresses, and THAT
   //    regressed verdict is what we persist (the edit cannot bank a stale PUBLISH).
@@ -373,7 +394,7 @@ export async function handleEdit(
   };
   const audit = await deps.runGate(draft, brief, voiceSpec);
 
-  // 9. APPEND-ONLY new version at baseVersion + 1, carrying the re-gated verdict +
+  // 10. APPEND-ONLY new version at baseVersion + 1, carrying the re-gated verdict +
   //    dimensions. NEVER mutates a prior version. This is the ONLY write.
   let written: { id: string; version: number };
   try {
