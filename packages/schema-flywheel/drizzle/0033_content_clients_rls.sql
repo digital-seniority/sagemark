@@ -1,0 +1,28 @@
+-- 0033_content_clients_rls.sql — close the content_clients RLS gap (audit-001,
+-- Critical). content_clients is the tenant ROOT: each row maps a workspace_id to
+-- a client_id (the layer-3 workspace_id->client_id tenancy bridge) and carries
+-- the client name + blog_slug. 0030 created the table and enabled RLS on every
+-- OTHER content table, but never on content_clients itself. With Postgres'
+-- RLS-disabled default + Supabase's standard anon grant, the anon role could
+-- SELECT every tenant's content_clients row — leaking the exact workspace<->client
+-- tenancy map the whole P0.S.1 boundary is meant to protect.
+--
+-- This migration is ADDITIVE-ONLY and idempotent. It MUST NOT alter or drop any
+-- existing table, column, constraint, index, or policy.
+--
+-- content_clients is the tenancy MAP, not a render surface: it is FAIL-CLOSED.
+-- RLS is enabled and NO anon policy is created, so anon reaches ZERO rows —
+-- exactly the 0032 release-tables pattern ("ENABLE ROW LEVEL SECURITY; no anon
+-- policy"). In v1 the only access paths are (1) service-role (the operator
+-- pipeline), which bypasses RLS, and (2) anon public read, which is scoped to
+-- published content_pieces ONLY (0030). There are no authenticated non-service
+-- tenant users, so no tenant-read policy is needed here.
+--
+-- Source-of-truth Drizzle definition: src/content.ts (contentClients).
+-- Companion contract test: apps/seo/test/tenancy/rls-contract.test.ts.
+--
+-- ROLLBACK (down) — additive, so the down is a single line:
+--   ALTER TABLE public.content_clients DISABLE ROW LEVEL SECURITY;
+-- There is no policy to drop (this migration deliberately creates none).
+
+ALTER TABLE public.content_clients ENABLE ROW LEVEL SECURITY;  -- no anon policy

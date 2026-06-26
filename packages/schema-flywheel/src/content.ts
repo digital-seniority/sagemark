@@ -20,7 +20,9 @@
  *
  * RLS lives in the migration SQL, not here (Drizzle does not model policies).
  * Fail-closed: anon may read ONLY `content_pieces` rows with status='published';
- * every other table has no anon policy at all.
+ * every other table has RLS enabled with no anon policy at all — including
+ * `content_clients`, the tenant root / workspace<->client tenancy map, whose RLS
+ * is enabled by migration drizzle/0033 (audit-001).
  */
 
 import {
@@ -83,6 +85,8 @@ export type FunnelStage = (typeof FUNNEL_STAGES)[number];
 // `workspace_id` is the layer-3 workspace_id -> client_id tenancy bridge.
 // ---------------------------------------------------------------------------
 
+// RLS: enabled, fail-closed with NO anon policy (migration drizzle/0033,
+// audit-001). This is the tenancy MAP — anon must reach ZERO rows.
 export const contentClients = pgTable(
   "content_clients",
   {

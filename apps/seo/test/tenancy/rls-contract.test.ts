@@ -10,7 +10,8 @@
  * -----
  *  - TIER 1 (ALWAYS RUNS, no DB): static assertions over the committed
  *    migration SQL. These prove the *shape* of the guarantees — RLS enabled on
- *    every table, the anon policy is published-only and exists on NO other
+ *    every table (including content_clients, the tenancy map — audit-001/0033),
+ *    the anon policy is published-only and exists on NO other
  *    table, (client_id, slug) uniqueness, the cluster_role/funnel_stage CHECKs,
  *    the release/signoff split (client_signoffs has release_type pinned to
  *    'client_signoff' and NO credential/authorization_id columns;
@@ -18,12 +19,12 @@
  *    + UNIQUE(piece_id, version)), and the byline_authorizations FK target with
  *    its scope CHECK + nullable expires_at/revoked_at.
  *
- *  - TIER 2 (RUNS when a Postgres is reachable): applies 0030+0031+0032 to a
+ *  - TIER 2 (RUNS when a Postgres is reachable): applies 0030+0031+0032+0033 to a
  *    live database and asserts the BEHAVIORAL criteria:
  *      * anon SELECT on content_pieces returns only status='published';
- *      * anon SELECT on voice_specs/content_piece_versions/review_comments/
- *        byline_authorizations/client_signoffs/credentialed_releases returns
- *        zero rows;
+ *      * anon SELECT on content_clients (the tenancy map)/voice_specs/
+ *        content_piece_versions/review_comments/byline_authorizations/
+ *        client_signoffs/credentialed_releases returns zero rows;
  *      * an operator query scoped to workspace A returns zero rows for a piece
  *        owned by workspace B (cross-tenant);
  *      * cluster_role/funnel_stage CHECKs reject invalid enums;
@@ -65,7 +66,11 @@ const M0031 = readFileSync(
   "utf8",
 );
 const M0032 = readFileSync(join(DRIZZLE_DIR, "0032_release_records.sql"), "utf8");
-const ALL = [M0030, M0031, M0032].join("\n");
+const M0033 = readFileSync(
+  join(DRIZZLE_DIR, "0033_content_clients_rls.sql"),
+  "utf8",
+);
+const ALL = [M0030, M0031, M0032, M0033].join("\n");
 const flat = (s: string) => s.replace(/\s+/g, " ");
 const FLAT = flat(ALL);
 
@@ -85,6 +90,7 @@ test("[T1] migration files are valid UTF-8 (no BOM, no replacement char)", () =>
     "0030_content_pieces.sql",
     "0031_cluster_funnel_columns.sql",
     "0032_release_records.sql",
+    "0033_content_clients_rls.sql",
   ]) {
     const bytes = readFileSync(join(DRIZZLE_DIR, f));
     assert.ok(
@@ -97,6 +103,9 @@ test("[T1] migration files are valid UTF-8 (no BOM, no replacement char)", () =>
 
 test("[T1] RLS is ENABLED on every content + release table (fail-closed)", () => {
   for (const t of [
+    // content_clients is the tenant ROOT (the workspace<->client tenancy map);
+    // RLS enabled here, fail-closed with NO anon policy (audit-001, 0033).
+    "content_clients",
     "content_pieces",
     "content_piece_versions",
     "voice_specs",
@@ -120,6 +129,7 @@ test("[T1] the ONLY anon policy is published-only on content_pieces", () => {
   );
   // No anon policy may exist on any other table.
   for (const t of [
+    "content_clients",
     "voice_specs",
     "content_piece_versions",
     "review_comments",
@@ -338,10 +348,11 @@ before(() => {
          END IF;
        END $$;
        GRANT USAGE ON SCHEMA public TO anon;`);
-  // Apply the three migrations in order.
+  // Apply the migrations in order.
   run(M0030);
   run(M0031);
   run(M0032);
+  run(M0033);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
   // postgres does not. With RLS enabled + fail-closed policies, a table grant
@@ -412,6 +423,10 @@ test(
   { skip: TIER2_SKIP },
   () => {
     for (const t of [
+      // content_clients is the tenancy MAP — anon must NEVER see a row
+      // (audit-001). A regression that re-exposes the workspace<->client map
+      // fails here.
+      "content_clients",
       "voice_specs",
       "content_piece_versions",
       "review_comments",
