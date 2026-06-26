@@ -190,10 +190,13 @@ test("[T1] generated_images dedup UNIQUE index on (workspace_id, content_hash)",
     FLAT,
     /asset_id\s+uuid REFERENCES public\.generated_images\(id\)/i,
   );
-  // The PRIVATE storage bucket is created (public=false), no anon storage policy.
-  assert.match(
-    FLAT,
-    /INSERT INTO storage\.buckets \(id, name, public\)\s+VALUES \('seo-generated-images', 'seo-generated-images', false\)/i,
+  // The PRIVATE `seo-generated-images` storage bucket is provisioned OUT-OF-BAND
+  // (storage admin), NOT in this migration — the migration role can't write the
+  // `storage` schema. So the migration must contain NO `storage.` DDL/DML; bucket
+  // coverage is verified out-of-band, not asserted here.
+  assert.ok(
+    !/\bstorage\./i.test(stripComments(M0035)),
+    "0035 must not contain any storage.* SQL (bucket is created out-of-band)",
   );
 });
 
@@ -376,13 +379,10 @@ before(() => {
   run(M0031);
   run(M0032);
   run(M0033);
-  // 0035 inserts into storage.buckets. Supabase ships the storage schema; a bare
-  // docker postgres (the fallback engine) does not — stub it so the migration
-  // applies identically in both. Harmless no-op on a real Supabase branch.
-  run(`CREATE SCHEMA IF NOT EXISTS storage;
-       CREATE TABLE IF NOT EXISTS storage.buckets (
-         id text PRIMARY KEY, name text, public boolean
-       );`);
+  // 0035 touches ONLY the public schema (the `seo-generated-images` storage
+  // bucket is provisioned out-of-band, NOT in the migration — see the 0035
+  // header), so it applies cleanly under a restricted migration role on a real
+  // Supabase branch and needs no storage-schema stub here.
   run(M0035);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
