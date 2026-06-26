@@ -167,3 +167,15 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **DRs filed:** [[DR-023]] (RLS-enabled-zero-policy v1 posture — back-fills the run-006 DR-NEEDED).
 - **runs_since_last_audit → 0.** Context: this audit was triggered inside the James-directed 10h unattended window.
 - **Next:** Run #012 = P0.W.5 (now unblocked by DR-022), folding A.011.1/A.011.2/A.011.9.
+
+## Run #012 — 2026-06-26
+
+- **Mode:** work-doing (1 PR, 1 fix-pass), auto-loop unattended. P0.W.5 unblocked by DR-022.
+- **PR merged (unattended auto-merge — worker-runtime, green, judge-approved):**
+  - `P0.W.5` (PR 008 — wire seo-blog-writer suite into the worker + golden-set harness) — **[PR #26](https://github.com/digital-seniority/sagemark/pull/26)**, judge NEEDS-FIXES→fixed→**re-judge APPROVED 5/5·5/5**; merged `f52f4af`. Real SKILL.md loaded verbatim driving /content/api/draft; golden harness captured from the real @sagemark/core kernel; A.011.1 + A.011.9 folded+closed; A.011.2 anchor reconciliation done.
+- **Judge caught a real defect:** em-dash normalization in golden extraction masked a `VETO_BANNED_LEXICON` Stage-A veto → fixed (honest all-veto baseline + anti-masking meta-check + test-time clean synthesis). [[DR-024]].
+- **Process:** 5.0/5 · **Product:** 5.0/5 · re-judge 100% (1/1).
+- **DRs:** [[DR-024]] (honest all-veto golden baseline).
+- **Active risks added:** demo-prose-vs-em-dash-threshold (cross-lane, DR-024); unwired apps/seo/dist worker build (pre-existing P0.W.2 follow-up).
+- **Next:** Run #013 = P0.S.2 (PR 009) — fold A.011.6 + A.011.7.
+- **Checkpoint:** `checkpoints/run-012-2026-06-26.md`
