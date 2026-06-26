@@ -174,6 +174,31 @@ export interface PersistedPieceVersion {
   body: string;
   verdict: Verdict | null;
   snapshotAt: string;
+  /**
+   * The human-readable name attached to this version (esp. a sign-off marker), or
+   * null when unnamed. P1.U.4 / PR 013 — append-only metadata.
+   *
+   * DEFERRED-MIGRATION (schema lane): `content_piece_versions` (PR 004 /
+   * `packages/schema-flywheel/src/content.ts`) has NO `name`/`active`/`is_signoff`
+   * columns. The version-hub models name/active/sign-off as a SEAM-LEVEL concern
+   * (this projection + the metadata writes below); the actual columns are a
+   * deferred migration the schema-tenancy lane owns. Fail-closed: the production
+   * seam throws NOT_WIRED until those columns + the Drizzle impl land.
+   */
+  name: string | null;
+  /**
+   * Whether this version is the ACTIVE (currently-displayed) one for its piece. A
+   * pointer/metadata flag — switching active NEVER destroys other versions.
+   * (DEFERRED-MIGRATION as above.)
+   */
+  isActive: boolean;
+  /**
+   * Whether this version is the recorded human-release SIGN-OFF marker. A NAMED
+   * sign-off version is UNDELETABLE and immutable (P1.U.4 invariant): there is no
+   * delete path at all, and a name/overwrite of a sign-off version is rejected.
+   * (DEFERRED-MIGRATION as above.)
+   */
+  isSignoff: boolean;
 }
 
 /**
@@ -248,6 +273,15 @@ export interface ContentDataAccess {
    */
   loadLatestVersion(pieceId: string, clientId: string): Promise<PersistedPieceVersion | null>;
 
+  /**
+   * List ALL `content_piece_versions` rows for a piece+client (the append-only
+   * history the version hub reads). Read-only; ordered is the impl's choice (the
+   * hub sorts by version). Scoped by the BOUND `clientId` — a cross-tenant piece
+   * resolves to an empty list (the route 404s first via the ownership bind).
+   * (P1.U.4 / PR 013 — fail-closed seam extension; flagged.)
+   */
+  listPieceVersions(pieceId: string, clientId: string): Promise<PersistedPieceVersion[]>;
+
   // ── Mutations (the audit route is wired with a view that LACKS these) ────────
   /** Host-validated content_pieces insert (draft route only). Returns the new id+slug. */
   insertDraftPiece(insert: DraftInsert): Promise<{ id: string; slug: string }>;
@@ -264,6 +298,41 @@ export interface ContentDataAccess {
    * (PR 012 / P1.U.3 — fail-closed seam extension.)
    */
   insertPieceVersion(insert: PieceVersionInsert): Promise<{ id: string; version: number }>;
+
+  /**
+   * Attach a human-readable NAME to a version (esp. the sign-off). APPEND-ONLY
+   * METADATA — it writes a name onto an existing version row; it NEVER deletes or
+   * rewrites the version body, and it is NOT a new content version. The version
+   * history stays append-only (PR 012); naming is a metadata-only write.
+   *
+   * UNDELETABLE NAMED SIGN-OFF (P1.U.4 invariant): if the target version is a
+   * NAMED sign-off, this MUST reject (the sign-off marker is immutable — its name
+   * cannot be overwritten and it can never be cleared). Implementations throw a
+   * `SignoffImmutableError`. There is NO delete method on this seam at all.
+   * (P1.U.4 / PR 013 — fail-closed seam extension; flagged. DEFERRED-MIGRATION:
+   * needs the `name`/`is_signoff` columns the schema lane owns.)
+   */
+  nameVersion(input: {
+    pieceId: string;
+    clientId: string;
+    version: number;
+    name: string;
+    /** Mark this named version as the sign-off (the undeletable release marker). */
+    asSignoff?: boolean;
+  }): Promise<PersistedPieceVersion>;
+
+  /**
+   * SWITCH which version is the active/displayed one (a pointer/metadata update).
+   * Clears `isActive` on the prior active row and sets it on the target — it NEVER
+   * destroys any version. Read-mostly metadata; the history is untouched.
+   * (P1.U.4 / PR 013 — fail-closed seam extension; flagged. DEFERRED-MIGRATION:
+   * needs the `active` column the schema lane owns.)
+   */
+  setActiveVersion(input: {
+    pieceId: string;
+    clientId: string;
+    version: number;
+  }): Promise<PersistedPieceVersion>;
 }
 
 /** The read-only subset the audit route is given. Structurally cannot mutate. */
@@ -384,6 +453,9 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   loadLatestVersion: () => {
     throw new DataAccessNotWiredError("loadLatestVersion");
   },
+  listPieceVersions: () => {
+    throw new DataAccessNotWiredError("listPieceVersions");
+  },
   insertDraftPiece: () => {
     throw new DataAccessNotWiredError("insertDraftPiece");
   },
@@ -393,9 +465,33 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   insertPieceVersion: () => {
     throw new DataAccessNotWiredError("insertPieceVersion");
   },
+  nameVersion: () => {
+    throw new DataAccessNotWiredError("nameVersion");
+  },
+  setActiveVersion: () => {
+    throw new DataAccessNotWiredError("setActiveVersion");
+  },
 };
 
-export { DataAccessNotWiredError };
+/**
+ * Thrown when a write would mutate a NAMED sign-off version (P1.U.4 invariant).
+ * The named sign-off is the recorded human-release marker: it is APPEND-ONLY and
+ * IMMUTABLE — it can never be deleted (there is no delete path) nor re-named /
+ * overwritten. The `nameVersion` seam method throws this rather than mutating.
+ */
+class SignoffImmutableError extends Error {
+  readonly code = "SIGNOFF_IMMUTABLE" as const;
+  constructor(version: number) {
+    super(
+      `version ${version} is a named sign-off (the recorded human-release marker) ` +
+        `and is immutable: a sign-off version can never be deleted, re-named, or ` +
+        `overwritten (P1.U.4 undeletable-named-sign-off invariant).`,
+    );
+    this.name = "SignoffImmutableError";
+  }
+}
+
+export { DataAccessNotWiredError, SignoffImmutableError };
 
 // ── Request tenancy context ───────────────────────────────────────────────────
 
