@@ -45,6 +45,11 @@ export default defineConfig({
       // DOM test opts into jsdom per-file (`.dom.test.tsx`, DR-029).
       "test/edit/**/*.test.ts",
       "test/edit/**/*.test.tsx",
+      // PR 013 / P1.U.4 (DR-019 append-only carve-out): the version hub — the
+      // undeletable-named-sign-off + switch/name/compare + tenancy guards route
+      // suite, plus a VersionHub/VersionDiff DOM suite (jsdom per-file, DR-029).
+      "test/versions/**/*.test.ts",
+      "test/versions/**/*.test.tsx",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server

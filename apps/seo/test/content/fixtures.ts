@@ -16,6 +16,7 @@ import type {
   PersistedBriefSnapshot,
   PersistedPieceVersion,
 } from "@/lib/content/context";
+import { SignoffImmutableError } from "@/lib/content/context";
 import type { AuthorityClass } from "@/lib/content/contract";
 
 // Valid RFC-4122 v4 UUIDs (version nibble = 4, variant nibble in 8-b).
@@ -112,6 +113,10 @@ export function pieceVersion(
     body: "## Heading\n\nSome grounded body content about a topic.\n",
     verdict: "REVIEW",
     snapshotAt: "2026-01-03T00:00:00.000Z",
+    // P1.U.4 / PR 013 seam metadata (deferred-migration columns; default unnamed).
+    name: null,
+    isActive: false,
+    isSignoff: false,
     ...over,
   };
 }
@@ -122,6 +127,8 @@ export interface MockDataAccess extends ContentDataAccess {
     insertDraftPiece: number;
     transitionPieceStatus: number;
     insertPieceVersion: number;
+    nameVersion: number;
+    setActiveVersion: number;
   };
 }
 
@@ -130,7 +137,13 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
     insertDraftPiece: 0,
     transitionPieceStatus: 0,
     insertPieceVersion: 0,
+    nameVersion: 0,
+    setActiveVersion: 0,
   };
+  // Versions already marked as an (immutable) sign-off. A test can pre-seed this
+  // by passing a `nameVersion` override; by default version 2 is the sign-off
+  // marker so the undeletable-named-sign-off test can target it.
+  const signoffVersions = new Set<number>([2]);
   const base: ContentDataAccess = {
     clientBelongsToWorkspace: vi.fn(async (clientId: string, workspaceId: string) => {
       // CLIENT_A belongs to WORKSPACE_A only.
@@ -146,6 +159,14 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
     loadLatestVersion: vi.fn(async (pieceId: string, clientId: string) =>
       pieceId === PIECE_A && clientId === CLIENT_A ? pieceVersion() : null,
     ),
+    listPieceVersions: vi.fn(async (pieceId: string, clientId: string) =>
+      pieceId === PIECE_A && clientId === CLIENT_A
+        ? [
+            pieceVersion({ id: "ver-1", version: 1, verdict: "REVISE" }),
+            pieceVersion({ id: "ver-2", version: 2, verdict: "REVIEW", isActive: true }),
+          ]
+        : [],
+    ),
     insertDraftPiece: vi.fn(async () => {
       writes.insertDraftPiece += 1;
       return { id: PIECE_A, slug: "test-piece" };
@@ -157,6 +178,35 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
       writes.insertPieceVersion += 1;
       return { id: `ver-${insert.version}`, version: insert.version };
     }),
+    nameVersion: vi.fn(
+      async (input: {
+        pieceId: string;
+        clientId: string;
+        version: number;
+        name: string;
+        asSignoff?: boolean;
+      }) => {
+        // A NAMED sign-off is immutable: naming/overwriting it is rejected. The
+        // version-2 fixture is treated as the existing sign-off marker when the
+        // test points at it.
+        if (signoffVersions.has(input.version)) {
+          throw new SignoffImmutableError(input.version);
+        }
+        if (input.asSignoff) signoffVersions.add(input.version);
+        writes.nameVersion += 1;
+        return pieceVersion({
+          version: input.version,
+          name: input.name,
+          isSignoff: Boolean(input.asSignoff) || signoffVersions.has(input.version),
+        });
+      },
+    ),
+    setActiveVersion: vi.fn(
+      async (input: { pieceId: string; clientId: string; version: number }) => {
+        writes.setActiveVersion += 1;
+        return pieceVersion({ version: input.version, isActive: true });
+      },
+    ),
     ...over,
   };
   return { ...base, writes };
