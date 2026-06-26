@@ -25,7 +25,21 @@ export default defineConfig({
       // The acceptance spec is authored as `gate-spec.ts` (RFC PR 008 filename),
       // so the acceptance glob matches `*.ts` (it contains describe/it suites).
       "test/acceptance/**/*.ts",
+      // PR 015 / P1.R.1 (DR-019 append-only carve-out): the content-hub SSR
+      // render suites (ssr-body, faq-jsonld, placeholder-strip, status-filter).
+      "test/render/**/*.test.ts",
     ],
+  },
+  // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
+  // Component and render it to a static HTML string with react-dom/server. The
+  // app tsconfig is `jsx: preserve` (only Next understands that); Vite 8's oxc
+  // transformer needs an explicit JSX runtime to compile TSX for vitest. React
+  // 19's automatic runtime needs no React import. No effect on non-TSX suites.
+  oxc: {
+    jsx: {
+      runtime: "automatic",
+      importSource: "react",
+    },
   },
   resolve: {
     alias: {
