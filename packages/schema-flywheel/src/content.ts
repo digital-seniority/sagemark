@@ -30,6 +30,8 @@ import {
   text,
   timestamp,
   integer,
+  bigint,
+  numeric,
   boolean,
   uuid,
   pgEnum,
@@ -430,6 +432,85 @@ export const workerSessions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// ImageGen Stage-2 persistence (@sagemark/imagegen, migration 0035).
+//
+// `generatedImages` — durable generated-image asset rows. Dedup by the UNIQUE
+// (workspace_id, content_hash) index (findAssetByHash exploits it). Every row
+// carries the AI-generated license blob (Never-list #8). `imageGenerations` —
+// the per-inference audit log, written EVEN ON DEDUP so every spend is
+// accounted. Both are RLS-enabled fail-closed with NO anon policy (the
+// 0032/0033 pattern): generated images are private until referenced inside a
+// published content_piece. Service-role (operator / imagegen) is the only
+// access path.
+// ---------------------------------------------------------------------------
+
+export const generatedImages = pgTable(
+  "generated_images",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    // Nullable: not supplied to the Stage-1 insertAsset contract (it arrives at
+    // insertGenerationRecord time and is recorded in image_generations).
+    clientId: uuid("client_id"),
+    // sha256 hex of the stored bytes (the dedup key).
+    contentHash: text("content_hash").notNull(),
+    bucket: text("bucket").notNull(),
+    storageKey: text("storage_key").notNull(),
+    bytes: integer("bytes").notNull(),
+    // Derived from the storage-key extension at insert.
+    contentType: text("content_type").notNull(),
+    // Pinned gateway model id (derived from the model:<id> tag) + nullable version.
+    model: text("model").notNull(),
+    modelVersion: text("model_version"),
+    // sha256 of the compiled prompt. Nullable: not supplied to insertAsset.
+    promptHash: text("prompt_hash"),
+    // Generation seed, if the provider returned one. Modeled as bigint
+    // (driver returns it as a string) — seeds can exceed 2^31.
+    seed: bigint("seed", { mode: "bigint" }),
+    // AI-generated license/provenance blob (Never-list #8).
+    license: jsonb("license").notNull(),
+    // SynthID/C2PA/revised-prompt lineage flags captured at write time.
+    provenance: jsonb("provenance"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // Dedup: one stored asset per (workspace, content-hash).
+    uniqueIndex("generated_images_ws_hash_unique").on(
+      t.workspaceId,
+      t.contentHash,
+    ),
+    index("generated_images_client_idx").on(t.clientId),
+  ],
+);
+
+export const imageGenerations = pgTable(
+  "image_generations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    // Written even on dedup (→ the existing asset). Nullable for rejected/failed.
+    assetId: uuid("asset_id").references(() => generatedImages.id, {
+      onDelete: "set null",
+    }),
+    model: text("model").notNull(),
+    // Provider-reported cost (nullable).
+    costReported: numeric("cost_reported"),
+    // succeeded | rejected | failed.
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("image_generations_ws_idx").on(t.workspaceId),
+    index("image_generations_asset_idx").on(t.assetId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations.
 // ---------------------------------------------------------------------------
 
@@ -544,3 +625,7 @@ export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type ContentVerdict = (typeof contentVerdictEnum.enumValues)[number];
 export type WorkerSession = typeof workerSessions.$inferSelect;
 export type NewWorkerSession = typeof workerSessions.$inferInsert;
+export type GeneratedImage = typeof generatedImages.$inferSelect;
+export type NewGeneratedImage = typeof generatedImages.$inferInsert;
+export type ImageGeneration = typeof imageGenerations.$inferSelect;
+export type NewImageGeneration = typeof imageGenerations.$inferInsert;
