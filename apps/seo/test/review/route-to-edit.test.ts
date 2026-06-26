@@ -157,6 +157,7 @@ const ACTOR = "11111111-1111-4111-8111-aaaaaaaaaaaa";
 function activeAuth(over: Partial<PersistedAuthorization> = {}): PersistedAuthorization {
   return {
     id: AUTH_ID,
+    grantedAt: "2026-01-01T00:00:00.000Z",
     revokedAt: null,
     expiresAt: null,
     credential: { name: "Dr. Jane Roe", credentials: "RN, CDP" },
@@ -259,6 +260,53 @@ describe("AC3/AC4 — credentialed_releases is the only release; §11.5 active-a
     expect(result).toEqual({ ok: false, reason: "authorization-inactive" });
     expect(releases).toHaveLength(0);
   });
+
+  // A.005.1 / DR-039 — the WRITE path now also refuses a not-yet-granted or an
+  // out-of-scope authorization, with the SAME predicate the READ path uses (parity).
+  it("a NOT-YET-GRANTED authorization (granted_at in the future) is refused — NO release written", async () => {
+    const { data, releases } = signoffData(
+      activeAuth({ grantedAt: "2099-01-01T00:00:00.000Z" }),
+    );
+    const result = await recordCredentialedRelease(baseRelease, data, {
+      pilot: true,
+      now: new Date("2026-06-26T00:00:00.000Z"),
+    });
+    expect(result).toEqual({ ok: false, reason: "authorization-inactive" });
+    expect(releases).toHaveLength(0);
+    expect(data.insertCredentialedRelease).not.toHaveBeenCalled();
+  });
+
+  it("an authorization with a MISSING granted_at is refused (granted is never implicit) — NO release written", async () => {
+    const { data, releases } = signoffData(activeAuth({ grantedAt: null }));
+    const result = await recordCredentialedRelease(baseRelease, data, { pilot: true });
+    expect(result).toEqual({ ok: false, reason: "authorization-inactive" });
+    expect(releases).toHaveLength(0);
+  });
+
+  it("an OUT-OF-SCOPE authorization (unrecognized scope) is refused — NO release written", async () => {
+    const { data, releases } = signoffData(activeAuth({ scope: "bogus" }));
+    const result = await recordCredentialedRelease(baseRelease, data, { pilot: true });
+    expect(result).toEqual({ ok: false, reason: "authorization-inactive" });
+    expect(releases).toHaveLength(0);
+    expect(data.insertCredentialedRelease).not.toHaveBeenCalled();
+  });
+
+  it("an authorization with a MISSING scope is refused (scope is never implicit) — NO release written", async () => {
+    const { data, releases } = signoffData(activeAuth({ scope: undefined }));
+    const result = await recordCredentialedRelease(baseRelease, data, { pilot: true });
+    expect(result).toEqual({ ok: false, reason: "authorization-inactive" });
+    expect(releases).toHaveLength(0);
+  });
+
+  it.each(["client", "cluster", "piece"] as const)(
+    "an in-scope authorization (scope=%s) is permitted — release written",
+    async (scope) => {
+      const { data, releases } = signoffData(activeAuth({ scope }));
+      const result = await recordCredentialedRelease(baseRelease, data, { pilot: true });
+      expect(result.ok).toBe(true);
+      expect(releases).toHaveLength(1);
+    },
+  );
 });
 
 describe("DR-037 — the seeded PILOT PLACEHOLDER cannot be a real release authority in production", () => {

@@ -64,7 +64,13 @@ const clientSignoff: PersistedRelease = {
   actorId: "client-contact-1",
 };
 
-const activeAuth: PersistedAuthorization = { id: AUTH_ID, revokedAt: null, expiresAt: null };
+const activeAuth: PersistedAuthorization = {
+  id: AUTH_ID,
+  grantedAt: "2026-01-01T00:00:00.000Z",
+  revokedAt: null,
+  expiresAt: null,
+  scope: "client",
+};
 
 function pubBody(over: Record<string, unknown> = {}) {
   return {
