@@ -69,6 +69,16 @@ jobs:
       - name: RLS contract suite (node:test)
         run: node --test apps/seo/test/tenancy/rls-contract.test.ts
 
+      # Reachability gate (PR 016 / P1.R.2). The both-directions invariant:
+      # sitemap == published+indexable set — no draft/archived URL leaks INTO the
+      # sitemap, and no published piece is ORPHANED out of it. This file is also
+      # covered by the `turbo run test` step above (vitest globs test/render/**);
+      # this explicit, focused run is the DISTINCT failing signal the "CI gate"
+      # calls for, so a reachability regression names itself in the build log
+      # rather than hiding inside the aggregate suite. Rollback: delete this step.
+      - name: Reachability gate (sitemap == indexable set, both directions)
+        run: pnpm --filter @sagemark/seo exec vitest run test/render/reachability-gate.test.ts
+
       # Consuming-app build (DR-008): the source-consumed packages are validated
       # by actually building the app that consumes them.
       - name: Build (consuming app + packages)
