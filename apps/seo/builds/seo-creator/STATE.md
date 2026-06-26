@@ -1,10 +1,10 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (audit-002 complete — no Critical; suite vendored #24; P0.W.5 UNBLOCKED; 10h unattended run armed)
+**Last updated:** 2026-06-26 (Run #012 — P0.W.5 #26 MERGED; suite wired into worker + golden harness; audit Highs A.011.1/2/9 discharged)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 8 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20) (+3 correctives C.004.1, C.008.1, C.009.1 #22) · +1 spike (P0.W.1) · 4 audit fixes (#13–#16) · suite vendored (#24, DR-022)
-**Runs since last audit:** 0 (audit-002 done 2026-06-26 — `audits/audit-002-2026-06-26.md`; next audit due ~Run #016)
-**Loop status:** **AUTO-LOOP ARMED for ~10h unattended** (James-directed; `.auto-loop.json` budget 10h, max-loops 20; autonomous auto-merge incl. worker auth/tenancy class). audit-002: **no Critical findings**; build sound (MERGED 9/9, no hollow/flaky tests, cross-tenant closed, RLS Tier-2 17/17 executing). **P0.W.5 (PR 008) is now UNBLOCKED** — DR-022 vendored the suite in-repo (`skills/seo-copywriter-skill-package/`) + the Whispering Willows golden source; golden built as a kernel-captured characterization baseline (expert label certification = residual NEEDS-INPUT, not a blocker). Next: Run #012 = P0.W.5 (folding the A.011.1 allowlist-single-source fix + A.011.2 RFC path reconciliation).
+**Phase progress:** 9 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20, **P0.W.5 #26**) (+3 correctives C.004.1, C.008.1, C.009.1 #22) · +1 spike (P0.W.1) · 4 audit fixes (#13–#16) · suite vendored (#24, DR-022)
+**Runs since last audit:** 1 (audit-002 was Run #011; next audit due ~Run #016)
+**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z, max-loops 20; autonomous auto-merge). **P0.W.5 MERGED** (#26 `f52f4af`, judge NEEDS-FIXES→fixed→5/5·5/5): the real `seo-blog-writer` SKILL.md is wired into the worker driving `/content/api/draft`; golden-set harness captures the real `@sagemark/core` kernel (honest all-veto baseline, [[DR-024]]). audit Highs A.011.1 (allowlist single-source), A.011.2 (RFC path), A.011.9 (Dockerfile COPY) discharged. **Next: Run #013 = P0.S.2 (PR 009)** — fold A.011.6 (`VERDICT_NOT_PUBLISH`) + A.011.7 (`evalRan`←gate_results).
 
 ## Currently in flight
 
@@ -19,17 +19,18 @@ _(none — Run #010 complete; C.009.1 #22 merged. Run-lock released; auto-loop N
 
 ## Next up (auto-loop, unattended)
 
-- **Run #012 → P0.W.5** (PR 008 — wire `seo-blog-writer` suite (single-drafter) into the worker + golden-set regression harness) — **UNBLOCKED** (DR-022). Loads the real SKILL.md from `skills/seo-copywriter-skill-package/seo-copywriter/`; Dockerfile COPYs the suite into the Sandbox image; golden corpus built from `examples/whispering-willows-demo/` with Stage-A/scorer expectations CAPTURED from the real `@sagemark/core` kernel (characterization baseline). **Fold in:** A.011.1 (agent-worker imports `WORKER_ALLOWED_TOOLS`), A.011.2 (reconcile RFC PR 008/014/§4.1 path to DR-022), A.011.9 (Dockerfile COPY).
-- **Then P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish) — RFC dep PR 008; fold A.011.7 (`evalRan` bound to a persisted `gate_results` row) + A.011.6 (`VERDICT_NOT_PUBLISH` enum) here.
+- **Run #013 → P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish endpoint) — **NOW ELIGIBLE** (RFC dep PR 008 ✓ merged #26). canPublish reads `credentialed_releases` (never `client_signoffs`); byline server-resolved; revoked/expired authorization blocks. **Fold in:** A.011.6 (rename FSM `NOT_PUBLISH_VERDICT`→`VERDICT_NOT_PUBLISH` per §9.1) + A.011.7 (bind `evalRan` to a persisted `gate_results` row, promote DR-009 open bullet).
 - **Phase 1** opens after P0.S.2: P1.U.x (agent-ui), P1.R.x (render-geo), P1.W.1, P1.C.x (client-review) — many become dep-eligible.
-- **Opportunistic correctives (audit-002):** A.011.4 (agent-worker/emit tests), A.011.5 (no-console posture), A.011.8 (schema-flywheel test), A.011.13 (alg check), live-infra verification pass (Tier-3).
+- **Opportunistic correctives (audit-002):** A.011.4 (agent-worker/emit tests), A.011.5 (no-console posture), A.011.8 (schema-flywheel test), A.011.13 (alg check), live-infra verification pass (Tier-3), wire `build:worker` → `apps/seo/dist/` (so the Dockerfile COPY resolves).
 
-## Active risks (audit-002 — High/Med; no Critical)
-- **[High] A.011.1 worker tool-allowlist single-source** — `agent-worker.ts:279` hardcodes `allowedTools` literals; boot gate verifies `WORKER_ALLOWED_TOOLS` (list A), model runs list B. Confined today (identical); **go-live blocker**. Fix folded into P0.W.5.
-- **[High] A.011.2 RFC stale suite path** — RFC names `learnings/SKILLS/`; DR-022 is canonical. Reconcile in P0.W.5.
-- **[Med] A.011.6** FSM `NOT_PUBLISH_VERDICT` vs PRD §9.1 `VERDICT_NOT_PUBLISH`. **[Med] A.011.7** `evalRan` from `verdict!==null` not a persisted gate row (DR-009). **[Med] A.011.9** Dockerfile no COPY suite. **[Med] A.011.5** no-console dead directives. **[Med] A.011.8** schema-flywheel vacuous test.
+## Active risks (audit-002 + Run #012 — High/Med; no Critical)
+- **DISCHARGED:** ~~A.011.1~~ (allowlist single-source — closed in P0.W.5 #26, asserted by test), ~~A.011.2~~ (RFC path reconciled), ~~A.011.9~~ (Dockerfile COPY + context).
+- **[Med] A.011.6** FSM `NOT_PUBLISH_VERDICT` vs §9.1 `VERDICT_NOT_PUBLISH` → fold into P0.S.2. **[Med] A.011.7** `evalRan` from `verdict!==null` (DR-009) → fold into P0.S.2. **[Med] A.011.5** no-console dead directives. **[Med] A.011.8** schema-flywheel vacuous test.
+- **[Med] Run#012 cross-lane ([[DR-024]]):** the canonical Whispering Willows demo prose is itself gate-vetoed for em-dash density (all 10 golden pieces `VETO_BANNED_LEXICON`) — demo-content vs banned-lexicon-threshold decision (content ↔ gate lane).
+- **[Med] Run#012:** `apps/seo/dist/` worker build artifact has no producing build step — the Dockerfile is context-consistent but `docker build` fails at the `COPY apps/seo/dist/` layer until a `build:worker` compile is wired (pre-existing P0.W.2 follow-up).
 - **[Low] A.011.12** worker bridge-JWT can POST /content/api/publish (FSM release-gate is the real, sound barrier — defense-in-depth). **[Low] A.011.13** alg header unchecked (not exploitable).
 - Two draft structured checks for the judge: `tool-allowlist-single-source`, `worker-credential-publish-scope` (see audit-002).
+- **Go-live blockers (worker undeployed):** live-Sandbox Tier-2/3 (skill load, adversarial re-run, SSE e2e), expert golden-label certification (DR-022/DR-024), the dist build wiring.
 
 ## Blocked / awaiting input
 
@@ -51,6 +52,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ## Recent learnings (last 5)
 
+-3. **Suite wired + golden harness (Run #012, P0.W.5 #26 `f52f4af`).** The real `seo-blog-writer` SKILL.md (vendored, DR-022) is loaded verbatim into the worker driving `/content/api/draft` (kernel-backed, identity-checked). Golden-set tripwire captures the real `@sagemark/core` kernel. **Judge caught a load-bearing defect:** the golden extraction normalized em-dashes BEFORE the gate, masking a real `VETO_BANNED_LEXICON` Stage-A veto — blinding the AI-slop drift class. Fixed: honest all-veto baseline ([[DR-024]]) + anti-masking meta-check ("no extraction transform changes a captured veto") + test-time clean-draft synthesis for Stage-B drift. Lesson: any "normalize input before the gate" step in a characterization harness must escalate to a DR. audit Highs A.011.1 (allowlist single-source), A.011.2 (RFC path), A.011.9 (Dockerfile COPY) discharged. Surfaced cross-lane tension: the canonical demo prose fails the org's own em-dash gate.
 -2. **Bridge-auth enforced end-to-end (Run #010, C.009.1 #22 `2128791`, judge 5/5·5/5).** DR-018 discharged: the per-run bridge JWT (minted host-side, sent by the worker) is now verified at EVERY `/content/api/*` host tool — not just convention. Pattern: `authenticateBridgeRequest()` ([[DR-021]]) branches on `Authorization: Bearer` → token-as-credential (tenancy from claims, **reject if body.clientId ≠ token.cl** → no scope-widening, fail-closed); no bearer → unchanged operator path. Verifier extracted to `@/lib/auth/bridge-token`. Standing table-driven regression fails CI until every host tool authenticates. Cross-tenant fully closed; intra-tenant same-window run replay is by-design within ~90s ([[DR-020]] — harden when a run registry exists per [[DR-017]]). **P0.W.5 blocker discovered:** its golden corpus needs HUMAN labels (non-engineering) and the suite SKILL.md files live at `~/.claude/skills/seo-copywriter/`, not in-repo — `load-suite.ts` needs a vendoring/packaging decision.
 -1. **Worker streaming + confinement landed (Run #009, PRs #19/#20).** The capability-denial profile is now a named module (`apps/seo/src/worker/capability-profile.ts`) that `sandbox-launch.ts` applies-and-proves with fail-closed boot; the SSE transport (`/api/run` → `sse-relay`) mints a per-run bridge JWT scoped to (workspace,client,run) and resumes from a PERSISTED truth snapshot on reconnect (never worker memory). Two seams to close: (a) [[DR-018]] — `verifyBridgeToken` exists + is tested but the PR-005 `/content/api/*` routes don't call it yet (worker→host bridge auth is convention-only until wired; release gate before a live tenant); (b) the W.3 `modelToolAllowlist` boot-refusal path isn't exercised through `launchSandbox`, and `agent-worker.ts` hardcodes the tool literals instead of importing `WORKER_ALLOWED_TOOLS` (the "no-drift" claim is paper-only). Both logged for a hardening pass. [[DR-019]]: a PR adding a new test dir may append-only to `vitest.config.ts` `include`.
 0. **P0.W.2 worker host built (Run #008, PR #17)** — the spike's proven controls (`hardenSandbox`/`networkPolicy`/`readViaWorkdirTool`/`assertControlsOrRefuse`) are now REAL in `apps/seo/src/worker/sandbox-launch.ts`; fail-closed boot, no-publish-tool model surface (`tools:[]` + 2-item allowlist), frozen per-run tenancy binding, host-side `session-store` (worker has no Supabase creds), worker model traffic via the Agent-SDK CLI env seam not `resolveGatewayModel` ([[DR-016]]), host lease-reclaim watchdog deferred ([[DR-017]]). 0034_worker_sessions migration added (needs applying to Sagemark). Tier-2/3 = live-Sandbox NEEDS-INPUT.
@@ -87,7 +89,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | **MERGED** (judge 5/5·4/5; live Tier-2/3 deferred to deploy) | Run #008 | 68ad820 | [#17](https://github.com/digital-seniority/sagemark/pull/17) |
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | **MERGED** (judge 4/5·4/5; Tier-2/3 live-Sandbox deferred) | Run #009 | 69650e4 | [#19](https://github.com/digital-seniority/sagemark/pull/19) |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | **MERGED** (judge 4/5·4/5; TENANCY PASS; AC6 wiring deferred [[DR-018]]) | Run #009 | 96da4ef | [#20](https://github.com/digital-seniority/sagemark/pull/20) |
-| P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | NOT_STARTED (now dep-eligible — PR 007 met) | — | — | — |
+| P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; honest golden baseline [[DR-024]]; A.011.1/2/9 folded) | Run #012 | f52f4af | [#26](https://github.com/digital-seniority/sagemark/pull/26) |
 | P0.S.2 | PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out) | schema-tenancy | NOT_STARTED | — | — | — |
 
 ## Phase 1 — Pilot PR map
@@ -122,6 +124,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 009 | 4.0 | 4.0 | 0% | 0% |
 | 010 | 5.0 | 5.0 | 0% | 0% |
 | 011 | audit | audit | — | — |
+| 012 | 5.0 | 5.0 | 0% | 100% (1/1, judge caught golden mask) |
 
 ## Status legend
 
@@ -129,6 +132,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*audit-002 complete (no Critical) · suite vendored #24 (DR-022) · DR-023 filed · P0.W.5 UNBLOCKED · auto-loop armed ~10h unattended → Run #012 = P0.W.5 (folding A.011.1/A.011.2/A.011.9)*
+*Run #012 · P0.W.5 [#26](https://github.com/digital-seniority/sagemark/pull/26) (f52f4af) MERGED · judge NEEDS-FIXES→fixed→5/5·5/5 · suite wired + golden harness (honest baseline DR-024) · A.011.1/2/9 discharged · auto-loop unattended → Run #013 = P0.S.2*
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.
