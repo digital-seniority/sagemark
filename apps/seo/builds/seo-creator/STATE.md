@@ -1,10 +1,10 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #012 — P0.W.5 #26 MERGED; suite wired into worker + golden harness; audit Highs A.011.1/2/9 discharged)
-**Current build phase:** Phase 0 — Foundations
-**Phase progress:** 9 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20, **P0.W.5 #26**) (+3 correctives C.004.1, C.008.1, C.009.1 #22) · +1 spike (P0.W.1) · 4 audit fixes (#13–#16) · suite vendored (#24, DR-022)
-**Runs since last audit:** 1 (audit-002 was Run #011; next audit due ~Run #016)
-**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z, max-loops 20; autonomous auto-merge). **P0.W.5 MERGED** (#26 `f52f4af`, judge NEEDS-FIXES→fixed→5/5·5/5): the real `seo-blog-writer` SKILL.md is wired into the worker driving `/content/api/draft`; golden-set harness captures the real `@sagemark/core` kernel (honest all-veto baseline, [[DR-024]]). audit Highs A.011.1 (allowlist single-source), A.011.2 (RFC path), A.011.9 (Dockerfile COPY) discharged. **Next: Run #013 = P0.S.2 (PR 009)** — fold A.011.6 (`VERDICT_NOT_PUBLISH`) + A.011.7 (`evalRan`←gate_results).
+**Last updated:** 2026-06-26 (Run #013 — P0.S.2 #28 MERGED → ★ PHASE 0 COMPLETE ★; phase-close audit next, then Phase 1)
+**Current build phase:** Phase 0 — Foundations **COMPLETE** → Phase 1 — Pilot (entering under the 10h unattended mandate)
+**Phase progress:** **10 / 23 engineering PRs merged — ALL of Phase 0** (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20, P0.W.5 #26, **P0.S.2 #28**) (+3 correctives C.004.1/C.008.1/C.009.1 · +1 spike P0.W.1 · 4 audit fixes #13–#16 · suite vendored #24)
+**Runs since last audit:** 2 (audit-002 was Run #011; **phase-close audit DUE NOW** at the Phase 0→1 boundary)
+**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **Phase boundary = trust gate**, but per the 10h unattended directive: running the required phase-close audit, then continuing into Phase 1's dependency-eligible ENGINEERING-only PRs (skipping any blocked on non-engineering/design/live-infra). **Next: phase-close audit → Run #014 = first eligible Phase-1 PR (likely P1.R.1 SSR render or P1.U.1 canvas).**
 
 ## Currently in flight
 
@@ -90,7 +90,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | **MERGED** (judge 4/5·4/5; Tier-2/3 live-Sandbox deferred) | Run #009 | 69650e4 | [#19](https://github.com/digital-seniority/sagemark/pull/19) |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | **MERGED** (judge 4/5·4/5; TENANCY PASS; AC6 wiring deferred [[DR-018]]) | Run #009 | 96da4ef | [#20](https://github.com/digital-seniority/sagemark/pull/20) |
 | P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; honest golden baseline [[DR-024]]; A.011.1/2/9 folded) | Run #012 | f52f4af | [#26](https://github.com/digital-seniority/sagemark/pull/26) |
-| P0.S.2 | PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out) | schema-tenancy | NOT_STARTED | — | — | — |
+| P0.S.2 | PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out) | schema-tenancy | **MERGED** (judge 5/5·5/5; YMYL byline-trust hole closed; A.011.6/A.011.7 folded; [[DR-025]]) | Run #013 | ea0fc0f | [#28](https://github.com/digital-seniority/sagemark/pull/28) |
 
 ## Phase 1 — Pilot PR map
 
@@ -125,6 +125,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 010 | 5.0 | 5.0 | 0% | 0% |
 | 011 | audit | audit | — | — |
 | 012 | 5.0 | 5.0 | 0% | 100% (1/1, judge caught golden mask) |
+| 013 | 5.0 | 5.0 | 0% | 0% |
 
 ## Status legend
 
@@ -132,6 +133,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #012 · P0.W.5 [#26](https://github.com/digital-seniority/sagemark/pull/26) (f52f4af) MERGED · judge NEEDS-FIXES→fixed→5/5·5/5 · suite wired + golden harness (honest baseline DR-024) · A.011.1/2/9 discharged · auto-loop unattended → Run #013 = P0.S.2*
+*Run #013 · P0.S.2 [#28](https://github.com/digital-seniority/sagemark/pull/28) (ea0fc0f) MERGED · judge 5/5·5/5 · ★ PHASE 0 COMPLETE (10/10) ★ · fail-closed publish closes the YMYL byline-trust hole · DR-025 · next: phase-close audit → Phase 1 (unattended)*
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.
