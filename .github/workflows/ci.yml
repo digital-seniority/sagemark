@@ -1,0 +1,86 @@
+# CI for the sagemark monorepo (pnpm + turbo).
+#
+# Closes audit-001 (A.005.4): "no CI runs the tests at all." This workflow is
+# the regression backstop — every PR (and push) to `preview`/`main` must pass
+# typecheck, lint, the full `turbo run test` suite (vitest in @sagemark/core and
+# @sagemark/seo), the `node:test` RLS contract suite (which vitest excludes), the
+# consuming-app build (DR-008), and the worker-env lint (DR-001 / PR 001 AC#3 —
+# the "fails-the-build" half that was previously never invoked).
+name: CI
+
+"on":
+  pull_request:
+    branches: [preview, main]
+  push:
+    branches: [preview, main]
+
+# A newer push to the same ref cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    env:
+      # Tier-2 of the RLS contract suite (live Postgres / cross-tenant / FK /
+      # CHECK behavioral assertions) runs ONLY when this secret is set. It is the
+      # Supabase project DSN (DR-012) and is OPTIONAL: when the secret is unset
+      # the env var is empty, the suite's runner auto-detect finds no engine, and
+      # every Tier-2 test SKIPS cleanly (it is never falsely passed). Tier-1
+      # static assertions always run regardless.
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # `turbo run test` fans out to every workspace `test` script. @sagemark/seo's
+      # `test` runs vitest AND `node --test test/tenancy/rls-contract.test.ts`, so
+      # the node:test RLS suite is exercised here too; the explicit step below is a
+      # belt-and-suspenders guard that the RLS file always runs even if turbo
+      # caching or a future package.json edit drops it.
+      - name: Test (turbo)
+        run: pnpm test
+
+      # Explicit RLS contract run. Tier-1 (static migration-shape assertions)
+      # ALWAYS runs and fails the build on a tenancy/RLS regression. Tier-2 runs
+      # against DATABASE_URL when the secret is set, otherwise skips cleanly.
+      - name: RLS contract suite (node:test)
+        run: node --test apps/seo/test/tenancy/rls-contract.test.ts
+
+      # Consuming-app build (DR-008): the source-consumed packages are validated
+      # by actually building the app that consumes them.
+      - name: Build (consuming app + packages)
+        run: pnpm build
+
+      # worker-env lint (DR-001 / PR 001 AC#3). assertWorkerEnvClean throws — and
+      # the process exits non-zero — if a worker-bound env/config pairs a raw
+      # Anthropic endpoint with a provider key (a metered-Gateway bypass). This is
+      # the build-time backstop that turns that check into a failing build.
+      - name: Worker env lint (Gateway-bypass guard)
+        run: >-
+          node --input-type=module --eval
+          "import { assertWorkerEnvClean } from './packages/core/src/ai/worker-env-lint.ts';
+          assertWorkerEnvClean(process.env);
+          console.log('worker-env-lint: clean');"
