@@ -1,16 +1,21 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #008 complete — P0.W.2 worker host created at PR #17, human-merge)
+**Last updated:** 2026-06-26 (post-Run #008 — P0.W.2 #17 MERGED; CI green; DR-013 decided)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +1 spike (P0.W.1) · 4 audit fixes MERGED (#13–#16) · **P0.W.2 (#17) OPEN, human-merge**
-**Runs since last audit:** 3 (audit-001 was Run #005 — threshold 5; audit due before Run #010)
-**Loop status:** Audit PRs #13–#16 MERGED; Supabase = **Sagemark/`rilaycjkksfosnxvenzt`** (DR-015). Run #008 built **P0.W.2 (worker host) → [PR #17](https://github.com/digital-seniority/sagemark/pull/17)**, judge 5/5·4/5, GATE-BYPASS + TENANCY PASS, fail-closed boot proven, Tier-2/3 NEEDS-INPUT (live Sandbox). **HARD-STOP: P0.W.2 is production-critical → REQUIRES_HUMAN_MERGE; P0.W.3/W.4/W.5 are gated on it.**
+**Phase progress:** 6 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, **P0.W.2 #17**) (+1 corrective C.004.1, +1 corrective C.008.1) · +1 spike (P0.W.1) · 4 audit fixes MERGED (#13–#16)
+**Runs since last audit:** 3 (audit due before the next-but-one work-doing run)
+**Loop status:** **P0.W.2 (worker host) MERGED** (#17 `68ad820`). CI is GREEN incl. RLS Tier-2 17/17 against Sagemark (the `DATABASE_URL` secret + the C.008.1 anon-`SET ROLE` fix #18 `e445ebb`) → **A.005.5 CLOSED**. DR-013 metering policy **DECIDED** (gates Gateway-only; enforcement corrective queued). **Worker lane open: P0.W.3 / P0.W.4 / P0.W.5 now reachable.** P0.W.2 live Tier-2/3 = BLOCKED on deployment + secrets (see "Active items").
 
 ## Currently in flight
 
-- **P0.W.2 (PR 006 — worker host) — [PR #17](https://github.com/digital-seniority/sagemark/pull/17)** — `PR_CREATED` / `REQUIRES_HUMAN_MERGE` (production-critical). Judge 5/5·4/5. Awaiting human review/merge.
+_(none — P0.W.2 #17 merged. No run-lock held.)_
 
-## Next up (after P0.W.2 merges)
+## Active items (human / deployment — not autonomously reachable)
+
+- **P0.W.2 live Tier-2/3 — BLOCKED on deployment + secrets.** Running the live serpFetch→runScorers→runGate→persistPiece loop + recycle/residue + the manual brief needs: a running `apps/seo` host (deployed) holding the **Supabase service-role key** + the **AI Gateway** base URL/creds, the worker image (Dockerfile) deployed to a Sandbox with the `claude` CLI, and a per-run bridge JWT. The agent has the Vercel token (Sandbox provisioning) but NOT the service-role/Gateway secrets and there is no running host — so this is a deploy task. Runbook in the Run #008 checkpoint / PR #17 body.
+- **DR-013 enforcement corrective (before PR 020 / the D4 ledger):** make the gate calls Gateway-only (force-Gateway resolution) + a CI assertion that the gate path can't resolve a raw-Anthropic provider. Decision recorded in [[DR-013]]; implementation queued (Medium).
+
+## Next up (worker lane open — P0.W.2 merged)
 
 - **P0.W.3** (PR 006b — worker capability-denial adversarial confinement suite) — dep [P0.W.2]. The standing adversarial tests (curl/env-dump/cross-run-read/direct-write all fail) + the lint that no model-reachable tool shells out.
 - **P0.W.4** (PR 007 — worker↔apps/seo SSE transport) — dep [P0.W.2].
@@ -32,7 +37,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 - **[High] A.005.2 governance spec contradiction** → **PR #14** (reconcile to D5/D9, judge 4/5·4/5). **MERGED** (user-approved). **Merge before P0.W.2.**
 - **[High] A.005.3 model spend escapes the Gateway** → **PR #15** (gates via `resolveGatewayModel`, judge 5/5·5/5; [[DR-013]]). **MERGED** (user-approved). ⚠️ open policy: host-context BYOK can bypass metering — decide Gateway-only-for-gates before the D4 ledger (PR 020).
 - **[High] A.005.4 no CI runs tests** → **PR #16** (GitHub Actions: typecheck/lint/test/build + node:test RLS + worker-env-lint, judge 4/5·5/5; [[DR-014]]). **MERGED** (user-approved).
-- **[High→nearly closed] A.005.5 RLS behaviorally unproven** → schema applied to **Sagemark/`rilaycjkksfosnxvenzt`** + RLS verified as anon ([[DR-015]]); CI Tier-2 wired in PR #16. **Remaining: a human sets the GitHub `DATABASE_URL` secret** (→ the Sagemark project) so Tier-2 runs in CI.
+- **[CLOSED] A.005.5 RLS behaviorally unproven** → `DATABASE_URL` secret set (Sagemark) + the C.008.1 anon-`SET ROLE` fix (#18); CI RLS Tier-2 now runs **17/17 green** against the live DB (anon=published-only + zero on internal tables, cross-tenant, FK, CHECK all pass). Behavioral tenant isolation is proven in CI.
 - **Process (done):** event-log reconciled; judge `source-consumed-integration-build` check applied (`060b6b1`) — it gated A.005.1 + A.005.3.
 - **Mediums (logged, not yet built):** core barrel re-exports `server-only` (A.012.1), passive-voice regex drift (A.012.2), schema-flywheel in-package tests / dual runner, console.* logging, dual route namespace. Pick up opportunistically.
 
@@ -65,7 +70,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
 | P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | MERGED | 2 | 895507e | [#6](https://github.com/digital-seniority/sagemark/pull/6) |
 | P0.E.4 | PR 005 — /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | MERGED | 4 | ca776f0 | [#11](https://github.com/digital-seniority/sagemark/pull/11) |
-| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | **PR_CREATED** / REQUIRES_HUMAN_MERGE (judge 5/5·4/5; Tier-2/3 NEEDS-INPUT) | Run #008 | 08785ab | [#17](https://github.com/digital-seniority/sagemark/pull/17) |
+| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | **MERGED** (judge 5/5·4/5; live Tier-2/3 deferred to deploy) | Run #008 | 68ad820 | [#17](https://github.com/digital-seniority/sagemark/pull/17) |
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | NOT_STARTED | — | — | — |

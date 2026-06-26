@@ -34,17 +34,32 @@ Sub-decisions:
 2. **Gates pass `"host"` context** (they run in the host/operator runtime, not the Sandbox
    worker).
 
-## Open / policy note (escalated to the user)
+## Metering policy — DECIDED (2026-06-26, user-directed)
 
 `resolveGatewayModel(id, "host")` has a documented **BYOK escape hatch**: if
-`ANTHROPIC_API_KEY` is set, host context takes the direct-Anthropic branch and **bypasses
-the Gateway (un-metered)**. So "Gateway-only / always-metered" is strictly guaranteed only
-for `"worker"` context. **Decision needed before the D4 cost ledger (PR 020) is built:**
-either (a) accept the host BYOK branch (operator-run gates may be un-metered when a direct
-key is present), or (b) force the gates to a Gateway-only path so 100% of gate model calls
-reconcile in the ledger. Until decided, the D4 ledger must NOT assume all gate spend flows
-through the Gateway. Recommend a one-line code comment at the gate call sites cross-referencing
-this DR.
+`ANTHROPIC_API_KEY` is set, host context takes the direct-Anthropic branch and bypasses the
+Gateway (un-metered). The options were (a) accept the host BYOK branch, or (b) force the
+gates Gateway-only.
+
+**DECISION: (b) — the gates are Gateway-only-metered. The BYOK branch is never used for
+gate (faithfulness/voice) model calls.** Rationale: the D4 cost ledger (PR 020) is a
+billing/cost invariant; every gate model call MUST reconcile through the metered Gateway, so
+the guarantee cannot depend on env hygiene. The BYOK escape hatch remains available for
+*other* host/CI contexts (e.g. one-off operator scripts), but NOT for the gate path.
+
+**Implementation (queued follow-up corrective, before PR 020):**
+1. The gate calls resolve their model via a **Gateway-forcing** path — either a
+   `resolveGatewayModel(id, { forceGateway: true })` flag (preferred — explicit) or routing
+   the gates through the same Gateway-only resolution the `"worker"` context uses. The gate
+   path must NOT reach the direct-Anthropic branch even if `ANTHROPIC_API_KEY` is present.
+2. A **CI assertion** (extend the worker-env-lint pattern to the host/gate context) fails the
+   build if the gate path could resolve a raw-Anthropic provider — mirrors the worker's
+   "Gateway-disabled ⇒ zero model calls" guarantee at the gate layer.
+3. One-line comment at each gate call site cross-referencing this DR.
+
+Until that corrective lands, the D4 ledger work must treat host gate spend as Gateway-routed
+**by this decision**, and the corrective is a prerequisite of PR 020. (Tracked as a Medium
+follow-up; flagged in STATE active items.)
 
 ## Consequences
 
