@@ -160,6 +160,42 @@ export interface PersistedGateResult {
 // ── The data-access seam ──────────────────────────────────────────────────────
 
 /**
+ * A persisted `content_piece_versions` row projection (the append-only history).
+ * Columns mirror `packages/schema-flywheel/src/content.ts` `content_piece_versions`
+ * (id, piece_id, client_id, version, body, dimensions, verdict, snapshot_at) — the
+ * subset the edit flow reads. The CURRENT body of a piece is the body of its
+ * HIGHEST-version row; the edit's stale-guard hashes THAT body.
+ */
+export interface PersistedPieceVersion {
+  id: string;
+  pieceId: string;
+  clientId: string;
+  version: number;
+  body: string;
+  verdict: Verdict | null;
+  snapshotAt: string;
+}
+
+/**
+ * Append-only insert payload for a NEW `content_piece_versions` row (PR 012 edit
+ * flow). `clientId` is the BOUND client id (never request input). The write is
+ * APPEND-ONLY — it inserts a NEW row at `version` and NEVER mutates a prior one;
+ * the (piece_id, version) unique index in the schema is the structural guard
+ * against an accidental overwrite (a duplicate version throws).
+ */
+export interface PieceVersionInsert {
+  pieceId: string;
+  clientId: string;
+  /** The new version number (MUST be greater than every existing version). */
+  version: number;
+  body: string;
+  /** The gate verdict re-computed for this edited body (null if not yet gated). */
+  verdict: Verdict | null;
+  /** The Stage-B dimensions JSON for this version (null when a veto suppressed scoring). */
+  dimensions: unknown | null;
+}
+
+/**
  * Insert payload for a host-validated draft write. The route NEVER passes
  * caller-supplied tenancy here — `clientId` is the BOUND client id.
  */
@@ -204,6 +240,14 @@ export interface ContentDataAccess {
     version: number,
   ): Promise<PersistedGateResult | null>;
 
+  /**
+   * The HIGHEST-version `content_piece_versions` row for a piece+client, or null
+   * when no version snapshot exists yet. The edit flow reads this as the CURRENT
+   * body to (a) compute the stale-edit SHA-256 guard and (b) compute the next
+   * version number. Read-only. (PR 012 / P1.U.3 — fail-closed seam extension.)
+   */
+  loadLatestVersion(pieceId: string, clientId: string): Promise<PersistedPieceVersion | null>;
+
   // ── Mutations (the audit route is wired with a view that LACKS these) ────────
   /** Host-validated content_pieces insert (draft route only). Returns the new id+slug. */
   insertDraftPiece(insert: DraftInsert): Promise<{ id: string; slug: string }>;
@@ -213,6 +257,13 @@ export interface ContentDataAccess {
     clientId: string,
     to: ContentPieceRow["status"],
   ): Promise<void>;
+  /**
+   * APPEND-ONLY insert of a NEW `content_piece_versions` row (PR 012 edit flow).
+   * NEVER mutates a prior version — a duplicate (piece_id, version) MUST throw
+   * (the schema unique index enforces it). Returns the new row id + version.
+   * (PR 012 / P1.U.3 — fail-closed seam extension.)
+   */
+  insertPieceVersion(insert: PieceVersionInsert): Promise<{ id: string; version: number }>;
 }
 
 /** The read-only subset the audit route is given. Structurally cannot mutate. */
@@ -330,11 +381,17 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   getGateResult: () => {
     throw new DataAccessNotWiredError("getGateResult");
   },
+  loadLatestVersion: () => {
+    throw new DataAccessNotWiredError("loadLatestVersion");
+  },
   insertDraftPiece: () => {
     throw new DataAccessNotWiredError("insertDraftPiece");
   },
   transitionPieceStatus: () => {
     throw new DataAccessNotWiredError("transitionPieceStatus");
+  },
+  insertPieceVersion: () => {
+    throw new DataAccessNotWiredError("insertPieceVersion");
   },
 };
 

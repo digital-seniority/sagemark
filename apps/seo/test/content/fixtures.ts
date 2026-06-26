@@ -14,6 +14,7 @@ import type {
   PersistedAuthorization,
   PersistedGateResult,
   PersistedBriefSnapshot,
+  PersistedPieceVersion,
 } from "@/lib/content/context";
 import type { AuthorityClass } from "@/lib/content/contract";
 
@@ -99,13 +100,37 @@ export function gateResult(
   };
 }
 
+/** A persisted version-row fixture (PR 012 — content_piece_versions projection). */
+export function pieceVersion(
+  over: Partial<PersistedPieceVersion> = {},
+): PersistedPieceVersion {
+  return {
+    id: "ver-1",
+    pieceId: PIECE_A,
+    clientId: CLIENT_A,
+    version: 1,
+    body: "## Heading\n\nSome grounded body content about a topic.\n",
+    verdict: "REVIEW",
+    snapshotAt: "2026-01-03T00:00:00.000Z",
+    ...over,
+  };
+}
+
 /** A spying data-access mock. `writes` counts every mutation call. */
 export interface MockDataAccess extends ContentDataAccess {
-  writes: { insertDraftPiece: number; transitionPieceStatus: number };
+  writes: {
+    insertDraftPiece: number;
+    transitionPieceStatus: number;
+    insertPieceVersion: number;
+  };
 }
 
 export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess {
-  const writes = { insertDraftPiece: 0, transitionPieceStatus: 0 };
+  const writes = {
+    insertDraftPiece: 0,
+    transitionPieceStatus: 0,
+    insertPieceVersion: 0,
+  };
   const base: ContentDataAccess = {
     clientBelongsToWorkspace: vi.fn(async (clientId: string, workspaceId: string) => {
       // CLIENT_A belongs to WORKSPACE_A only.
@@ -118,12 +143,19 @@ export function makeData(over: Partial<ContentDataAccess> = {}): MockDataAccess 
     getRelease: vi.fn(async (): Promise<PersistedRelease | null> => null),
     getAuthorization: vi.fn(async (): Promise<PersistedAuthorization | null> => null),
     getGateResult: vi.fn(async (): Promise<PersistedGateResult | null> => gateResult()),
+    loadLatestVersion: vi.fn(async (pieceId: string, clientId: string) =>
+      pieceId === PIECE_A && clientId === CLIENT_A ? pieceVersion() : null,
+    ),
     insertDraftPiece: vi.fn(async () => {
       writes.insertDraftPiece += 1;
       return { id: PIECE_A, slug: "test-piece" };
     }),
     transitionPieceStatus: vi.fn(async () => {
       writes.transitionPieceStatus += 1;
+    }),
+    insertPieceVersion: vi.fn(async (insert: { version: number }) => {
+      writes.insertPieceVersion += 1;
+      return { id: `ver-${insert.version}`, version: insert.version };
     }),
     ...over,
   };
