@@ -378,6 +378,58 @@ export const credentialedReleases = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Worker session persistence (PR 006 / P0.W.2, migration 0034).
+//
+// Host-side durable state for the autonomous Agent-SDK worker. The worker runs
+// in an ephemeral Sandbox microVM with no Supabase creds + a wiped working dir,
+// so run state lives HERE (written by the host service role) and is reloaded to
+// reconstruct a run after teardown. Holds STATE ONLY — never a secret. RLS is
+// enabled fail-closed with NO anon policy (the 0032/0033 pattern); service-role
+// is the only access path.
+// ---------------------------------------------------------------------------
+
+export const WORKER_SESSION_STATUSES = ["running", "completed", "error"] as const;
+export type WorkerSessionStatus = (typeof WORKER_SESSION_STATUSES)[number];
+
+export const workerSessions = pgTable(
+  "worker_sessions",
+  {
+    // Natural key — the run id the bridge / reload uses.
+    runId: text("run_id").primaryKey(),
+    // Tenancy binding (acceptance #3), denormalized for re-verification on reload.
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    // The Agent-SDK session id (resume key); null until the loop emits it.
+    agentSessionId: text("agent_session_id"),
+    // running | completed | error (error is terminal, acceptance #4).
+    status: text("status").default("running").notNull(),
+    // Opaque loop/agent state blob.
+    state: jsonb("state").default(sql`'{}'::jsonb`).notNull(),
+    // The VM lease this run holds; nulled on release (acceptance #4/#5).
+    leaseId: text("lease_id"),
+    // The terminal-error event payload, set when status = 'error' (acceptance #4).
+    terminalError: jsonb("terminal_error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("worker_sessions_tenant_idx").on(t.workspaceId, t.clientId),
+    index("worker_sessions_status_idx").on(t.status),
+    index("worker_sessions_lease_idx")
+      .on(t.leaseId)
+      .where(sql`${t.leaseId} IS NOT NULL`),
+    check(
+      "worker_sessions_status_check",
+      sql`${t.status} IN ('running','completed','error')`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations.
 // ---------------------------------------------------------------------------
 
@@ -490,3 +542,5 @@ export type CredentialedRelease = typeof credentialedReleases.$inferSelect;
 export type NewCredentialedRelease = typeof credentialedReleases.$inferInsert;
 export type ContentStatus = (typeof contentStatusEnum.enumValues)[number];
 export type ContentVerdict = (typeof contentVerdictEnum.enumValues)[number];
+export type WorkerSession = typeof workerSessions.$inferSelect;
+export type NewWorkerSession = typeof workerSessions.$inferInsert;

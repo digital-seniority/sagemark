@@ -9,11 +9,11 @@ export default defineConfig({
     // Pure route-handler + lib units (no DOM). Data access + LLM gates are
     // injected/mocked, so no live Supabase and no provider key are needed.
     environment: "node",
-    // Only the content kernel-route suites run under vitest. The PR 004
-    // `test/tenancy/rls-contract.test.ts` uses Node's built-in `node:test`
-    // runner (run via `node --test`), so it is intentionally excluded here to
-    // avoid a runner clash.
-    include: ["test/content/**/*.test.ts"],
+    // The content kernel-route suites + the PR 006 worker-runtime suites run
+    // under vitest. The PR 004 `test/tenancy/rls-contract.test.ts` uses Node's
+    // built-in `node:test` runner (run via `node --test`), so it is intentionally
+    // excluded here to avoid a runner clash.
+    include: ["test/content/**/*.test.ts", "test/worker/**/*.test.ts"],
   },
   resolve: {
     alias: {
