@@ -17,6 +17,12 @@ export default defineConfig({
       "test/content/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
+      // PR 008 / P0.W.5 (DR-019 append-only carve-out): the golden-set regression
+      // harness + the Stage-A/Stage-B acceptance spec.
+      "test/golden/**/*.test.ts",
+      // The acceptance spec is authored as `gate-spec.ts` (RFC PR 008 filename),
+      // so the acceptance glob matches `*.ts` (it contains describe/it suites).
+      "test/acceptance/**/*.ts",
     ],
   },
   resolve: {
