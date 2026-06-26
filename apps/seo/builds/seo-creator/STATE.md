@@ -1,14 +1,14 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (post-Run #009 — P0.W.3 #19 + P0.W.4 #20 MERGED; worker capability-denial profile + SSE transport live on preview)
+**Last updated:** 2026-06-26 (post-Run #010 — C.009.1 #22 MERGED; DR-018 bridge-auth discharged; worker→host bridge authenticated end-to-end)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 8 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, P0.W.2 #17, **P0.W.3 #19, P0.W.4 #20**) (+2 correctives C.004.1, C.008.1) · +1 spike (P0.W.1) · 4 audit fixes MERGED (#13–#16)
-**Runs since last audit:** 4 (audit due before Run #011 — one more work-doing run is fine)
-**Loop status:** **P0.W.3 + P0.W.4 MERGED** (Run #009, auto). Worker capability-denial profile (#19 `69650e4`) + worker↔apps/seo SSE transport with per-run bridge JWT (#20 `96da4ef`) are on preview; both judge-APPROVED 4/5·4/5, CI green, user-approved auto-merge. **P0.W.5 (PR 008) now dep-eligible** (PR 007 met). Bridge-token end-to-end enforcement deferred to a corrective ([[DR-018]]). DR-013 metering policy still DECIDED (Gateway-only). Auto-loop CONTINUING → Run #010.
+**Phase progress:** 8 / 23 engineering PRs merged (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20) (+**3** correctives C.004.1, C.008.1, **C.009.1 #22**) · +1 spike (P0.W.1) · 4 audit fixes MERGED (#13–#16)
+**Runs since last audit:** **5 — AT THRESHOLD. `/seo-creator-build audit full` is DUE before the next work-doing run** (Phase 2 audit gate will block work otherwise).
+**Loop status:** **C.009.1 MERGED** (Run #010, user-directed corrective; #22 `2128791`, judge 5/5·5/5). DR-018 discharged — every `/content/api/*` host tool now verifies the per-run bridge JWT (token-derived tenancy, body-vs-token match, fail-closed; standing table-driven CI regression). Auto-loop NOT re-armed. **P0.W.5 (PR 008) BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering Phase-0 deliverable) + the suite-skill→Sandbox delivery decision — no mapped autonomous engineering work remains.
 
 ## Currently in flight
 
-_(none — Run #009 complete; P0.W.3 #19 + P0.W.4 #20 merged. Run-lock released at end of Phase 6.5; auto-loop active, looping to Run #010.)_
+_(none — Run #010 complete; C.009.1 #22 merged. Run-lock released; auto-loop NOT active. Awaiting user direction: audit (due) and/or the P0.W.5 golden corpus.)_
 
 ## Active items (human / deployment)
 
@@ -17,11 +17,12 @@ _(none — Run #009 complete; P0.W.3 #19 + P0.W.4 #20 merged. Run-lock released 
 - **DR-013 enforcement corrective (before PR 020 / the D4 ledger):** make the gate calls Gateway-only (force-Gateway resolution) + a CI assertion that the gate path can't resolve a raw-Anthropic provider. Decision recorded in [[DR-013]]; implementation queued (Medium).
 - **Stale worktrees:** several merged-PR worktrees under `.claude/worktrees/` can be pruned (kaishi / `git worktree prune`).
 
-## Next up (P0.W.3 + P0.W.4 merged)
+## Next up
 
-- **P0.W.5** (PR 008 — wire `seo-blog-writer` suite skill into the worker (single-drafter slice) + golden-set regression harness) — dep **PR 007 ✓ (merged this run)**. NOW ELIGIBLE → Run #010's batch. Loads the real `SKILL.md` driving `/content/api/draft`; checks in the human-labeled golden corpus; the methodology-fidelity tripwire.
-- **P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish endpoint) — schema-tenancy; RFC line 480 deps **PR 008** (+ PR 004 ✓). Eligible after P0.W.5 merges. (NOTE: STATE previously hinted P0.S.2 might be worker-independent; the engineering-rfc.md anchor explicitly lists PR 008 — DAG respected.)
-- **DR-018 corrective:** wire `verifyBridgeToken` into the four `/content/api/*` kernel routes + an integration test that fails CI until every host tool invokes it — release gate before the worker goes near a live tenant. Can fold into P0.W.5 or a C.009.x.
+- **AUDIT (DUE NOW).** 5 runs since last audit = threshold. Run `/seo-creator-build audit full` before any next work-doing run (the Phase 2 gate will block otherwise).
+- **P0.W.5** (PR 008 — wire `seo-blog-writer` suite skill (single-drafter) into the worker + golden-set regression harness) — deps met (PR 007 ✓) but **BLOCKED on a non-engineering deliverable:** (1) the Whispering Willows golden corpus must be checked in *with human labels* (cluster role, funnel stage, expected dimension scores, expected Stage-A verdict) — human ground truth, must not be fabricated; (2) open architecture decision — the real suite SKILL.md files live at `~/.claude/skills/seo-copywriter/{seo-blog-writer,seo-strategist,seo-assistant,seo-audit}/SKILL.md` (NOT in repo, NOT at the RFC's `learnings/SKILLS/` path); `load-suite.ts` must decide how they are vendored/packaged into the Sandbox worker (needs a DR).
+- **P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish endpoint) — RFC dep PR 008; eligible after P0.W.5.
+- **DR-018 corrective — DONE** (C.009.1 #22, Run #010).
 - **Mediums (A.012.x):** core barrel `server-only` split, passive-voice regex drift, schema-flywheel in-package tests, console.* logging, dual route namespace — opportunistic.
 
 ## Blocked / awaiting input
@@ -44,6 +45,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ## Recent learnings (last 5)
 
+-2. **Bridge-auth enforced end-to-end (Run #010, C.009.1 #22 `2128791`, judge 5/5·5/5).** DR-018 discharged: the per-run bridge JWT (minted host-side, sent by the worker) is now verified at EVERY `/content/api/*` host tool — not just convention. Pattern: `authenticateBridgeRequest()` ([[DR-021]]) branches on `Authorization: Bearer` → token-as-credential (tenancy from claims, **reject if body.clientId ≠ token.cl** → no scope-widening, fail-closed); no bearer → unchanged operator path. Verifier extracted to `@/lib/auth/bridge-token`. Standing table-driven regression fails CI until every host tool authenticates. Cross-tenant fully closed; intra-tenant same-window run replay is by-design within ~90s ([[DR-020]] — harden when a run registry exists per [[DR-017]]). **P0.W.5 blocker discovered:** its golden corpus needs HUMAN labels (non-engineering) and the suite SKILL.md files live at `~/.claude/skills/seo-copywriter/`, not in-repo — `load-suite.ts` needs a vendoring/packaging decision.
 -1. **Worker streaming + confinement landed (Run #009, PRs #19/#20).** The capability-denial profile is now a named module (`apps/seo/src/worker/capability-profile.ts`) that `sandbox-launch.ts` applies-and-proves with fail-closed boot; the SSE transport (`/api/run` → `sse-relay`) mints a per-run bridge JWT scoped to (workspace,client,run) and resumes from a PERSISTED truth snapshot on reconnect (never worker memory). Two seams to close: (a) [[DR-018]] — `verifyBridgeToken` exists + is tested but the PR-005 `/content/api/*` routes don't call it yet (worker→host bridge auth is convention-only until wired; release gate before a live tenant); (b) the W.3 `modelToolAllowlist` boot-refusal path isn't exercised through `launchSandbox`, and `agent-worker.ts` hardcodes the tool literals instead of importing `WORKER_ALLOWED_TOOLS` (the "no-drift" claim is paper-only). Both logged for a hardening pass. [[DR-019]]: a PR adding a new test dir may append-only to `vitest.config.ts` `include`.
 0. **P0.W.2 worker host built (Run #008, PR #17)** — the spike's proven controls (`hardenSandbox`/`networkPolicy`/`readViaWorkdirTool`/`assertControlsOrRefuse`) are now REAL in `apps/seo/src/worker/sandbox-launch.ts`; fail-closed boot, no-publish-tool model surface (`tools:[]` + 2-item allowlist), frozen per-run tenancy binding, host-side `session-store` (worker has no Supabase creds), worker model traffic via the Agent-SDK CLI env seam not `resolveGatewayModel` ([[DR-016]]), host lease-reclaim watchdog deferred ([[DR-017]]). 0034_worker_sessions migration added (needs applying to Sagemark). Tier-2/3 = live-Sandbox NEEDS-INPUT.
 0a. **Supabase project = Sagemark/`rilaycjkksfosnxvenzt` (2026-06-26)** [[DR-015]], redirected from DSN (now orphaned). It's in a DIFFERENT org (`dbukahlorzsipthfpwda`) — the MCP token was re-scoped to reach it. `0030`–`0033` applied; RLS verified behaviorally as anon. Public conn vars (`NEXT_PUBLIC_SUPABASE_URL`/publishable key/`SUPABASE_PROJECT_REF`) wired in `.claude/settings.local.json`; service-role + `DATABASE_URL` are human/CI secrets (point the CI `DATABASE_URL` secret at THIS project). The pre-existing `rls_auto_enable()` event trigger had anon/authenticated EXECUTE revoked. Future migrations apply here. Supersedes the old "No Supabase wired" + DSN notes.
@@ -57,6 +59,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ## Files most recently touched
 
+- `apps/seo/src/lib/auth/bridge-token.ts` (NEW) + `src/lib/content/context.ts` (authenticateBridgeRequest) + `src/app/content/api/{brief,draft,audit,publish}/route.ts` + `src/app/api/run/route.ts` (re-export) + `test/content/bridge-auth.test.ts` (C.009.1 / PR #22)
 - `apps/seo/src/worker/capability-profile.ts` (NEW) + `sandbox-launch.ts` (apply-and-prove profile) + `test/worker/{capability-denial,egress-allowlist}.test.ts` (P0.W.3 / PR #19)
 - `apps/seo/src/app/api/run/route.ts` + `src/lib/stream/{sse-relay,event-taxonomy}.ts` + `src/worker/emit.ts` + `test/stream/sse-relay.test.ts` + `vitest.config.ts` (P0.W.4 / PR #20)
 - `apps/seo/src/worker/{agent-worker,sandbox-launch,host-tool-bridge,session-store,entry}.ts` + `Dockerfile` (P0.W.2 / PR #17)
@@ -111,6 +114,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 007 | 4.5 | 5.0 | 0% | 0% |
 | 008 | 5.0 | 4.0 | 0% | 0% |
 | 009 | 4.0 | 4.0 | 0% | 0% |
+| 010 | 5.0 | 5.0 | 0% | 0% |
 
 ## Status legend
 
@@ -118,6 +122,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #009 complete · P0.W.3 [#19](https://github.com/digital-seniority/sagemark/pull/19) (69650e4) + P0.W.4 [#20](https://github.com/digital-seniority/sagemark/pull/20) (96da4ef) MERGED · judge 4/5·4/5 · CI green · worker capability-denial profile + SSE transport on preview · **P0.W.5 next** · auto-loop → Run #010*
+*Run #010 complete · C.009.1 [#22](https://github.com/digital-seniority/sagemark/pull/22) (2128791) MERGED · judge 5/5·5/5 · DR-018 discharged (bridge JWT enforced at every host tool) · **audit DUE** (5/5) · P0.W.5 blocked on the human-labeled golden corpus*
 
-> **Reachability note (post-Run #009):** P0.W.3 (#19) + P0.W.4 (#20) MERGED to preview (judge 4/5·4/5, CI green). Worker capability-denial profile + SSE transport + per-run bridge JWT now live on the integration trunk. **P0.W.5 (PR 008) is now dep-eligible** (PR 007 met) → the next batch; P0.S.2 (PR 009) follows P0.W.5 (RFC dep). Open seams: [[DR-018]] (wire `verifyBridgeToken` into the PR-005 kernel routes — release gate) + the W.3 boot-wiring/no-drift hardening. Stage B/C live-Sandbox Tier-2/3 still pending. Runs since last audit: 4 (audit due before Run #011 — one more work-doing run is fine). Next: auto-loop → Run #010 → P0.W.5.
+> **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.

@@ -144,3 +144,16 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Escalations (non-blocking):** Tier-2/3 live Sandbox+Supabase run (DR-018 wiring + AC6 end-to-end) before the worker goes near a live tenant.
 - **Loop:** CONTINUE → Run #010 (P0.W.5 / PR 008 now dep-eligible).
 - **Checkpoint:** `checkpoints/run-009-2026-06-26.md`
+
+## Run #010 — 2026-06-26
+
+- **Duration:** ~25 min · Mode: corrective (user-directed at the Run #009→#010 fork). Single worktree-isolated agent.
+- **PR merged (user-directed; auth/tenancy class already authorized this session):**
+  - `C.009.1` (DR-018 corrective — enforce the per-run bridge JWT in every `/content/api/*` host tool) — **[PR #22](https://github.com/digital-seniority/sagemark/pull/22)**, judge APPROVED **5/5·5/5**; merged `2128791`. Extracts verifier to `@/lib/auth/bridge-token`; `authenticateBridgeRequest()` authenticates worker calls (token-derived tenancy, body-vs-token match → no scope-widening, fail-closed); operator path unchanged; standing table-driven regression across all 4 routes. Security soundness verified (sig gate intact under self-claims pattern; cross-tenant fully closed; no forgeable secret). TENANCY/GATE-BYPASS/§17 PASS. 177 vitest + tsc + `next build` GREEN.
+- **PRs merged by the run:** 1 corrective.
+- **Process:** 5.0/5 · **Product:** 5.0/5.
+- **DRs recorded:** [[DR-020]] (bridge-token intra-tenant run scoping — cross-tenant closed; intra-tenant same-window replay by-design within ~90s, harden with a run registry later), [[DR-021]] (`authenticateBridgeRequest` two-function API as the standing pattern).
+- **DR-018 discharged:** the worker→host bridge is now authenticated end-to-end with a CI regression that fails until every host tool authenticates.
+- **Loop:** NOT re-armed (discrete corrective, not "resume auto").
+- **Blocked / next:** P0.W.5 (PR 008) still blocked on the human-labeled golden corpus (non-engineering) + the suite-skill→Sandbox delivery decision. **Audit now due** (5 runs since last; threshold 5) before the next work-doing run.
+- **Checkpoint:** `checkpoints/run-010-2026-06-26.md`
