@@ -634,6 +634,122 @@ export const commentThreads = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// SEO AI-Gateway cost ledger (D4) + share-of-model KPI (PR 020 / P1.C.3,
+// migration 0039).
+//
+// `seoCostLedger` — the per-(run_id, stage) AI-Gateway cost ledger. A row is
+// RESERVED pre-flight (`reservedUsd`) via a lock-row CONDITIONAL UPDATE
+// (apps/seo/src/lib/ledger/reserve-conditional.ts — NOT sum-then-check), then
+// reconciled with the Gateway-reported `actualUsd` + `latencyMs` + `model` once
+// the call returns. A run's measured per-piece cost = SUM(actualUsd) over its
+// rows, against the ≤$2 editorial target (RUN_COST_CAP_USD).
+//
+// `shareOfModel` — the north-star AI-answer-engine citation-tracking table. One
+// row per (client_id, engine, query) citation check; `cited`/`position` roll up
+// to a per-hub citation rate. Engines: ChatGPT · Claude · Gemini (DR-038);
+// `sourceChannel` defaults to 'direct' (Gateway direct-query, DR-038).
+//
+// Both RLS-enabled fail-closed with NO anon policy (the 0032/0033/0035/0036
+// pattern, DR-023): cost + share-of-model are billing / competitive-intelligence
+// data, NEVER public. Read/written ONLY through the service-role seam (every
+// query carries an explicit workspace_id + client_id filter; service role
+// bypasses RLS, so the app filter is the tenancy boundary).
+// ---------------------------------------------------------------------------
+
+export const seoCostLedger = pgTable(
+  "seo_cost_ledger",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    // A deleted piece must not orphan-delete its billing record.
+    pieceId: uuid("piece_id").references(() => contentPieces.id, {
+      onDelete: "set null",
+    }),
+    runId: uuid("run_id").notNull(),
+    stage: text("stage").notNull(),
+    // Reserved pre-flight via a lock-row conditional UPDATE (NOT sum-then-check).
+    reservedUsd: numeric("reserved_usd", { precision: 10, scale: 4 })
+      .default("0")
+      .notNull(),
+    // Gateway-reported actuals (null until the call returns + is reconciled).
+    actualUsd: numeric("actual_usd", { precision: 10, scale: 4 }),
+    model: text("model"),
+    latencyMs: integer("latency_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // Per-run rollup (the reconciliation reads/sums by run_id).
+    index("seo_cost_ledger_run_idx").on(t.runId),
+    // Per-client cost over time.
+    index("seo_cost_ledger_client_idx").on(t.clientId, t.createdAt),
+  ],
+);
+
+// `seoCostRunBudget` — the per-run accumulator: the single lock-row the
+// conditional-UPDATE reservation targets (one row per run_id). `reservedUsd` is
+// atomically incremented under the DB row lock by RESERVE_CONDITIONAL_SQL with
+// the `reserved_usd + cost <= cap_usd` guard, so a concurrent over-cap
+// reservation is rejected by the predicate (no sum-then-check race). `capUsd` is
+// the run's editorial cost cap (<= $2), set when the budget row is created.
+export const seoCostRunBudget = pgTable(
+  "seo_cost_run_budget",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    // ONE budget row per run (the conditional UPDATE locks this single row).
+    runId: uuid("run_id").notNull().unique(),
+    // Atomically incremented under the row lock; the conditional guard reads it.
+    reservedUsd: numeric("reserved_usd", { precision: 10, scale: 4 })
+      .default("0")
+      .notNull(),
+    // The run's cost cap (<= $2 editorial target); the conditional guard's ceiling.
+    capUsd: numeric("cap_usd", { precision: 10, scale: 4 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("seo_cost_run_budget_tenant_idx").on(t.workspaceId, t.clientId)],
+);
+
+export const shareOfModel = pgTable(
+  "share_of_model",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    pieceId: uuid("piece_id").references(() => contentPieces.id, {
+      onDelete: "set null",
+    }),
+    // Free text: ChatGPT · Claude · Gemini (DR-038).
+    engine: text("engine").notNull(),
+    query: text("query").notNull(),
+    cited: boolean("cited").notNull(),
+    position: integer("position"),
+    rawResponse: text("raw_response"),
+    parserConf: numeric("parser_conf", { precision: 4, scale: 3 }),
+    auditSampled: boolean("audit_sampled").default(false).notNull(),
+    // Gateway direct-query default (DR-038).
+    sourceChannel: text("source_channel").default("direct").notNull(),
+    locale: text("locale"),
+    deviceProfile: text("device_profile"),
+    capturedAt: timestamp("captured_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("share_of_model_client_idx").on(t.clientId, t.capturedAt)],
+);
+
+// ---------------------------------------------------------------------------
 // Relations.
 // ---------------------------------------------------------------------------
 
@@ -756,3 +872,9 @@ export type ReviewToken = typeof reviewTokens.$inferSelect;
 export type NewReviewToken = typeof reviewTokens.$inferInsert;
 export type CommentThread = typeof commentThreads.$inferSelect;
 export type NewCommentThread = typeof commentThreads.$inferInsert;
+export type SeoCostLedgerRow = typeof seoCostLedger.$inferSelect;
+export type NewSeoCostLedgerRow = typeof seoCostLedger.$inferInsert;
+export type SeoCostRunBudgetRow = typeof seoCostRunBudget.$inferSelect;
+export type NewSeoCostRunBudgetRow = typeof seoCostRunBudget.$inferInsert;
+export type ShareOfModelRow = typeof shareOfModel.$inferSelect;
+export type NewShareOfModelRow = typeof shareOfModel.$inferInsert;

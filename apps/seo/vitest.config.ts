@@ -69,6 +69,11 @@ export default defineConfig({
       // credentialed_releases release) + the §11.5 active-authorization fail-closed
       // write + DR-037 placeholder go-live guard + the approval-debt KPI.
       "test/review/route-to-edit.test.ts",
+      // PR 020 / P1.C.3 (worker-runtime): the SEO cost-ledger conditional-UPDATE
+      // reservation / over-cap-rejection concurrency proof + per-run
+      // reconciliation + sourcing-block rate + share-of-model rollup, plus the
+      // Tier-1 structural assertions over the 0039 migration SQL.
+      "test/ledger/**/*.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
