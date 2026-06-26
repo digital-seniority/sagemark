@@ -25,3 +25,7 @@ P1.C.2 (PR 019 — "Request changes" → edit loop + named sign-off + approval-d
 ## Links
 
 P1.C.2 / PR 019; [[DR-031]] (sign-off immutability); engineering-rfc §11.5 (byline authorization); the credentialed-release vs client-signoff split.
+
+## Go-live safety addendum (P1.C.2 #56, judge-flagged)
+
+P1.C.2's `recordCredentialedRelease({ pilot })` takes a **caller-supplied** `pilot` boolean. The placeholder is blocked as a real release authority two ways (the typed `placeholder` boolean from migration `0038` + the name sentinel `"Pending Clinical Reviewer"`), but the production guarantee depends on the eventual **live-publish wiring (the [[DR-026]] lane) passing `pilot: false` in production** so the placeholder can never satisfy a real YMYL release. This wiring is behind the NOT_WIRED seam today — when the live publish flow is wired, it MUST hard-code/derive `pilot:false` for production (never `pilot:true`), and a test must assert it.
