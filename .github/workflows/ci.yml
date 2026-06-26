@@ -56,18 +56,29 @@ jobs:
         run: pnpm lint
 
       # `turbo run test` fans out to every workspace `test` script. @sagemark/seo's
-      # `test` runs vitest AND `node --test test/tenancy/rls-contract.test.ts`, so
-      # the node:test RLS suite is exercised here too; the explicit step below is a
-      # belt-and-suspenders guard that the RLS file always runs even if turbo
-      # caching or a future package.json edit drops it.
+      # `test` runs vitest AND `node --test … rls-contract … token-scope` (Tier-1
+      # static assertions; Tier-2 SKIPS here because turbo does NOT pass DATABASE_URL
+      # through — the live anon-isolation Tier-2 is the dedicated step below, so it
+      # runs ONCE against the live DB, not redundantly in two steps).
       - name: Test (turbo)
         run: pnpm test
 
-      # Explicit RLS contract run. Tier-1 (static migration-shape assertions)
-      # ALWAYS runs and fails the build on a tenancy/RLS regression. Tier-2 runs
-      # against DATABASE_URL when the secret is set, otherwise skips cleanly.
-      - name: RLS contract suite (node:test)
-        run: node --test apps/seo/test/tenancy/rls-contract.test.ts
+      # Explicit RLS + token-scope contract run. Tier-1 (static migration-shape
+      # assertions) ALWAYS runs and fails the build on a tenancy/RLS regression.
+      # Tier-2 runs against DATABASE_URL when the secret is set (the job-level
+      # `DATABASE_URL` env above reaches this step directly), otherwise skips
+      # cleanly. token-scope's Tier-2 is the LOAD-BEARING anon-isolation proof
+      # for P1.C.1's tokenized review tables (review_tokens + comment_threads →
+      # anon reads ZERO rows); it MUST execute live here (audit-005 H3/M5).
+      # --test-concurrency=1: rls-contract + token-scope both CREATE ROLE anon +
+      # GRANT in their before-hooks; running the two files concurrently against the
+      # one live DB races the shared catalog tuple ("tuple concurrently updated").
+      # Serialize them.
+      - name: RLS + token-scope contract suite (node:test)
+        run: >-
+          node --test --test-concurrency=1
+          apps/seo/test/tenancy/rls-contract.test.ts
+          apps/seo/test/review/token-scope.test.ts
 
       # Reachability gate (PR 016 / P1.R.2). The both-directions invariant:
       # sitemap == published+indexable set — no draft/archived URL leaks INTO the
@@ -100,11 +111,16 @@ jobs:
       # forceGateway, i.e. re-introduces a path that could reach the direct-
       # Anthropic BYOK branch and escape the metered Gateway. Mirrors the
       # worker-env-lint backstop at the gate layer (prerequisite for PR 020).
+      #
+      # The gate set is GLOB-DISCOVERED (audit-005 H4): every
+      # packages/core/src/gates/*-gate.ts that resolves a model is scanned, so a
+      # NEW gate cannot silently escape the cost ledger by being absent from a
+      # hardcoded list. process.cwd() is the repo root (the CI step's CWD).
       - name: Gate-path lint (Gateway-only-metered guard)
         run: >-
           node --input-type=module --eval
-          "import { readFileSync } from 'node:fs';
-          import { assertGatePathGatewayOnly, GATE_PATH_SOURCE_FILES } from './packages/core/src/ai/gate-path-lint.ts';
-          const sources = Object.fromEntries(GATE_PATH_SOURCE_FILES.map((f) => [f, readFileSync(f, 'utf8')]));
+          "import { assertGatePathGatewayOnly, readDiscoveredGateSources } from './packages/core/src/ai/gate-path-lint.ts';
+          const sources = readDiscoveredGateSources(process.cwd());
+          if (Object.keys(sources).length === 0) { throw new Error('gate-path-lint: discovered ZERO gate sources — discovery is broken'); }
           assertGatePathGatewayOnly(sources);
-          console.log('gate-path-lint: clean');"
+          console.log('gate-path-lint: clean (' + Object.keys(sources).length + ' gate sources discovered)');"

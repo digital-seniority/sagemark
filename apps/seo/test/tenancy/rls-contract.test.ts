@@ -393,9 +393,21 @@ type PgRunner = (sqlText: string, opts?: { role?: "anon" }) => string;
 function withAnonRole(sqlText: string, opts?: { role?: "anon" }): string {
   return opts?.role === "anon" ? `SET ROLE anon;\n${sqlText}` : sqlText;
 }
+// Is a usable `psql` binary on PATH? A missing binary must degrade to "no
+// runner" → SKIP, NEVER an ENOENT crash. (DATABASE_URL can be set in an env
+// that has no psql — e.g. this Windows worktree — so the URL alone is not proof
+// of a reachable engine.) Probed once with a cheap `psql --version`.
+function psqlAvailable(): boolean {
+  try {
+    execFileSync("psql", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 function detectRunner(): { runner: PgRunner; engine: string } | null {
   const url = process.env.DATABASE_URL;
-  if (url) {
+  if (url && psqlAvailable()) {
     const runner: PgRunner = (sqlText, opts) =>
       execFileSync("psql", [url, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", withAnonRole(sqlText, opts)], {
         encoding: "utf8",
