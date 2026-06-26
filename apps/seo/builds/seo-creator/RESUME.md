@@ -2,31 +2,20 @@
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`. Never restart; never re-merge MERGED PRs.
 
-**Status:** Run #009 COMPLETE (P0.W.3 #19 `69650e4` + P0.W.4 #20 `96da4ef` MERGED, judge 4/5·4/5, user-approved auto-merge). Auto-loop CONTINUING → **Run #010** (P0.W.5 / PR 008 now dep-eligible). Landing orchestrator state, then looping.
+**Status:** Auto-loop ENDED after Run #009 (1 iteration). `.auto-loop.json` is `active:false`. Run #009 merged P0.W.3 (#19) + P0.W.4 (#20) + landed state (#21). No run-lock held. **Awaiting user direction on the Run #010 fork** (see below).
 
-## Cursor
-| Field | Value |
-|---|---|
-| Run # | 009 complete → looping to 010 |
-| Loop iteration | 1 done / 8 → bumping to 2 |
-| Lock phase | Phase 6.5 (orchestrator state landing) |
-| Session | a9fb4528-5cd4-422a-a81c-186b1b43cc09 |
-| Updated at | 2026-06-26T03:30:00Z |
+## Why the loop ended
+The only mapped dependency-eligible PR is **P0.W.5 (PR 008)**, and it is blocked on a **non-engineering deliverable** (Phase-2 exclusion rule):
+1. **Human-labeled golden corpus.** PR 008 AC1/AC3/AC5 require the Whispering Willows golden corpus *checked in with human labels* (cluster role, funnel stage, expected dimension scores, expected Stage-A verdict) BEFORE the suite skill runs against it. The PRD makes golden labels human ground truth ("no prompt before the golden set exists"); fabricating labels would break the golden-set discipline. This is a human deliverable, not autonomous work.
+2. **Open architecture question — suite-skill delivery into the Sandbox worker.** The real `seo-blog-writer` SKILL.md lives at `C:/Users/stone/.claude/skills/seo-copywriter/{seo-blog-writer,seo-strategist,seo-assistant,seo-audit}/SKILL.md` (globally installed) — NOT in the repo and NOT at the RFC's `learnings/SKILLS/seo-copywriter/*` path. PR 008's `load-suite.ts` must decide how those skills are vendored/packaged so the Vercel-Sandbox worker can load them at runtime. Needs a decision (DR) before building.
 
-## In-flight
-_(none — agents done, PRs #19/#20 merged)_
+## Run #010 options (user picks)
+- **(A) DR-018 corrective (C.009.1) — available autonomous engineering NOW.** Wire `verifyBridgeToken` into the four `/content/api/{brief,draft,audit,publish}` routes + an integration test that fails CI until every host tool invokes it. Closes the #1-risk bridge-auth seam the PR 007 judge flagged (release gate before a live tenant). Touches auth/tenant-critical routes → will hit the human-merge-disposition question. dep: PR 007 ✓ (on preview).
+- **(B) P0.W.5 engineering-scaffold-only.** Build `load-suite.ts` + `gate-spec.ts` + `regression.test.ts` + vendor the real seo-blog-writer SKILL.md; hold the PR OPEN with the golden corpus as an explicit NEEDS-INPUT (spike-precedent: deliver artifact + honest NEEDS-INPUT, gate the dependent). Needs a DR on skill-delivery first.
+- **(C) Provide / approve the golden corpus** (or authorize a best-effort capture+label from whispering-willows-content-demo.vercel.app for human review), then run P0.W.5 in full.
+- **(D) Audit.** 4 runs since last audit (threshold 5) — `/seo-creator-build audit full` is due before Run #011 anyway; could run it now.
 
 ## Already MERGED (do NOT redo)
-P0.E.1(#2), P0.E.2(#5), P0.E.3(#8), P0.S.1(#6), P0.E.4(#11), C.004.1(#10), P0.W.1(#3), A.005.1(#13), A.005.2(#14), A.005.3(#15), A.005.4(#16), P0.W.2(#17), C.008.1(#18), **P0.W.3(#19), P0.W.4(#20)**.
+P0.E.1(#2), P0.E.2(#5), P0.E.3(#8), P0.S.1(#6), P0.E.4(#11), C.004.1(#10), P0.W.1(#3), A.005.1(#13), A.005.2(#14), A.005.3(#15), A.005.4(#16), P0.W.2(#17), C.008.1(#18), **P0.W.3(#19), P0.W.4(#20)**. Orchestrator state: Run #009 → #21.
 
-## Next up — Run #010 batch
-- **P0.W.5 (PR 008 — wire seo-blog-writer suite skill (single-drafter) into the worker + golden-set regression harness)** — dep PR 007 ✓ (met this run). The next eligible PR. Loads the real `SKILL.md` driving `/content/api/draft`; checks in the human-labeled Whispering Willows golden corpus; methodology-fidelity tripwire. Lane worker-runtime.
-- After P0.W.5: **P0.S.2 (PR 009 — voice-spec hard stop + fail-closed publish)** becomes eligible (RFC dep PR 008).
-- **DR-018 corrective** (wire `verifyBridgeToken` into the four `/content/api/*` routes + CI integration test) — fold into P0.W.5 or a C.009.x; release gate before a live tenant.
-- **Audit due before Run #011** (4 runs since last; threshold 5). Run #010 is fine; the run AFTER it should be `/seo-creator-build audit full`.
-
-## Key facts
-- Host live: `https://sagemark-seo.vercel.app`. Supabase = Sagemark/`rilaycjkksfosnxvenzt`. DRs in play: DR-010/011/016/017 + new DR-018 (bridge-auth wiring) + DR-019 (vitest include carve-out).
-- Tier-2/3 (live Sandbox/Supabase) = NEEDS-INPUT until Stage B/C deploy (bridge-JWT secret + worker Gateway cred + Sandbox snapshot).
-
-## Resume: `/seo-creator-build auto` · Halt: set `.auto-loop.json` active:false (or delete)
+## Resume: `/seo-creator-build auto` (will re-evaluate — still blocked unless A/B/C/D actioned) · or pick an option above.
