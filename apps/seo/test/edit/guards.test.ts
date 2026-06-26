@@ -317,5 +317,76 @@ describe("edit — append-only versioning never mutates a prior version", () => 
   });
 });
 
+describe("edit — the DRAFT-STATUS guard (only a draft piece is editable)", () => {
+  // A draft piece passes the guard (the happy path already proves the 200; this
+  // re-asserts it explicitly against the guard's contract).
+  it("a DRAFT piece is editable — passes the guard, applies the edit (200)", async () => {
+    const d = deps({
+      data: makeData({
+        loadPiece: vi.fn(async () => pieceRow({ status: "draft" })),
+        loadLatestVersion: vi.fn(async () => currentVersion()),
+      }),
+    });
+    const res = await handleEdit(jsonRequest(editBody()), d);
+    expect(res.status).toBe(200);
+    expect((d.data as ReturnType<typeof makeData>).writes.insertPieceVersion).toBe(1);
+  });
+
+  // A non-draft piece is FROZEN -> 409 piece-not-editable, with NO spend and NO write.
+  for (const status of ["review", "approved", "published", "archived"] as const) {
+    it(`a ${status.toUpperCase()} piece -> 409 piece-not-editable; NO model spend, NO version write`, async () => {
+      const d = deps({
+        data: makeData({
+          loadPiece: vi.fn(async () => pieceRow({ status })),
+          loadLatestVersion: vi.fn(async () => currentVersion()),
+        }),
+      });
+      const res = await handleEdit(jsonRequest(editBody()), d);
+      expect(res.status).toBe(409);
+      const out = await res.json();
+      expect(out.code).toBe("piece-not-editable");
+      // The actual (frozen) status is echoed back so the caller can render it.
+      expect(out.status).toBe(status);
+      // The model is NEVER called and NO version row is written.
+      expect(stubModel).not.toHaveBeenCalled();
+      expect(passGate).not.toHaveBeenCalled();
+      expect((d.data as ReturnType<typeof makeData>).writes.insertPieceVersion).toBe(0);
+      expect((d.data as ReturnType<typeof makeData>).writes.transitionPieceStatus).toBe(0);
+    });
+  }
+
+  // The guard runs BEFORE the rate-limit take(): a 409 on a frozen piece must NOT
+  // consume the tenant's rate budget (DR-030: cheap fail-closed guards ahead of take()).
+  it("a non-draft 409 does NOT consume the rate-limit token (guard ordered before take())", async () => {
+    // A limiter that allows EXACTLY one take in the window.
+    const limiter = inProcessRateLimiter({ max: 1, windowMs: 60_000 });
+    // First: a published piece -> 409. If the guard ran AFTER take(), this would
+    // have burned the single token.
+    const frozen = deps({
+      rateLimiter: limiter,
+      data: makeData({
+        loadPiece: vi.fn(async () => pieceRow({ status: "published" })),
+        loadLatestVersion: vi.fn(async () => currentVersion()),
+      }),
+    });
+    const firstRes = await handleEdit(jsonRequest(editBody()), frozen);
+    expect(firstRes.status).toBe(409);
+    expect((await firstRes.json()).code).toBe("piece-not-editable");
+
+    // Then: a DRAFT edit on the SAME limiter still has its token — proving the 409
+    // above did not consume budget. A 429 here would mean the guard ran too late.
+    const draft = deps({
+      rateLimiter: limiter,
+      data: makeData({
+        loadPiece: vi.fn(async () => pieceRow({ status: "draft" })),
+        loadLatestVersion: vi.fn(async () => currentVersion()),
+      }),
+    });
+    const secondRes = await handleEdit(jsonRequest(editBody()), draft);
+    expect(secondRes.status).toBe(200);
+    expect((draft.data as ReturnType<typeof makeData>).writes.insertPieceVersion).toBe(1);
+  });
+});
+
 // Keep the GateBrief import meaningful (the model receives sources of this shape).
 void (null as unknown as GateBrief);
