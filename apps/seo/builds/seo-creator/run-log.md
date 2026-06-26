@@ -130,3 +130,17 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Escalations (user/infra):** (1) merge PR #17; (2) apply `0034` to the Sagemark project; (3) add `worker_sessions` to the RLS contract test; (4) provision live Vercel-Sandbox+Supabase to run P0.W.2 Tier-2/3; (5) set the CI `DATABASE_URL` secret (Sagemark).
 - **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE — P0.W.3/W.4/W.5 gate on P0.W.2 (#17) merging. P0.S.2 may be worker-independent (next candidate without waiting).
 - **Checkpoint:** `checkpoints/run-008-2026-06-26.md`
+
+## Run #009 — 2026-06-26
+
+- **Duration:** ~40 min · Mode: auto-loop (iteration 1), work-doing. 2 concurrent worktree-isolated agents, both worker-runtime (worker lane opened by P0.W.2 #17).
+- **PRs merged (user-approved auto-merge — worker production-critical surface):**
+  - `P0.W.3` (PR 006b — worker capability-denial profile + adversarial confinement suite) — **[PR #19](https://github.com/digital-seniority/sagemark/pull/19)**, judge APPROVED 4/5·4/5; merged `69650e4`. Profile extracted to `capability-profile.ts` (single source of truth), `sandbox-launch.ts` applies-and-proves + fail-closed boot; four-attack adversarial suite. GATE-BYPASS/§16/§17 PASS. DR-010/011/016 honored. Tier-2/3 live-Sandbox NEEDS-INPUT.
+  - `P0.W.4` (PR 007 — worker↔apps/seo SSE transport + /api/run dispatch) — **[PR #20](https://github.com/digital-seniority/sagemark/pull/20)**, judge APPROVED 4/5·4/5; merged `96da4ef`. SSE relay (heartbeat + last_event_id truth-snapshot resume), per-run bridge JWT scoped (ws,cl,run), CostAccountant pre-flight. TENANCY rigorous PASS, GATEWAY-only PASS, DR-017 respected.
+- **PRs merged by the run:** 2 engineering.
+- **Process:** 4.0/5 · **Product:** 4.0/5 (both PRs 4/5·4/5; weighted avg).
+- **DRs recorded:** [[DR-018]] (bridge-token enforcement seam deferred — verifier built+tested in PR 007; wiring into PR-005 routes is a tracked corrective + release gate), [[DR-019]] (additive vitest.config.ts include carve-out).
+- **Judge notes carried forward:** (W.3) `modelToolAllowlist` boot-refusal not exercised via `launchSandbox`; in-sync docstring overstates (agent-worker.ts hardcodes tool literals); narrow env-scrub heuristic. (W.4) AC6 bridge-auth not enforced end-to-end until PR-005 routes call `verifyBridgeToken` (DR-018).
+- **Escalations (non-blocking):** Tier-2/3 live Sandbox+Supabase run (DR-018 wiring + AC6 end-to-end) before the worker goes near a live tenant.
+- **Loop:** CONTINUE → Run #010 (P0.W.5 / PR 008 now dep-eligible).
+- **Checkpoint:** `checkpoints/run-009-2026-06-26.md`
