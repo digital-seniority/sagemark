@@ -27,6 +27,8 @@
 import type { UiMessageStreamState } from "@/lib/stream/use-ui-message-stream";
 import { useClientScorers } from "./use-client-scorers";
 import { GateScorecard } from "./GateScorecard";
+import { CostLedgerPanel, type CostLedgerPanelProps } from "./CostLedgerPanel";
+import { ApprovalDebtPanel, type ApprovalDebtPanelProps } from "./ApprovalDebtPanel";
 
 const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
@@ -35,9 +37,24 @@ export interface InspectorPanelProps {
   state: UiMessageStreamState;
   /** The brief's primary keyword — drives the live-preview keyword density. */
   keyword?: string | null;
+  /**
+   * The SEO cost-ledger + share-of-model projection (P1.C.3). OPTIONAL: the live
+   * read path is NOT_WIRED (DR-026), so this is undefined in production today and
+   * the section is simply not rendered. When a host DOES feed it, the panel reads
+   * already-computed projections and degrades to its own per-section empty states
+   * (it never throws on empty records / null reconcile). See CostLedgerPanel.
+   */
+  ledger?: CostLedgerPanelProps;
+  /**
+   * The per-client approval-cycle + approval-debt projection (P1.C.2). OPTIONAL,
+   * same NOT_WIRED rationale as `ledger`: undefined ⇒ section omitted; an empty
+   * `debts` array renders the panel's "No review activity yet" empty state rather
+   * than throwing. See ApprovalDebtPanel.
+   */
+  approvalDebt?: ApprovalDebtPanelProps;
 }
 
-export function InspectorPanel({ state, keyword }: InspectorPanelProps) {
+export function InspectorPanel({ state, keyword, ledger, approvalDebt }: InspectorPanelProps) {
   // Zero-credit live preview: recomputed in a useMemo over the editor body, NOT a
   // gate/model call. The authoritative verdict still comes from state.scorecard.
   const client = useClientScorers(state.body, keyword);
@@ -54,6 +71,24 @@ export function InspectorPanel({ state, keyword }: InspectorPanelProps) {
       </header>
 
       <GateScorecard phase={state.phase} scorecard={state.scorecard} client={client} />
+
+      {/*
+        Cost-ledger + approval-debt projections (P1.C.3 / P1.C.2). Gated on data
+        AVAILABILITY: the live read path is NOT_WIRED (DR-026), so absent a host
+        projection these sections are simply omitted. When a host DOES feed them
+        the panels own their per-section empty states (they degrade, never throw).
+      */}
+      {ledger ? (
+        <section data-testid="inspector-cost-ledger" aria-label="SEO cost ledger">
+          <CostLedgerPanel {...ledger} />
+        </section>
+      ) : null}
+
+      {approvalDebt ? (
+        <section data-testid="inspector-approval-debt" aria-label="Approval debt">
+          <ApprovalDebtPanel {...approvalDebt} />
+        </section>
+      ) : null}
 
       {/* The standing reminder of the two-source distinction (never hidden). */}
       <p data-testid="inspector-source-note" style={{ ...SUBTLE, fontSize: 11, marginTop: "auto" }}>

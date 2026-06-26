@@ -86,8 +86,10 @@
                                   │ Supabase Postgres (RLS workspace+client)       │
                                   │ content_clients · content_pieces(+cluster/    │
                                   │ funnel) · content_piece_versions · voice_specs │
-                                  │ gate_results · comment_threads · seo_cost_ledger│
-                                  │ share_of_model    ── SYSTEM OF RECORD ──        │
+                                  │ comment_threads · seo_cost_ledger ·             │
+                                  │ seo_cost_run_budget · share_of_model            │
+                                  │ (gate_results = seam projection, no table)      │
+                                  │                   ── SYSTEM OF RECORD ──        │
                                   └───────────────────────┬────────────────────────┘
                                           status='published'│  (in-process call, not HTTP)
                                                           ▼  ┌────────────────────────────┐
@@ -129,10 +131,11 @@ All tables carry `workspace_id` + `client_id` and run under **fail-closed RLS**:
 | `credentialed_releases` | the **only** record that satisfies `canPublish()`'s human-release precondition (D6 credentialed reviewer) | `id`, `piece_id`, `client_id`, `version`, `release_type` const `'credentialed_release'`, `actor_id` (the credentialed reviewer), `credential` jsonb (snapshot of `{name, credentials}` at release — the "Reviewed by [Name, Credential]" byline evidence), `authorization_id` **FK → `byline_authorizations`** (the §11.5 record), `release_scope`, `released_at` | idx(`piece_id`,`version`) UNIQUE; idx(`client_id`); idx(`authorization_id`) |
 | `byline_authorizations` | the first-class consent/authorization record backing every published byline (§11.5) — a clinician/author is attachable only while an **active** authorization exists | `id`, `client_id` FK content_clients (tenant-scoped) ON DELETE RESTRICT, `author_id` (→ `voice_specs.authors[]` entry), `credential` jsonb (snapshot of `{name, credentials}` at grant), `scope` (client·cluster·piece), `granted_at`, `expires_at` (nullable), `revoked_at` (nullable), `authorized_by` (operator). A missing/revoked/expired authorization blocks the credentialed release (and thus publish). | idx(`client_id`); idx(`author_id`); idx(`client_id`,`revoked_at`,`expires_at`) — active-authorization lookup |
 | `voice_specs` | per-client approved voice + author registry | `client_id`, `spec` jsonb (`tone[]`, `bannedLexicon[]`, `authors[]`=`{id,name,credentials}`, `attributionSources[]`, `samplePassages[]`, `pillarLinks[]`, `internalLinks[]`), `approved_at` (NULL = draft = HARD STOP) | idx(`client_id`) where `approved_at IS NOT NULL` |
-| `gate_results` | per-run gate audit (net-new; promotes the scorecard out of `dimensions` for queryability) | `id`, `piece_id`, `client_id`, `version`, `stage_a_veto_code` (nullable), `stage_b_score` (null on veto), `verdict`, `eval_ran` bool, `sourcing_blocked` bool, `created_at` | idx(`client_id`,`created_at`); idx(`stage_a_veto_code`); idx(`sourcing_blocked`) — drives the D3 reversal metric |
+| `gate_results` | **SEAM PROJECTION in v1 — NOT a persisted table** ([[DR-039]], reconciled to shipped reality per audit-005). The D3 gate-block-by-sourcing reversal metric is computed from existing gate-result data through the data-access seam (`getGateResult` → `PersistedGateResult.sourcingBlocked`, `src/lib/content/context.ts`); the `0039` migration adds NO `gate_results` table. **Revisit if a queryable audit row becomes required** (e.g. cross-run sourcing-veto analytics) — the column set below is the deferred design. | (projection) `piece_id`, `client_id`, `version`, `stage_a_veto_code`, `stage_b_score` (null on veto), `verdict`, `eval_ran`, `sourcing_blocked` | — (no table; metric computed at the seam) |
 | `comment_threads` | client review (pin threads + section verbs) | `id`, `piece_id`, `version`, `client_id`, `anchor` (normalized 0..1 + `elementHint`), `body`, `author`, `status` (open·resolved), `kind` (pin·section-approve·request-changes) | idx(`piece_id`,`version`,`status`) |
-| `seo_cost_ledger` | separate SEO AI-Gateway ledger (D4) | `id`, `run_id`, `client_id`, `stage`, `model`, `input_tokens`, `output_tokens`, `usd`, `created_at` | idx(`client_id`,`created_at`); idx(`run_id`) |
-| `share_of_model` | north-star share-of-model / citation telemetry (a measurement subsystem — PR 021) | `id`, `client_id`, `piece_id` nullable, `engine` (chatgpt·perplexity·claude·google-aio), `query` (normalized prompt), `cited` bool, `position` int nullable, `raw_response`, `parser_conf`, `audit_sampled` bool, `source_channel` (direct·vendor-api), `locale`, `device_profile`, `captured_at` | idx(`client_id`,`engine`,`captured_at`) |
+| `seo_cost_ledger` | separate SEO AI-Gateway ledger (D4); one row per (`run_id`,`stage`), `reserved_usd` written pre-flight then reconciled with the Gateway-reported `actual_usd`+`latency_ms`+`model` | `id`, `run_id`, `client_id`, `stage`, `model`, `reserved_usd`, `actual_usd`, `latency_ms`, `created_at` | idx(`client_id`,`created_at`); idx(`run_id`) |
+| `seo_cost_run_budget` | **per-run accumulator / conditional-UPDATE lock-row** — the single row the reservation SQL targets (one per `run_id`); `reserved_usd` is atomically incremented under the DB row lock with the `reserved_usd + cost <= cap_usd` guard, so a concurrent over-cap reservation is rejected by the predicate (no sum-then-check race). **This accumulator is what makes the AC1 atomicity guarantee runnable on the live schema** (not just the in-memory model). | `id`, `run_id` UNIQUE, `client_id`, `cap_usd`, `reserved_usd` | UNIQUE(`run_id`) |
+| `share_of_model` | north-star share-of-model / citation telemetry (a measurement subsystem — PR 021) | `id`, `client_id`, `piece_id` nullable, `engine` free-text (chatgpt·claude·gemini — [[DR-038]], reconciled to shipped reality per audit-005; Perplexity = deferred 4th, Gemini-via-Gateway replaces google-aio), `query` (normalized prompt), `cited` bool, `position` int nullable, `raw_response`, `parser_conf`, `audit_sampled` bool, `source_channel` (direct·vendor-api), `locale`, `device_profile`, `captured_at` | idx(`client_id`,`engine`,`captured_at`) |
 
 ### 3.2 Relationships
 
@@ -143,7 +146,7 @@ workspaces (apps/agents convention)
             ├─1:N─ byline_authorizations  (consent/authorization per author; active = granted ∧ ¬revoked ∧ ¬expired)
             └─1:N─ content_pieces
                      ├─1:N─ content_piece_versions   (snapshot before every forward FSM move)
-                     ├─1:N─ gate_results             (one per gate run / version)
+                     ├ (gate_results — SEAM PROJECTION in v1, no table; DR-039)
                      ├─1:N─ comment_threads          (client review, per version)
                      ├─1:N─ client_signoffs          (ADVISORY only — never satisfies canPublish())
                      ├─1:N─ credentialed_releases    (the ONLY human release canPublish() accepts; D6 reviewer)
@@ -152,7 +155,7 @@ byline_authorizations.author_id ──soft-ref──▶ voice_specs.spec.authors
 credentialed_releases.authorization_id ──FK──▶ byline_authorizations  (§11.5: who authorized, scope, dates; missing/revoked/expired ⇒ release blocked ⇒ publish blocked)
 canPublish() human-release precondition ──reads──▶ credentialed_releases (NEVER client_signoffs)  ── source of truth
 content_pieces.cluster_role + funnel_stage  ──drive──▶  generated hub homepage + related-guides nav (D7)
-runs ─1:N─ seo_cost_ledger      share_of_model ─N:1─ content_pieces (north-star KPI)
+runs ─1:N─ seo_cost_ledger   runs ─1:1─ seo_cost_run_budget (per-run cap accumulator)   share_of_model ─N:1─ content_pieces (north-star KPI)
 ```
 
 ### 3.3 Migration plan
@@ -160,14 +163,14 @@ runs ─1:N─ seo_cost_ledger      share_of_model ─N:1─ content_pieces (nor
 1. **PORT** `origin/preview` Drizzle `0030_content_pieces.sql` verbatim into `packages/schema-flywheel/drizzle/` (local tree stops at `0029_videogen_image_generations_provenance.sql`; the engine is **not** local — Phase 0 `git fetch origin preview` is a precondition). This brings `content_clients`/`content_pieces`/`content_piece_versions`/`voice_specs` + their RLS policies.
 2. **`0031_content_cluster_columns.sql` (additive, D7):** add `cluster_role`, `funnel_stage` as first-class columns + their indices; backfill from `brief_snapshot` jsonb for any ported rows. This is a **Phase-1** migration (not a Phase-3 deferral) because it drives the generated homepage and related-guides nav.
 3. **`0032_release_records.sql` (net-new, authored in PR 004):** the persisted authorization + release/signoff records — **`byline_authorizations`** (the §11.5 consent/authorization record, created **first** so the FK target exists), `client_signoffs` (advisory), and `credentialed_releases` (the only record `canPublish()` reads as the human-release source of truth, carrying `release_type`/`actor_id`/`credential` snapshot/`authorization_id`/`released_at`/`release_scope`, with `authorization_id` an **FK → `byline_authorizations`**). Lands in Phase-1 **before PR 009** because `canPublish()` reads `credentialed_releases`. RLS: no anon policy on any of the three.
-4. **`0033_seo_cost_ledger.sql` (the net-new aux migration, authored in PR 020):** net-new `gate_results`, `seo_cost_ledger`, `share_of_model`, and the `comment_threads` rename/extension (the ported `review_comments` shape with `kind`/`anchor`). RLS: no anon policy on any of these.
+4. **`0039_seo_cost_ledger.sql` (the net-new aux migration, authored in PR 020 — reconciled to shipped reality per audit-005 / DR-038 / DR-039):** creates **THREE** net-new tables — `seo_cost_ledger`, **`seo_cost_run_budget`** (the per-run accumulator / conditional-UPDATE lock-row: `run_id` UNIQUE, `cap_usd`, `reserved_usd` — the row that makes the AC1 atomicity guarantee runnable on the live schema), and `share_of_model`. It does **NOT** add a `gate_results` table ([[DR-039]]: that stays a seam-level projection in v1). The `comment_threads` rename/extension (the ported `review_comments` shape with `kind`/`anchor`) shipped separately in `0036_comment_threads.sql`. RLS: no anon policy on any of these.
 5. **Tenancy hardening:** confirm every table has `workspace_id`+`client_id`, RLS enabled, and that `content_piece_versions` keeps its denormalized `client_id` (keeps a future per-tenant RLS path open). A migration test asserts a cross-workspace `SELECT` of a draft returns zero rows.
 
 ### 3.4 Multi-tenancy enforcement (5 layers)
 
 | Layer | Mechanism | What it stops | Fail mode |
 |---|---|---|---|
-| **1 · Database RLS** | RLS enabled on all tables; sole anon policy = `content_pieces_public_read` (`status='published'`). No anon policy on `voice_specs`/`content_piece_versions`/`gate_results`/`comment_threads`/`seo_cost_ledger`/`share_of_model` | Public reads of drafts, scorecards, brand voice | Fail-closed — absent policy = deny |
+| **1 · Database RLS** | RLS enabled on all tables; sole anon policy = `content_pieces_public_read` (`status='published'`). No anon policy on `voice_specs`/`content_piece_versions`/`comment_threads`/`seo_cost_ledger`/`seo_cost_run_budget`/`share_of_model` (no `gate_results` table — DR-039) | Public reads of drafts, scorecards, brand voice | Fail-closed — absent policy = deny |
 | **2 · Application scope** | Every operator query runs service-role and filters `workspace_id`+`client_id`; the SSR route resolves `<client>`→`blog_slug`→`client_id` and 404s a foreign slug | Operator code reading the wrong tenant; rendering under a wrong namespace | 404 / zero rows |
 | **3 · Host-tool binding** | Worker tools (`runScorers`/`runGate`/`serpFetch`/`persistPiece`/`heroImage`) are constructed per-run keyed to exactly one `workspace_id`/`client_id`; the agent never receives a tenant id it can vary | Agent widening retrieval/persisting across clients (voice bleed — the #1 agency-ending risk) | Tool rejects mismatched ctx |
 | **4 · Review-token scope** | The tokenized client preview is scoped to exactly one piece + one version, fail-closed RLS; no credits, no markdown, no Improve-Draft on that surface | A review link leaking sibling pieces or other clients' content | Token resolves to one row or 404 |
@@ -433,7 +436,7 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
   - [ ] Tool-use events arrive as stable taxonomy-coded rows (`serpFetch`, `runFaithfulnessGate`, `runGate.stageA`, `runGate.stageB`), never raw model prose re-piped into the loop.
   - [ ] `CostAccountant.reserve()` runs pre-flight; a request over the per-run cap returns a cost error before any worker dispatch.
   - [ ] A worker-side error surfaces as a terminal SSE `error` event with a stable code, not a hung stream (heartbeat/timeout enforced).
-  - [ ] On a `last_event_id` reconnect, the relay **re-reads the persisted `content_pieces` + `gate_results` rows as the truth snapshot** and resumes streaming only the deltas after the cursor — never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.
+  - [ ] On a `last_event_id` reconnect, the relay **re-reads the persisted `content_pieces` (+ its persisted scorecard/verdict) as the truth snapshot** (the scorecard lives on the piece/version row, not a `gate_results` table — DR-039) and resumes streaming only the deltas after the cursor — never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.
   - [ ] The worker→host bridge token is a **per-run JWT minted by `/api/run`**, scoped to exactly `(workspace_id, client_id, run_id)` and expiring at the run-budget ceiling (~90s, the single-piece generation cap); a test asserts an expired or cross-run token is rejected by every host tool.
 - **Test plan:** Tier 1 — `sse-relay` unit test (event ordering, heartbeat, terminal error, `last_event_id` truth-snapshot resume). Tier 2 — integration: `POST /api/run` → worker → SSE → assert first delta < 3s + a persisted draft row. Tier 3 — manual run streamed to a curl client.
 - **Dependencies:** PR 006
@@ -668,10 +671,10 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
 ### PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation
 - **Lane:** worker-runtime
 - **Scope:** Stand up the separate SEO AI-Gateway cost ledger (D4) — pre-flight cost reservation via a lock-row conditional UPDATE, per-stage cost/latency recorded from Gateway usage against the ≤$2 editorial target — and instrument the north-star share-of-model KPI (AI-answer-engine citation tracking per published hub).
-- **Files added/modified:** `apps/seo/src/lib/ledger/seo-cost-ledger.ts`, `apps/seo/src/lib/ledger/reserve-conditional.ts` (lock-row conditional UPDATE, not sum-then-check), `packages/schema-flywheel/drizzle/0033_seo_cost_ledger.sql`, `apps/seo/src/lib/metrics/share-of-model.ts`, `apps/seo/src/app/(studio)/inspector/CostLedgerPanel.tsx`, `apps/seo/test/ledger/reserve.test.ts`.
-- **Migration SQL (inline, `0033`):**
+- **Files added/modified:** `apps/seo/src/lib/ledger/seo-cost-ledger.ts`, `apps/seo/src/lib/ledger/reserve-conditional.ts` (lock-row conditional UPDATE, not sum-then-check), `packages/schema-flywheel/drizzle/0039_seo_cost_ledger.sql`, `apps/seo/src/lib/metrics/share-of-model.ts`, `apps/seo/src/app/(studio)/inspector/CostLedgerPanel.tsx`, `apps/seo/test/ledger/reserve.test.ts`.
+- **Migration SQL (inline, `0039` — reconciled to shipped reality per audit-005 / DR-038; creates THREE tables):**
   ```sql
-  -- 0033_seo_cost_ledger.sql
+  -- 0039_seo_cost_ledger.sql
   CREATE TABLE seo_cost_ledger (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id  uuid NOT NULL,
@@ -689,12 +692,28 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
   CREATE INDEX seo_cost_ledger_client_idx ON seo_cost_ledger (client_id, created_at);
   ALTER TABLE seo_cost_ledger ENABLE ROW LEVEL SECURITY;  -- no anon policy: cost is never public
 
+  -- The per-run ACCUMULATOR + the single lock-row the conditional-UPDATE
+  -- reservation targets. ONE row per run_id; reserved_usd is atomically
+  -- incremented under the row lock with the `reserved_usd + cost <= cap_usd`
+  -- guard, so a concurrent over-cap reservation is rejected by the predicate
+  -- (no sum-then-check race). This is what makes the AC1 atomicity guarantee
+  -- runnable on the LIVE schema (not just the in-memory CostAccountant model).
+  CREATE TABLE seo_cost_run_budget (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id  uuid NOT NULL,
+    client_id     uuid NOT NULL REFERENCES content_clients(id) ON DELETE RESTRICT,
+    run_id        uuid NOT NULL UNIQUE,        -- one budget row per run
+    cap_usd       numeric(10,4) NOT NULL,      -- the run's ≤$2 editorial cap
+    reserved_usd  numeric(10,4) NOT NULL DEFAULT 0
+  );
+  ALTER TABLE seo_cost_run_budget ENABLE ROW LEVEL SECURITY;  -- no anon policy
+
   CREATE TABLE share_of_model (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    uuid NOT NULL,
     client_id       uuid NOT NULL REFERENCES content_clients(id) ON DELETE RESTRICT,
     piece_id        uuid REFERENCES content_pieces(id) ON DELETE SET NULL,
-    engine          text NOT NULL,           -- chatgpt|perplexity|claude|google-aio
+    engine          text NOT NULL,           -- free-text: chatgpt|claude|gemini (DR-038, reconciled to shipped reality per audit-005; perplexity = deferred 4th)
     query           text NOT NULL,           -- the normalized prompt actually sent
     cited           boolean NOT NULL,
     position        integer,
@@ -719,7 +738,7 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
 - **Test plan:** Tier 1 — `reserve.test.ts` (conditional-UPDATE concurrency, over-cap rejection); sourcing-block-rate computation test. Tier 2 — a full run writes per-stage ledger rows summing to a measured per-piece cost. Tier 3 — manual: run a cluster, read the measured cost-per-piece and the gate-block-by-sourcing rate from the ledger.
 - **Dependencies:** PR 007, PR 015, PR 006b (the egress allowlist the Gateway-disabled / reconciliation tests assert against)
 - **Risk:** Med — sum-then-check race is the classic ledger bug; the lock-row conditional UPDATE is the guard.
-- **Rollback:** Drop `0033`; fall back to `CostAccountant` in-memory reservation only (no persisted ledger, no share-of-model rollup).
+- **Rollback:** Drop `0039` (all three tables: `seo_cost_ledger`, `seo_cost_run_budget`, `share_of_model`); fall back to `CostAccountant` in-memory reservation only (no persisted ledger, no share-of-model rollup).
 
 *References: ch. 16 (bible v1.0.0, sha: 2c02fe80), ch. 17 (bible v1.0.0, sha: 2c02fe80)*
 
@@ -727,16 +746,16 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
 
 ### PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed)
 - **Lane:** worker-runtime
-- **Scope:** Build the two crons the north-star KPI and the compounding loop depend on but that prior slices only specified as a table. (1) The **SoM citation-ingestion cron** — treated as a *measurement subsystem*, not a one-shot fetch — poses each client's funnel-staged query bank to the tracked answer engines (ChatGPT/Perplexity/Claude/Google-AIO) on a weekly cadence and writes durable citation rows to `share_of_model`. (2) The **freshness cron** scans published pieces past a staleness threshold and emits a refresh **draft** only — never an auto-publish (per §1 non-goals); a refreshed draft re-enters the gate + human-release path like any other. Both emit heartbeats so a wedged cron alerts rather than stalling silently.
+- **Scope:** Build the two crons the north-star KPI and the compounding loop depend on but that prior slices only specified as a table. (1) The **SoM citation-ingestion cron** — treated as a *measurement subsystem*, not a one-shot fetch — poses each client's funnel-staged query bank to the tracked answer engines (ChatGPT/Claude/Gemini — DR-038, reconciled to shipped reality per audit-005; Perplexity = deferred 4th) on a weekly cadence and writes durable citation rows to `share_of_model`. (2) The **freshness cron** scans published pieces past a staleness threshold and emits a refresh **draft** only — never an auto-publish (per §1 non-goals); a refreshed draft re-enters the gate + human-release path like any other. Both emit heartbeats so a wedged cron alerts rather than stalling silently.
 - **SoM measurement-subsystem design (the specifics that make the metric trustworthy):**
-  - **Provider-specific adapters.** One adapter per engine (`chatgpt` / `perplexity` / `claude` / `google-aio`) behind a common `SomAdapter` interface — each engine's query/response shape and citation-extraction differ, so they are not one code path.
+  - **Provider-specific adapters.** One adapter per engine (`chatgpt` / `claude` / `gemini` — DR-038, reconciled to shipped reality per audit-005; `perplexity` = deferred 4th) behind a common `SomAdapter` interface — each engine's query/response shape and citation-extraction differ, so they are not one code path.
   - **Stored prompts + responses.** Every probe persists the *normalized prompt sent* and the *raw response received* (not just the boolean `cited`), so a citation claim is auditable and re-parseable when an adapter improves.
   - **Prompt normalization.** Queries are normalized (canonical phrasing per funnel stage) so week-over-week trends compare like-for-like, not drift from re-worded prompts.
   - **Rate-limit budgets per engine.** Each adapter runs under a configured request budget; over-budget probes defer to the next window rather than tripping a ban, and a degraded engine logs a miss + heartbeat rather than crashing the cron.
   - **Parser confidence + manual audit sampling.** Each extracted citation carries a parser-confidence score; a sampled fraction is flagged for periodic manual audit so parser error is *measured*, not assumed zero.
   - **Geographic / device variance.** The probe records the locale/region/device profile it ran under (answers vary by geo/device), so a citation rate is qualified by where it was observed, not reported as universal.
   - **ToS compliance + vendor-API fallback.** Where an engine's ToS forbids or rate-limits direct querying, or direct querying proves unreliable, the adapter falls back to the vendor's official API / a sanctioned data source behind the same `SomAdapter` interface — the fallback is pre-wired, so a blocked engine degrades to its API path rather than going dark.
-- **Files added/modified:** `apps/seo/src/cron/ingest-share-of-model.ts`, `apps/seo/src/cron/freshness-scan.ts`, `apps/seo/src/lib/metrics/query-bank.ts` (per-client funnel-staged query bank off the `clusterRole`/`funnelStage` map), `apps/seo/src/lib/metrics/som-adapters/{chatgpt,perplexity,claude,google-aio,types}.ts` (provider adapters + the common interface + the vendor-API fallback), `apps/seo/src/lib/metrics/som-parse.ts` (citation extraction + confidence + normalization), `apps/seo/vercel.json` (cron schedule), `apps/seo/test/cron/{som-ingest,freshness}.test.ts`, `apps/seo/test/metrics/som-adapters.test.ts`.
+- **Files added/modified:** `apps/seo/src/cron/ingest-share-of-model.ts`, `apps/seo/src/cron/freshness-scan.ts`, `apps/seo/src/lib/metrics/query-bank.ts` (per-client funnel-staged query bank off the `clusterRole`/`funnelStage` map), `apps/seo/src/lib/metrics/som-adapters/{chatgpt,claude,gemini,types}.ts` (provider adapters + the common interface + the vendor-API fallback; `perplexity` deferred per DR-038), `apps/seo/src/lib/metrics/som-parse.ts` (citation extraction + confidence + normalization), `apps/seo/vercel.json` (cron schedule), `apps/seo/test/cron/{som-ingest,freshness}.test.ts`, `apps/seo/test/metrics/som-adapters.test.ts`.
 - **Acceptance criteria:**
   - [ ] **Measurement-feasibility spike FIRST (gates the rest of this PR).** Before building the adapters, a feasibility spike proves **≥3 legal/reliable citation-measurement channels** actually exist — naming the candidate **sanctioned APIs/providers** per engine (e.g. an official engine API where one exists, or a contracted GEO-tracker vendor such as Profound/AthenaHQ for an engine with no sanctioned direct path) and recording, for each, its **quota and per-run cost**. The spike output is a one-page channel matrix `{engine, channel, sanctioned?, quota, per-run $, citation-signal reliability}`. If fewer than 3 engines expose a legal/reliable citation channel, the **degraded v1 metric** below ships instead of the ≥3-engine metric.
   - [ ] **Gated on real credentials / a contracted vendor, not mocks.** PR 021's DoD is auditable rows landing from **real adapter credentials or a contracted measurement vendor** for the channels the spike confirmed — a fully-mocked adapter suite is *not* sufficient to close this PR (mocks remain valid for Tier-1/Tier-2 unit/integration tests, but the metric is not "done" until at least the confirmed channels produce real rows for the Whispering Willows hub).
@@ -766,7 +785,7 @@ Ordering rule: **PR 000 (the Phase-0 capability-enforcement spike) runs first an
 Six lanes, derived from this project's reuse boundary (ported moat vs. net-new worker + UI + render). Lanes are sized so the **deterministic moat and schema land before the agent**, and the **worker topology is proven on the thinnest slice before the surface widens** (per the DECISIONS.md Phase-1-inflation note).
 
 - **Lane A — engine-port** (`@sagemark/core`): scorers, faithfulness gate (`drafter≠verifier`), `seo-gate` A→B, `lifecycle-fsm` `canPublish()`, `CostAccountant`, provider seam. Pure functions; lowest risk; unblocks everything.
-- **Lane B — schema-tenancy** (`schema-flywheel`): port `0030`, add `0031` cluster columns + `0032` release/signoff split + `0033` aux ledger, RLS + the 4-layer tenancy test.
+- **Lane B — schema-tenancy** (`schema-flywheel`): port `0030`, add `0031` cluster columns + `0032` release/signoff split + `0039` aux ledger (the shipped `seo_cost_ledger`/`seo_cost_run_budget`/`share_of_model` migration; numbered `0039` per audit-005, not `0033`), RLS + the 4-layer tenancy test.
 - **Lane C — worker-runtime** (Agent-SDK worker on Vercel Sandbox): boot the SDK worker, the autonomous loop, the authed host-tool bridge, and run-dispatch/resume. The D5/D9-specific lane and the highest-novelty risk.
 - **Lane D — agent-ui** (`apps/seo` canvas + SSE relay): three-zone canvas, the worker→Vercel→browser SSE relay, `/api/run·/api/edit·/api/publish`, conversational fine-tune.
 - **Lane E — render-geo** (`apps/seo` public SSR routes + homepage): SSR full-body, FAQPage JSON-LD, placeholder stripping, sitemap/robots, CI reachability gate, the **generated hub homepage** (D7), imagegen `[photo:]` resolution.
@@ -840,7 +859,7 @@ Critical path: **A → C → D → F**. Lane B parallels A→C and must land its
 | Risk | Severity | Mitigation |
 |---|---|---|
 | **Worker cold-start / state-loss on ephemeral Sandbox (D9)** | High — first-token latency + lost runs | All durable state persists to Supabase (system of record); the Sandbox FS is scratch-only. Runs are resumable from the last persisted snapshot. A **warm-pool** of pre-booted microVMs amortizes cold-start under the ≤4 s budget. A microVM dying mid-run loses no committed state; the orchestrator re-dispatches from the last `content_piece_versions` snapshot. |
-| **SSE relay reliability (worker → apps/seo → browser, the D5 hop)** | High — the "watch it work" demo breaks silently | Heartbeat/keepalive frames on the relay; client auto-reconnect on `last_event_id` where the relay **re-reads the persisted `content_pieces` + `gate_results` rows as the truth snapshot** and resumes only deltas after the cursor; the relay is **stateless re: truth** — a dropped stream never loses data because the canonical artifact is the persisted row, not the stream. OQ-1 (SSE-vs-poll) is tracked in §9 and **must resolve in Slice 1 before the UI widens**; if relay reliability is poor, fall back to a poll-the-row transport behind the same UI contract. |
+| **SSE relay reliability (worker → apps/seo → browser, the D5 hop)** | High — the "watch it work" demo breaks silently | Heartbeat/keepalive frames on the relay; client auto-reconnect on `last_event_id` where the relay **re-reads the persisted `content_pieces` (+ its persisted scorecard/verdict) as the truth snapshot** (no `gate_results` table — the scorecard is on the piece/version row, DR-039) and resumes only deltas after the cursor; the relay is **stateless re: truth** — a dropped stream never loses data because the canonical artifact is the persisted row, not the stream. OQ-1 (SSE-vs-poll) is tracked in §9 and **must resolve in Slice 1 before the UI widens**; if relay reliability is poor, fall back to a poll-the-row transport behind the same UI contract. |
 | **Model / tool-schema drift breaking the loop** | High — an autonomous loop (D1) fails opaquely on a renamed tool or changed model output | Pin model ids (`sonnet-4-6`/`haiku-4-5`/`opus-4-7`) and assert the `drafter≠verifier` invariant in a unit test; version the host-tool JSON schemas and contract-test the worker↔host bridge; **golden-regress** every prompt/model/tool-order change against the Phase-0 corpus. A tool-call that fails schema validation is a hard error, never a silent skip. |
 | **Ported-engine integration** (the moat is on origin/preview, not local) | Medium-High — under-scoping; a drifted second gate copy | Phase 0 pulls origin/preview before estimating. Exactly **one** gate module in `@sagemark/core`: both the agent's read-only `runGate` tool and the host's enforcement call the same module — never a copy. Preserve the ported bug-fix scars (faithfulness 12 s timeout + 25-claim cap; voice 3 s timeout). |
 | **SSRF via fetch** (DDG scraping is the ingestion surface, D3) | High — fetched pages are untrusted (SSRF + prompt-injection) | `serpFetch` is a **host-side tool**, not a worker capability: it enforces an allowlist/deny-private-ranges SSRF guard, caps to 3 pages × 2000 chars, and treats fetched content as untrusted input to the brief. The worker can request a fetch but cannot reach arbitrary hosts itself. Prompt-injection from fetched content cannot reach past the host-enforced gate. |
