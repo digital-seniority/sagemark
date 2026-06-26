@@ -12,6 +12,7 @@ import type {
   PublicContentDataAccess,
   PublicClient,
   PublishedPiece,
+  ReferencedHeroAsset,
 } from "@/lib/content/context";
 import type { ContentStatus } from "@sagemark/schema-flywheel";
 import type { GeoFaqItem } from "@sagemark/core";
@@ -32,6 +33,9 @@ export interface FixturePiece {
   status: ContentStatus;
   publishedAt?: string | null;
   updatedAt?: string | null;
+  /** D7 cluster columns (PR 017 homepage grouping). */
+  clusterRole?: string | null;
+  funnelStage?: string | null;
 }
 
 function toPublished(r: FixturePiece): PublishedPiece {
@@ -45,12 +49,16 @@ function toPublished(r: FixturePiece): PublishedPiece {
     faqData: r.faqData ?? null,
     publishedAt: r.publishedAt ?? null,
     updatedAt: r.updatedAt ?? null,
+    clusterRole: r.clusterRole ?? null,
+    funnelStage: r.funnelStage ?? null,
   };
 }
 
 export interface FixtureOptions {
   clients?: PublicClient[];
   pieces?: FixturePiece[];
+  /** Persisted hero assets keyed by slug (PR 017 — the render-gate fixture). */
+  heroAssets?: ReferencedHeroAsset[];
 }
 
 /**
@@ -62,6 +70,7 @@ export function makePublicData(opts: FixtureOptions = {}): PublicContentDataAcce
     { id: CLIENT_ID, blogSlug: CLIENT_SLUG, name: "Whispering Willows" },
   ];
   const pieces = opts.pieces ?? [];
+  const heroAssets = opts.heroAssets ?? [];
 
   return {
     async resolveClientByBlogSlug(blogSlug) {
@@ -79,6 +88,10 @@ export function makePublicData(opts: FixtureOptions = {}): PublicContentDataAcce
       return pieces
         .filter((p) => p.clientId === clientId && p.status === "published")
         .map(toPublished);
+    },
+    async resolveHeroAssets(_clientId, slugs) {
+      // Return only the seeded assets whose slug the body references.
+      return heroAssets.filter((a) => slugs.includes(a.slug));
     },
   };
 }

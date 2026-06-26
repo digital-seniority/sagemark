@@ -170,6 +170,9 @@ importers:
       '@sagemark/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@sagemark/imagegen':
+        specifier: workspace:*
+        version: link:../imagegen
       '@sagemark/schema-flywheel':
         specifier: workspace:*
         version: link:../../packages/schema-flywheel

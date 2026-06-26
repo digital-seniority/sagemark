@@ -50,6 +50,11 @@ export default defineConfig({
       // suite, plus a VersionHub/VersionDiff DOM suite (jsdom per-file, DR-029).
       "test/versions/**/*.test.ts",
       "test/versions/**/*.test.tsx",
+      // PR 017 / P1.R.3 (DR-019 append-only carve-out): the resource-library
+      // homepage cluster-map + SSR render suite lives under test/render/ (already
+      // globbed above as test/render/**/*.test.ts); the imagegen hero-image
+      // provenance/license suite is under test/tools/.
+      "test/tools/**/*.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server

@@ -113,6 +113,36 @@ export interface ClientSignoff {
 }
 
 /**
+ * A single image referenced by a piece body, resolved (host-side, agent-
+ * unreachable) to its persisted asset record (DR-033, the publish-side image-
+ * license gate). The render path emits one of these per `[photo:slug]` token it
+ * resolves; the publish route resolves the same tokens to their licensed asset
+ * rows. Two outcomes the FSM cares about:
+ *
+ *   - `resolved: true`  AND `licensed: true`  → a real asset row exists whose
+ *     `license` is present (a generated_images row with non-null `license`, OR an
+ *     approved stock/Pexels asset with a recorded license/attribution), scoped to
+ *     the bound `workspace_id`. PASS.
+ *   - `resolved: false` (orphan — no asset row for the token) OR
+ *     `licensed: false` (the row exists but carries no license) → FAIL-CLOSED.
+ *
+ * Never-list #8: no unlicensed/un-provenanced image in a published piece. The
+ * presence of even ONE non-passing reference blocks the publish (UNLICENSED_ASSET).
+ */
+export interface ReferencedImage {
+  /** The `[photo:slug]` token's slug — the asset reference the body carries. */
+  slug: string;
+  /** True iff a persisted asset row was found for this reference (scoped to ws). */
+  resolved: boolean;
+  /**
+   * True iff the resolved asset carries a non-null license (generated license OR
+   * a recorded stock/Pexels license+attribution). False when the row exists but
+   * is unlicensed; meaningless when `resolved` is false.
+   */
+  licensed: boolean;
+}
+
+/**
  * The human-release input the FSM accepts. A `CredentialedRelease` satisfies the
  * precondition; a `ClientSignoff` (or any non-credentialed shape) is rejected as
  * NO_HUMAN_RELEASE. Nullable until a human releases.
@@ -149,6 +179,21 @@ export interface TransitionContext {
   author?: ReleaseAuthor | null;
   /** Whether the piece carries authoritative citations (YMYL requirement). */
   hasCitations?: boolean;
+  /**
+   * The images referenced by the piece body, each resolved host-side to its
+   * persisted asset record (DR-033). When present, EVERY entry must be
+   * `resolved && licensed` for the publish to proceed — a missing/orphaned or
+   * unlicensed reference is a fail-closed `UNLICENSED_ASSET` block (Never-list #8).
+   *
+   * OPTIONAL / backward-compatible: `undefined` (the field absent) means "the
+   * caller did not resolve any references" and is treated as no-images — the
+   * gate does not invent a block where the publish route supplied nothing. The
+   * publish route ALWAYS resolves the body's `[photo:]` tokens and passes this
+   * (an empty array when the body references no image), so in production the gate
+   * is exercised whenever the body carries a reference. An EMPTY array passes
+   * (no referenced image to license); a non-empty array must be all-licensed.
+   */
+  referencedImages?: ReferencedImage[];
   /**
    * Global publish kill switch. When false, NO transition into `published` is
    * permitted regardless of any other signal (rollback path — RFC §4 PR009).
@@ -213,6 +258,23 @@ export function hasRecordedRelease(release: HumanRelease): boolean {
   );
 }
 
+/**
+ * Every image the piece body references resolves to a LICENSED asset record
+ * (DR-033, Never-list #8). Returns true when there are no referenced images
+ * (nothing to license) and when every reference is both `resolved` and
+ * `licensed`. Returns false the moment ANY reference is orphaned (no asset row)
+ * or unlicensed (row present, no license) — that single bad reference blocks the
+ * publish (UNLICENSED_ASSET). `undefined` (the caller resolved nothing) is
+ * treated as no-images → passes; the publish route always supplies the resolved
+ * list so a body carrying a `[photo:]` token is always checked.
+ */
+export function hasLicensedReferencedImages(
+  images: ReferencedImage[] | undefined,
+): boolean {
+  if (!images || images.length === 0) return true;
+  return images.every((img) => img.resolved === true && img.licensed === true);
+}
+
 /** A named author with non-empty credentials (the YMYL byline requirement). */
 export function hasNamedByline(author: ReleaseAuthor | null | undefined): boolean {
   return (
@@ -233,7 +295,9 @@ export function hasNamedByline(author: ReleaseAuthor | null | undefined): boolea
  *   3. a recorded human release exists (a `credentialed_release`, never a
  *      `client_signoff` — SCHEMA CONTRACT P0.S.1);
  *   4. the eval actually ran (scorecard present, not skipped/failed);
- *   5. (YMYL only) a named author + credentials + authoritative citations.
+ *   5. every image referenced by the body is a LICENSED asset (DR-033 /
+ *      Never-list #8) — an orphaned/unlicensed reference BLOCKS;
+ *   6. (YMYL only) a named author + credentials + authoritative citations.
  *
  * Any missing/false clause BLOCKS. Pure — no I/O.
  */
@@ -242,6 +306,8 @@ export function canPublish(ctx: TransitionContext): boolean {
   if (ctx.verdict !== "PUBLISH") return false;
   if (!ctx.evalRan) return false; // fail-closed: a gate that did not run says no
   if (!hasRecordedRelease(ctx.humanRelease)) return false; // no autopilot / no client_signoff
+  // DR-033 / Never-list #8: every referenced image must be a licensed asset.
+  if (!hasLicensedReferencedImages(ctx.referencedImages)) return false;
   if (ctx.isYmyl) {
     // Tier-4: named author + credentials + authoritative citations, all required.
     if (!hasNamedByline(ctx.author)) return false;
@@ -282,6 +348,7 @@ export type TransitionRejection =
   | "VERDICT_NOT_PUBLISH"
   | "NO_HUMAN_RELEASE"
   | "EVAL_DID_NOT_RUN"
+  | "UNLICENSED_ASSET"
   | "YMYL_NO_BYLINE"
   | "YMYL_NO_CITATIONS"
   | "VERDICT_NOT_APPROVABLE";
@@ -314,6 +381,10 @@ export function canTransition(
     }
     if (!hasRecordedRelease(ctx.humanRelease)) {
       return { allowed: false, reason: "NO_HUMAN_RELEASE" };
+    }
+    // DR-033 / Never-list #8: an orphaned or unlicensed referenced image blocks.
+    if (!hasLicensedReferencedImages(ctx.referencedImages)) {
+      return { allowed: false, reason: "UNLICENSED_ASSET" };
     }
     if (ctx.isYmyl) {
       if (!hasNamedByline(ctx.author)) {

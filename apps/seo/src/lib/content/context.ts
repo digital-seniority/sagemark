@@ -333,6 +333,25 @@ export interface ContentDataAccess {
     clientId: string;
     version: number;
   }): Promise<PersistedPieceVersion>;
+
+  /**
+   * Resolve the `[photo:slug]` references a piece body carries to their
+   * persisted, workspace/client-scoped hero-asset records (PR 017 / DR-033).
+   * READ-ONLY. The publish route calls this for the publishing body and feeds the
+   * result to `canPublish` as `referencedImages` — an orphaned slug (no row) or a
+   * row with `license: null` is a fail-closed `UNLICENSED_ASSET` publish block.
+   *
+   * OPTIONAL on the seam so existing route fixtures (which never reference an
+   * image) need no change. When ABSENT, the publish route resolves the body's
+   * tokens itself: a body with NO `[photo:]` token references no image (the gate
+   * passes trivially); a body that DOES carry a token with no resolver available
+   * is treated as an unresolved (orphaned) reference and BLOCKS — fail-closed,
+   * never fail-open. `NOT_WIRED` throws (fail-loud) like the other methods.
+   */
+  resolveReferencedAssets?(
+    clientId: string,
+    slugs: string[],
+  ): Promise<ReferencedHeroAsset[]>;
 }
 
 /** The read-only subset the audit route is given. Structurally cannot mutate. */
@@ -340,6 +359,112 @@ export type ReadOnlyDataAccess = Pick<
   ContentDataAccess,
   "clientBelongsToWorkspace" | "getApprovedVoiceSpec" | "loadPiece"
 >;
+
+// ── Referenced-image / hero-asset seam (PR 017 / DR-033) ──────────────────────
+
+/**
+ * A persisted image asset a piece body REFERENCES via a `[photo:slug]` token,
+ * resolved host-side to its asset record. This is the SEO-app projection of an
+ * `@sagemark/imagegen` generated_images row (source:"generated") OR an approved
+ * stock/Pexels asset row (source:"pexels"). Workspace-scoped at the seam.
+ *
+ * The load-bearing field is `license`: DR-033 keys both the publish gate and the
+ * render gate off its PRESENCE. The imagegen store persists `license` NOT NULL
+ * for generated images; a stock asset carries a recorded Pexels license +
+ * attribution. A row with `license: null` is an unlicensed/un-provenanced asset
+ * and MUST NOT be surfaced (render) or published (gate) — Never-list #8.
+ */
+export interface ReferencedHeroAsset {
+  /** The `[photo:slug]` slug this asset resolves (joins back to the body token). */
+  slug: string;
+  /** Where the asset came from (provenance source). */
+  source: "generated" | "pexels" | "upload";
+  /**
+   * A renderable URL (signed read URL for a generated bucket object, or the
+   * stock provider's hosted URL). Null when not yet resolvable (then the render
+   * strips the placeholder rather than surfacing a broken image).
+   */
+  url: string | null;
+  /**
+   * The recorded license. NON-NULL is the render+publish gate condition. For a
+   * generated asset this is the AI-generated license (model id+version); for a
+   * stock asset it is the Pexels license + attribution. NULL → fail-closed
+   * (blocked from render and from publish).
+   */
+  license: HeroAssetLicense | null;
+  /** Optional alt text (accessibility); never load-bearing for the gate. */
+  alt?: string | null;
+}
+
+/** The recorded license/attribution for a referenced hero asset (DR-033). */
+export interface HeroAssetLicense {
+  /** "generated" (AI), "pexels" (stock), etc. — mirrors the asset source. */
+  provider: string;
+  /** For generated: the model id+version. For stock: e.g. "Pexels License". */
+  terms?: string;
+  /** Stock attribution (photographer / source page) — recorded for compliance. */
+  attribution?: string;
+  /** The provider source page URL (stock) — recorded for compliance. */
+  sourceUrl?: string;
+}
+
+/**
+ * Parse the `[photo:slug]` tokens out of a piece body, in order, de-duplicated.
+ * The render route strips these tokens; the publish gate + the homepage resolve
+ * them to assets. This is the SINGLE host-side definition of "which images does
+ * this body reference" (DR-033) — keyed off the body text, so no asset-reference
+ * table/migration is needed (write-scope constraint).
+ *
+ * Accepts `[photo:slug]` and `[photo: some slug]` (slug trimmed). Bare `[photo]`
+ * (no slug) is ignored (it references no specific asset). Markdown links
+ * `[text](url)` are never matched (the `:` + no `(` tail distinguish a directive).
+ */
+export function parseReferencedPhotoSlugs(body: string): string[] {
+  if (!body) return [];
+  const re = /\[photo:\s*([^\]]+?)\s*\](?!\()/gi;
+  const slugs: string[] = [];
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const slug = m[1]!.trim();
+    if (slug && !seen.has(slug)) {
+      seen.add(slug);
+      slugs.push(slug);
+    }
+  }
+  return slugs;
+}
+
+/**
+ * Map a piece body's `[photo:slug]` references to the core FSM's `ReferencedImage`
+ * decision rows (PR 017 / DR-033), FAIL-CLOSED. For each slug the body
+ * references, find its resolved asset; the slug is:
+ *   - `resolved && licensed` iff an asset with that slug exists AND its `license`
+ *     is non-null (a generated_images license OR a recorded stock license);
+ *   - `resolved:false` (orphan) when no asset row matched the slug;
+ *   - `resolved:true, licensed:false` when the row exists but carries no license.
+ *
+ * A slug with no matching asset is an ORPHAN (blocked) — never silently dropped.
+ * Pure; the I/O (resolving the assets) happens at the seam, this only maps.
+ */
+export function toReferencedImages(
+  slugs: string[],
+  assets: ReferencedHeroAsset[],
+): ReferencedImageDecision[] {
+  const bySlug = new Map(assets.map((a) => [a.slug, a]));
+  return slugs.map((slug) => {
+    const asset = bySlug.get(slug);
+    if (!asset) return { slug, resolved: false, licensed: false };
+    return { slug, resolved: true, licensed: asset.license != null };
+  });
+}
+
+/** Local alias of the core `ReferencedImage` shape (avoids a value-import). */
+export interface ReferencedImageDecision {
+  slug: string;
+  resolved: boolean;
+  licensed: boolean;
+}
 
 // ── Public render seam (PR 015, lane render-geo) ──────────────────────────────
 
@@ -371,6 +496,17 @@ export interface PublishedPiece {
   faqData: GeoFaqItem[] | null;
   publishedAt: string | null;
   updatedAt: string | null;
+  /**
+   * The first-class cluster columns (D7, migration 0031) the resource-library
+   * homepage groups by (PR 017). Driven by the `content_pieces.cluster_role` /
+   * `funnel_stage` columns — NOT re-derived from `brief_snapshot` jsonb. Null when
+   * a piece predates the cluster columns / is uncategorized.
+   *
+   * cluster_role ∈ pillar|cornerstone|spoke|faq|checklist;
+   * funnel_stage ∈ awareness|consideration|decision|retention.
+   */
+  clusterRole: string | null;
+  funnelStage: string | null;
 }
 
 /**
@@ -393,6 +529,21 @@ export interface PublicContentDataAccess {
    * Only published rows; ordered is the impl's choice.
    */
   listPublishedPieces(clientId: string): Promise<PublishedPiece[]>;
+  /**
+   * Resolve the `[photo:slug]` references a published body carries to their
+   * persisted, workspace-scoped hero-asset records (PR 017 / DR-033). The
+   * homepage renders ONLY assets whose `license` is non-null (the render gate);
+   * an unresolved slug returns an entry with `url:null`/`license:null` so the
+   * render strips it rather than surfacing a broken/unprovenanced image.
+   *
+   * OPTIONAL: when a public-seam impl does not provide it, the homepage degrades
+   * to placeholder-strip (P1.R.1 behavior) — no hero images. The fixture/Drizzle
+   * impls provide it; `NOT_WIRED` throws (fail-loud) like the other methods.
+   */
+  resolveHeroAssets?(
+    clientId: string,
+    slugs: string[],
+  ): Promise<ReferencedHeroAsset[]>;
 }
 
 /**
@@ -409,6 +560,9 @@ export const NOT_WIRED_PUBLIC_DATA_ACCESS: PublicContentDataAccess = {
   },
   listPublishedPieces: () => {
     throw new DataAccessNotWiredError("listPublishedPiece");
+  },
+  resolveHeroAssets: () => {
+    throw new DataAccessNotWiredError("resolveHeroAssets");
   },
 };
 
@@ -470,6 +624,9 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   },
   setActiveVersion: () => {
     throw new DataAccessNotWiredError("setActiveVersion");
+  },
+  resolveReferencedAssets: () => {
+    throw new DataAccessNotWiredError("resolveReferencedAssets");
   },
 };
 

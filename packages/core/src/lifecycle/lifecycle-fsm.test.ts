@@ -24,12 +24,14 @@ import {
   requiresSnapshot,
   hasRecordedRelease,
   hasNamedByline,
+  hasLicensedReferencedImages,
   IllegalTransitionError,
   LIFECYCLE_STATES,
   type LifecycleState,
   type TransitionContext,
   type CredentialedRelease,
   type ClientSignoff,
+  type ReferencedImage,
 } from "./lifecycle-fsm";
 
 // A valid credentialed release — the ONLY shape that satisfies the human-release
@@ -313,6 +315,103 @@ describe("approved -> published (THE fail-closed gate)", () => {
 
   it("requires a snapshot before the move", () => {
     expect(requiresSnapshot("approved", "published")).toBe(true);
+  });
+});
+
+// ── DR-033 — publish-side image-license gate (Never-list #8) ───────────────────
+const LICENSED_IMAGE: ReferencedImage = {
+  slug: "sunlit-common-room",
+  resolved: true,
+  licensed: true,
+};
+const ORPHAN_IMAGE: ReferencedImage = {
+  slug: "missing-photo",
+  resolved: false,
+  licensed: false,
+};
+const UNLICENSED_IMAGE: ReferencedImage = {
+  slug: "stock-no-license",
+  resolved: true,
+  licensed: false,
+};
+
+describe("DR-033 publish-side image-license gate (UNLICENSED_ASSET)", () => {
+  it("PASSES with no referenced images (field undefined — nothing to license)", () => {
+    expect(canPublish(fullPublishCtx({ referencedImages: undefined }))).toBe(true);
+  });
+
+  it("PASSES with an empty referenced-image list (body references no image)", () => {
+    expect(canPublish(fullPublishCtx({ referencedImages: [] }))).toBe(true);
+  });
+
+  it("PASSES when every referenced image is resolved + licensed", () => {
+    const d = canTransition(
+      "approved",
+      "published",
+      fullPublishCtx({ referencedImages: [LICENSED_IMAGE, LICENSED_IMAGE] }),
+    );
+    expect(d.allowed).toBe(true);
+  });
+
+  it("BLOCKS publish when a referenced image is ORPHANED (no asset row)", () => {
+    const d = canTransition(
+      "approved",
+      "published",
+      fullPublishCtx({ referencedImages: [LICENSED_IMAGE, ORPHAN_IMAGE] }),
+    );
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe("UNLICENSED_ASSET");
+  });
+
+  it("BLOCKS publish when a referenced image row exists but is UNLICENSED", () => {
+    const d = canTransition(
+      "approved",
+      "published",
+      fullPublishCtx({ referencedImages: [UNLICENSED_IMAGE] }),
+    );
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe("UNLICENSED_ASSET");
+  });
+
+  it("canPublish() returns false for an unlicensed referenced image", () => {
+    expect(canPublish(fullPublishCtx({ referencedImages: [UNLICENSED_IMAGE] }))).toBe(false);
+  });
+
+  it("assertTransition throws UNLICENSED_ASSET for an orphaned reference", () => {
+    expect(() =>
+      assertTransition(
+        "approved",
+        "published",
+        fullPublishCtx({ referencedImages: [ORPHAN_IMAGE] }),
+      ),
+    ).toThrowError(/UNLICENSED_ASSET/);
+  });
+
+  it("the image gate is checked even on a YMYL piece (orphan blocks before/with byline)", () => {
+    const d = canTransition(
+      "approved",
+      "published",
+      fullPublishCtx({
+        isYmyl: true,
+        author: { name: "Dr. Jane Roe", credentials: "RN, CDP" },
+        hasCitations: true,
+        referencedImages: [ORPHAN_IMAGE],
+      }),
+    );
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toBe("UNLICENSED_ASSET");
+  });
+
+  describe("hasLicensedReferencedImages helper", () => {
+    it("true for undefined / empty", () => {
+      expect(hasLicensedReferencedImages(undefined)).toBe(true);
+      expect(hasLicensedReferencedImages([])).toBe(true);
+    });
+    it("true only when all resolved + licensed", () => {
+      expect(hasLicensedReferencedImages([LICENSED_IMAGE])).toBe(true);
+      expect(hasLicensedReferencedImages([LICENSED_IMAGE, ORPHAN_IMAGE])).toBe(false);
+      expect(hasLicensedReferencedImages([UNLICENSED_IMAGE])).toBe(false);
+    });
   });
 });
 
