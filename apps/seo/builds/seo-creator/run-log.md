@@ -215,3 +215,10 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Escalation:** apps/seo has no DOM test runner — UI lane decide jsdom/Playwright before PR 011.
 - **State:** 14/23 engineering (Phase 1: 4/12). **Next:** Run #017 = P1.U.2 (PR 011).
 - **Checkpoint:** `checkpoints/run-016-2026-06-26.md`
+
+## Run #017 — 2026-06-26 — P1.U.2
+- **Merged:** P1.U.2 (PR 011 — live token streaming + Inspector gate scorecard + jsdom UI tests) [#37](https://github.com/digital-seniority/sagemark/pull/37) `92192bd` (judge 5/5·5/5).
+- Scorecard honesty (authoritative gate vs zero-credit preview) structural+labeled; jsdom DOM runner added (resolves P1.U.1 escalation). 328 vitest green.
+- **DRs:** [[DR-028]] (subpath scorer imports), [[DR-029]] (jsdom per-file opt-in).
+- **State:** 15/23 engineering (Phase 1: 5/12). **Next:** Run #018 = P1.U.3 (PR 012 edit loop, Slice-1 close).
+- **Checkpoint:** `checkpoints/run-017-2026-06-26.md`
