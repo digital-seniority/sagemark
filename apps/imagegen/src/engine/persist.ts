@@ -150,6 +150,13 @@ export interface GeneratedImageStore {
     bytes: number;
     license: GeneratedAssetLicense;
     tags: string[];
+    /**
+     * The page slug / brief id this image was generated for (C.021.2/DR-035).
+     * Persisted on the asset row so a `[photo:slug]` body token can resolve back
+     * to it. Optional on the contract so existing fakes/callers compile; the
+     * persist path always supplies it.
+     */
+    slug?: string;
   }): Promise<Asset>;
   insertGenerationRecord(record: GenerationRecord): Promise<void>;
 }
@@ -223,6 +230,9 @@ export async function persistGeneratedImage(
       bytes: generated.bytes.length,
       license,
       tags: ["generated", `model:${generated.modelId}`],
+      // C.021.2/DR-035: stamp the slug onto the asset row so the publish gate +
+      // homepage can resolve this `[photo:slug]` reference back to this asset.
+      slug: args.slug,
     });
   }
 

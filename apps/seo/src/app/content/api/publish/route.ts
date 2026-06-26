@@ -51,6 +51,7 @@ import {
 } from "@/lib/content/context";
 import { readCredentialedRelease } from "@/lib/release/read-credentialed-release";
 import { resolveBylineAuthor } from "@/lib/byline/resolve-author";
+import { makeLiveResolveReferencedAssets } from "@/lib/content/image-resolver";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -270,7 +271,18 @@ export async function handlePublish(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handlePublish(request);
+  // Wire the LIVE image-resolver onto the publish deps BEHIND a host-config check
+  // (C.021.2/DR-035). When the service-role creds are present, attach the live
+  // `resolveReferencedAssets` so a `[photo:slug]` body resolves to its licensed
+  // generated_images row; when absent, leave it off so the route's fail-closed
+  // default holds (every token → orphan → UNLICENSED_ASSET block — the safe prior
+  // state). The rest of the ContentDataAccess pipeline (loadPiece, …) is still
+  // NOT_WIRED (the broader DR-026 effort) — this only fills the resolver method.
+  const resolveReferencedAssets = await makeLiveResolveReferencedAssets();
+  const deps: PublishDeps = resolveReferencedAssets
+    ? { ...DEFAULT_DEPS, data: { ...DEFAULT_DEPS.data, resolveReferencedAssets } }
+    : DEFAULT_DEPS;
+  return handlePublish(request, deps);
 }
 
 /** Re-exported so a future caller could narrow on the persisted-piece shape. */
