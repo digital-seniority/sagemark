@@ -68,9 +68,10 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     expect(html).toContain('data-testid="artifact-body"');
     expect(html).toContain("# Memory care basics");
 
-    // Inspector zone: the gate scorecard projection + the verdict signal dot.
+    // Inspector zone: the authoritative gate scorecard (verdict band + score).
+    expect(html).toContain('data-testid="gate-scorecard"');
     expect(html).toContain('data-verdict="PUBLISH"');
-    expect(html).toContain('data-testid="inspector-score"');
+    expect(html).toContain('data-testid="verdict-score"');
     expect(html).toContain("88");
   });
 

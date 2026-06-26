@@ -6,8 +6,14 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
-    // Pure route-handler + lib units (no DOM). Data access + LLM gates are
-    // injected/mocked, so no live Supabase and no provider key are needed.
+    // Pure route-handler + lib units (no DOM) default to the node environment.
+    // Data access + LLM gates are injected/mocked, so no live Supabase and no
+    // provider key are needed. The PR 011 / P1.U.2 UI INTERACTION suites under
+    // `test/ui/*.dom.test.tsx` opt INTO jsdom per-file via a top-of-file
+    // `// @vitest-environment jsdom` directive (added in this PR with jsdom +
+    // @testing-library/react). Scoping jsdom to the `.dom.test.tsx` files keeps
+    // every existing node-env suite (incl. the react-dom/server render smoke
+    // test in `test/ui/canvas-render.test.tsx`) on node, untouched.
     environment: "node",
     // The content kernel-route suites + the PR 006 worker-runtime suites run
     // under vitest. The PR 004 `test/tenancy/rls-contract.test.ts` uses Node's
