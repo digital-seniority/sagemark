@@ -1,10 +1,10 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #006 — A.005.1 + A.005.2 PRs created, awaiting human merge)
+**Last updated:** 2026-06-26 (Run #007 — A.005.3 + A.005.4 PRs created; 4 audit-finding PRs now await human merge)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +6 spike (P0.W.1) · +2 audit-finding PRs OPEN (A.005.1 #13, A.005.2 #14)
-**Runs since last audit:** 1 (audit-001 was Run #005 — threshold 5)
-**Loop status:** P0.W.1 MERGED. Audit-001 done. Run #006 created the Critical/blocker fixes as **human-merge PRs** (#13 RLS, #14 spec reconcile). **HARD-STOP: P0.W.2 is gated on a human merging #14** (the worker-host spec must read the reconciled topology) and ideally #13. The judge `source-consumed-integration-build` check is now LIVE (committed `060b6b1`). `.auto-loop.json` `active:false`.
+**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +6 spike (P0.W.1) · **+4 audit-finding PRs OPEN** (A.005.1 #13, A.005.2 #14, A.005.3 #15, A.005.4 #16)
+**Runs since last audit:** 2 (audit-001 was Run #005 — threshold 5)
+**Loop status:** P0.W.1 MERGED; DSN wired (DR-012). Runs #006–#007 built all reachable audit fixes (A.005.1–.4) as **human-merge PRs #13–#16**. **HARD-STOP: P0.W.2 gated on a human merging #14** (worker-host spec must read the reconciled topology) + #13. The remaining audit item A.005.5 is reduced to "set the CI `DATABASE_URL` secret." `.auto-loop.json` `active:false`.
 
 ## Currently in flight
 
@@ -26,15 +26,15 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
   - **Worker-lane consequence:** **P0.W.2 (worker host) is now reachable** and must implement the hardened profile (DR-010 + DR-011); the spike's `_harness.ts` carries the reference `hardenSandbox` / `readViaWorkdirTool` / boot-refusal contract. P0.W.3/W.4/W.5/P0.S.2/P1.W.1 follow.
   - **Audit gate:** STATE flags an audit is due (4 runs since last; threshold 5) — the orchestrator runs it before the next work-doing run (P0.W.2).
 
-## Active risks (from audit-001, 2026-06-25)
+## Audit-001 findings — disposition (all reachable ones now fixed; await human merge)
 
-- **[Critical] Anon tenancy-map leak (A.005.1):** `content_clients` has no RLS → anon can read every workspace↔client map. Fix-PR queued; never auto-merges.
-- **[High] Governance spec contradiction (A.005.2):** `01-architecture.md`/`00-vision` still say "Approach B, never self-host/Sandbox" — contradicts D5/D9 + shipped code. **Misdirects P0.W.2 — resolve first.**
-- **[High] Model spend escapes the metered Gateway (A.005.3):** faithfulness/voice gates call OpenRouter directly → invisible to the D4 cost ledger. Re-route through `resolveGatewayModel` + DR.
-- **[High] No CI runs the tests (A.005.4):** no workflow, no `turbo run test`; the `node:test` RLS suite is invoked by nothing; worker-env-lint never runs (AC#3).
-- **[High→partial] RLS behavioral assertions (A.005.5):** schema `0030`–`0033` now applied to **DSN** and RLS **verified behaviorally as anon** via the MCP (content_clients + internal tables = 0 rows; published-only reads) — see [[DR-012]]. Remaining: wire `DATABASE_URL` (a secret) into CI so the test *file's* Tier-2 runs, not just the MCP probe (folds into A.005.4).
-- **Process (done):** `flywheel-events.jsonl` reconciled for the out-of-loop P0.W.1 resolution; judge `source-consumed-integration-build` check (DR-008 lesson) **applied** (user-approved, committed `060b6b1`) — it already gated A.005.1's judge (SOURCE-CONSUMED build PASS).
-- **[remaining] A.005.3 / A.005.4 / A.005.5** — High audit findings not yet built (Gateway routing, CI, RLS Tier-2 execution). Next engineering batch after #13/#14 merge + P0.W.2.
+- **[Critical] A.005.1 anon tenancy-map leak** → **PR #13** (content_clients RLS, judge 5/5·5/5). `PR_CREATED` / human-merge.
+- **[High] A.005.2 governance spec contradiction** → **PR #14** (reconcile to D5/D9, judge 4/5·4/5). `PR_CREATED` / human-merge. **Merge before P0.W.2.**
+- **[High] A.005.3 model spend escapes the Gateway** → **PR #15** (gates via `resolveGatewayModel`, judge 5/5·5/5; [[DR-013]]). `PR_CREATED` / human-merge. ⚠️ open policy: host-context BYOK can bypass metering — decide Gateway-only-for-gates before the D4 ledger (PR 020).
+- **[High] A.005.4 no CI runs tests** → **PR #16** (GitHub Actions: typecheck/lint/test/build + node:test RLS + worker-env-lint, judge 4/5·5/5; [[DR-014]]). `PR_CREATED` / human-merge.
+- **[High→nearly closed] A.005.5 RLS behaviorally unproven** → schema applied to **DSN** + RLS verified as anon ([[DR-012]]); CI Tier-2 wired in PR #16. **Remaining: a human sets the GitHub `DATABASE_URL` secret** so Tier-2 runs in CI.
+- **Process (done):** event-log reconciled; judge `source-consumed-integration-build` check applied (`060b6b1`) — it gated A.005.1 + A.005.3.
+- **Mediums (logged, not yet built):** core barrel re-exports `server-only` (A.012.1), passive-voice regex drift (A.012.2), schema-flywheel in-package tests / dual runner, console.* logging, dual route namespace. Pick up opportunistically.
 
 ## Recent learnings (last 5)
 
@@ -97,6 +97,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 004 | 5.0 | 4.75 | 0% | 0% |
 | 005 | audit | audit | — | — |
 | 006 | 4.5 | 4.5 | 0% | 0% |
+| 007 | 4.5 | 5.0 | 0% | 0% |
 
 ## Status legend
 
@@ -104,6 +105,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #006 complete · A.005.1 (#13, Critical RLS) + A.005.2 (#14, spec reconcile) created — both human-merge · judge avg 4.5/4.5 · 5/23 merged + 1 corrective · HARD-STOP: P0.W.2 gated on human merge of #14 (+#13)*
+*Run #007 complete · A.005.3 (#15, gates→Gateway) + A.005.4 (#16, CI) created — human-merge · judge 4.5/5.0 · all reachable audit fixes done (PRs #13–#16) · HARD-STOP: P0.W.2 gated on human merge of #14 (+#13)*
 
-> **Reachability note:** P0.W.1 merged → worker lane open. Run #006 produced the audit's Critical (A.005.1 #13) + the P0.W.2 blocker (A.005.2 #14) as human-merge PRs. **The loop stops here (REQUIRES_HUMAN_MERGE):** a human merges #14 (and #13), then the next work-doing run builds **P0.W.2** (worker host, hardened profile per DR-010/011) against the reconciled spec. Remaining audit findings A.005.3/4/5 (Gateway routing, CI, RLS Tier-2) queue alongside.
+> **Reachability note:** P0.W.1 merged → worker lane open; DSN wired (DR-012). Runs #006–#007 built every audit fix that didn't need the worker lane: A.005.1 (#13), A.005.2 (#14), A.005.3 (#15, DR-013), A.005.4 (#16, DR-014). **The loop is HARD-STOPPED on REQUIRES_HUMAN_MERGE — there is no autonomously-reachable engineering work left until a human acts:** (1) merge PRs #13–#16 (review the 4 audit fixes); (2) merging #14 (+#13) unblocks **P0.W.2** (worker host) as the next work-doing run; (3) set the GitHub `DATABASE_URL` secret so CI RLS Tier-2 runs (closes A.005.5); (4) decide the DR-013 host-context metering policy before the D4 ledger. Mediums (A.012.x) queue opportunistically.

@@ -104,3 +104,16 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE. P0.W.2 (worker host) is gated on a human merging #14 (spec reconcile — its agent must read the corrected topology) and #13 (close the tenancy leak before building more on the boundary).
 - **Next:** human merges #13 + #14 → next work-doing run builds P0.W.2; remaining audit findings A.005.3/4/5 queue.
 - **Checkpoint:** `checkpoints/run-006-2026-06-26.md`
+
+## Run #007 — 2026-06-26
+
+- **Duration:** ~00:30 · Mode: work-doing (2 audit-finding PRs; the remaining audit High findings that don't need the worker lane)
+- **PRs created (human-merge — audit findings):** 2
+  - `A.005.3` (High) — route faithfulness/voice gates through the metered AI Gateway (`resolveGatewayModel`), remove direct OpenRouter, canonical verifier id — **[PR #15](https://github.com/digital-seniority/sagemark/pull/15)**, judge APPROVED 5/5·5/5; SOURCE-CONSUMED build (apps/seo next build) GREEN; adds `ai@^7`+`zod@^4` to core (conflict-free). [[DR-013]]
+  - `A.005.4` (High) — first GitHub Actions CI (typecheck/lint/test/build + node:test RLS + worker-env-lint; Tier-2 wired to `DATABASE_URL` secret) — **[PR #16](https://github.com/digital-seniority/sagemark/pull/16)**, judge APPROVED 4/5·5/5; ran the exact CI commands locally green; worker-env-lint negative-tested (planted bypass → exit 1). [[DR-014]]
+- **PRs merged:** 0 (audit-findings → `REQUIRES_HUMAN_MERGE`).
+- **Process:** 4.5/5 · **Product:** 5.0/5.
+- **DRs recorded:** DR-013 (gate calls via the AI Gateway seam + the host-context BYOK metering caveat + the ai/zod dep), DR-014 (canonical CI workflow shape + the `DATABASE_URL`-secret action).
+- **Escalations (user decisions, non-blocking):** (a) DR-013 — host-context gate calls can BYOK-bypass the Gateway when `ANTHROPIC_API_KEY` is set; decide Gateway-only-for-gates before the D4 ledger (PR 020). (b) set the GitHub `DATABASE_URL` repo secret so CI RLS Tier-2 runs (closes A.005.5).
+- **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE. All reachable audit fixes are now PRs (#13–#16); P0.W.2 (worker host) needs a human to merge #14 (+#13) first. No autonomously-reachable engineering work remains.
+- **Checkpoint:** `checkpoints/run-007-2026-06-26.md`
