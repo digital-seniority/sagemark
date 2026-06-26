@@ -23,6 +23,10 @@ node_modules
 # flywheel transient agent worktrees
 .claude/worktrees/
 
+# python bytecode (e.g. skills/*/scripts)
+__pycache__/
+*.pyc
+
 # production
 /build
 
