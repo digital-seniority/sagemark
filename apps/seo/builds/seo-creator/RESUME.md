@@ -2,7 +2,9 @@
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`. Never restart; never re-merge MERGED PRs.
 
-**Status:** Phase 1 at **8/12**. Plan complete (imagegen Stage 1 #43 + Stage 2 #45 applied to Sagemark + bucket → audit-004 no-Critical → **P1.R.3 #47 MERGED** with the DR-033 publish image-license gate). `.auto-loop.json` `active:false`. No run-lock. **Next: P1.C.1** (+ the live seam-resolver wiring so image-bearing pieces can publish).
+**CURSOR (Run #22 COMPLETE — ⏹ AUTO-LOOP ENDED active:false):** No run in flight; run-lock released. Run #22 result: **C.020.1 #49 MERGED** (audit-004 F1), **P1.C.1 #50 OPEN / REQUIRES_HUMAN_MERGE** (client-review preview + `0036` migration), **C.021.1 BLOCKED** ([[DR-035]] — needs live Drizzle adapter + asset-linkage). 4 structured judge checks wired (A.014.5 discharged). DR-034/035/036 written. **Terminal:** remaining mapped Phase-1 (P1.C.2/3/4) non-eng-blocked; C.021.1 blocked on a schema-tenancy prerequisite. **There is no autonomous work left — do NOT re-launch `auto` until a human unblocks.** Next human actions: (1) merge #50 + apply `0036` to Sagemark Supabase; (2) land the schema-tenancy live-Drizzle-adapter + asset-linkage PR (unblocks C.021.1 + P1.C.x); (3) provide D6 reviewer + ≥3-engine SoM for P1.C.2/3/4.
+
+**Status:** Phase 1 at **8/12 merged** (P1.C.1 #50 open for human merge). Plan complete (imagegen S1 #43 + S2 #45 → audit-004 no-Critical → P1.R.3 #47 MERGED w/ DR-033). **Run #22 complete; loop terminal.**
 
 ## Already MERGED (do NOT redo)
 Phase 0 (10): #2,#3,#5,#6,#8,#11,#17,#19,#20,#26,#28. Phase 1 (7): #31,#32,#34,#35,#37,#39,#41. imagegen: #43 (stage1), #45 (stage2). Correctives C.004.1/C.008.1/C.009.1(#22). audit fixes #13-16. suite #24. state #21,#23,#25,#27,#29,#30,#33,#36,#38,#40,#42,#44. audits 001/002/003/004.

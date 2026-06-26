@@ -249,3 +249,13 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Plan complete:** imagegen Stage 2 (#43/#45 + applied) → audit-004 → P1.R.3. Phase 1: 8/12.
 - **Next:** P1.C.1 (review preview). Follow-ups: live seam-resolver Drizzle wiring; F1 edit status-guard; wire 3 structured judge checks; imagegen live-flip.
 - **Checkpoint:** `checkpoints/run-021-2026-06-26.md`
+
+## Run #022 — 2026-06-26 — P1.C.1 + correctives (auto, 3-agent floodgate)
+- **Pre-work:** wired 4 structured judge checks into `build-flywheel-manifest.json` (`migration-runs-on-live-pooled-role`, `tool-allowlist-single-source`, `worker-credential-publish-scope`, `normalize-before-gate`) — process debt **A.014.5 / audit-004 C-1 discharged** (3 cycles open), before the schema PR.
+- **Merged:** **C.020.1** (audit-004 F1 — 409 `status='draft'` guard on `/api/edit` before rate-limit `take()`/spend + guards test) [#49](https://github.com/digital-seniority/sagemark/pull/49) `4bef019` (judge 5/5·5/5; CI green 1m39s; auto-merged).
+- **Open (REQUIRES_HUMAN_MERGE):** **P1.C.1** (PR 018 — tokenized client-review preview + `0036_comment_threads`/`review_tokens` migration+RLS + pinned comments + section verbs) [#50](https://github.com/digital-seniority/sagemark/pull/50). Judge client-review shard: security boundary APPROVED (migration-role PASS, TENANCY-LEAK PASS, GATE-BYPASS PASS; Product 5/5, Process 4/5). Sole NEEDS-FIXES (node:test `token-scope.test.ts` not wired into the package `test` script) **fixed in-commit + verified** (`node --test` 24 pass/0 fail/10 Tier-2 skip). High-risk public tenant-isolation surface → held for James. **Deployment:** apply `0036` to Sagemark Supabase on merge.
+- **BLOCKED:** **C.021.1** (live seam-resolver wiring) — structural orchestrator mis-scope: no live Drizzle data-access adapter exists ([[DR-026]] deferral) + no slug→`generated_images` linkage ([[DR-033]] "Revisit if"). Agent correctly refused to fabricate a fail-open linkage. Parked → [[DR-035]]; current fail-closed behavior is the safe state (no regression).
+- **DR:** [[DR-034]] (`version_left_on`→`version` column), [[DR-035]] (seam-resolver prerequisite), [[DR-036]] (isolation worktrees branched from stale compile commit `95d5486`; all 3 agents ff-recovered to preview).
+- **★ AUTO-LOOP ENDED (active:false) ★** terminal: remaining mapped Phase-1 engineering (P1.C.2/3/4) non-eng-blocked (D6 reviewer, ≥3-engine SoM) + C.021.1 blocked on a schema-tenancy prerequisite.
+- **State:** 18/23 mapped engineering (Phase 1: 8/12 merged; P1.C.1 #50 open). runs_since_audit → 2.
+- **Checkpoint:** `checkpoints/run-022-2026-06-26.md`
