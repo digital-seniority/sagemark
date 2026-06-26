@@ -39,6 +39,12 @@ export default defineConfig({
       // smoke test (the `.tsx` glob picks up the component render suite).
       "test/ui/**/*.test.ts",
       "test/ui/**/*.test.tsx",
+      // PR 012 / P1.U.3 (DR-019 append-only carve-out): the bounded-edit guards
+      // (stale-edit 409 / rate-limit 429 / ownership 403) + the bounded-diff +
+      // the full-gate-re-run-catches-a-faithfulness-break suite. An ActivityFeed
+      // DOM test opts into jsdom per-file (`.dom.test.tsx`, DR-029).
+      "test/edit/**/*.test.ts",
+      "test/edit/**/*.test.tsx",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
