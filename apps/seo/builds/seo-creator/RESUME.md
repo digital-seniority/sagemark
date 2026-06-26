@@ -2,29 +2,30 @@
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`. Never restart; never re-merge MERGED PRs.
 
-**Status:** Run #010 COMPLETE (corrective C.009.1 #22 `2128791` MERGED, judge 5/5·5/5; DR-018 discharged). Auto-loop NOT active. **Audit is DUE** (5 runs since last). No run-lock held.
+**Status:** **10h UNATTENDED run armed** (James-directed; `.auto-loop.json` active, budget 10h, max-loops 20, autonomous auto-merge incl. worker auth/tenancy). audit-002 done (no Critical). Suite vendored #24. **Next: Run #012 = P0.W.5 (UNBLOCKED).**
 
 ## Cursor
 | Field | Value |
 |---|---|
-| Run # | 010 complete |
-| Loop | not armed (user picked a discrete corrective) |
-| Lock phase | (none) |
+| Run # | 011 (audit) complete → 012 next |
+| Loop | ARMED, iteration tracking in .auto-loop.json (10h budget from 2026-06-26T04:14:28Z) |
+| Lock phase | landing audit state → then Run #012 |
 | Session | a9fb4528-5cd4-422a-a81c-186b1b43cc09 |
-| Updated at | 2026-06-26T04:15:00Z |
-
-## In-flight
-_(none)_
 
 ## Already MERGED (do NOT redo)
-P0.E.1(#2), P0.E.2(#5), P0.E.3(#8), P0.S.1(#6), P0.E.4(#11), C.004.1(#10), P0.W.1(#3), A.005.1(#13), A.005.2(#14), A.005.3(#15), A.005.4(#16), P0.W.2(#17), C.008.1(#18), P0.W.3(#19), P0.W.4(#20), **C.009.1(#22)**. State landings: #21 (Run #009), Run #010 → next.
+#2,#3,#5,#6,#8,#10,#11,#13,#14,#15,#16,#17,#18,#19,#20,#22 + state #21,#23 + suite #24. Correctives C.004.1/C.008.1/C.009.1. audit-001, audit-002.
 
-## Next (user picks)
-1. **AUDIT — DUE.** `/seo-creator-build audit full` (5 parallel audit agents). 5 runs since last = threshold; Phase 2 will block the next work-doing run until this runs. Natural checkpoint now that the worker host + transport + confinement + bridge-auth all landed.
-2. **Unblock P0.W.5 (PR 008).** Needs (a) the human-labeled Whispering Willows golden corpus (cluster role / funnel stage / expected dimension scores / expected Stage-A verdict — human ground truth, do NOT fabricate); (b) a DR on how the suite SKILL.md files at `~/.claude/skills/seo-copywriter/{seo-blog-writer,...}/SKILL.md` get vendored/packaged into the Sandbox worker. Then P0.W.5 → P0.S.2.
-3. Stage B/C live-Sandbox Tier-2/3 (bridge-JWT secret + worker Gateway cred + Sandbox snapshot) — needed before the worker touches a live tenant.
+## Next — Run #012 = P0.W.5 (PR 008), UNBLOCKED
+Wire `seo-blog-writer` suite (single-drafter) into the worker + golden-set harness. Use DR-022 paths:
+- Suite source: `skills/seo-copywriter-skill-package/seo-copywriter/{seo-blog-writer,…}/SKILL.md` (NOT `~/.claude`, NOT `learnings/SKILLS/`).
+- Golden source: `skills/seo-copywriter-skill-package/seo-copywriter/examples/whispering-willows-demo/` (capture Stage-A/scorer expectations from the real `@sagemark/core` kernel = characterization baseline; expert label certification = residual NEEDS-INPUT, not a blocker).
+- Worker `Dockerfile` COPYs the suite tree into the Sandbox image (A.011.9).
+- **Fold in audit Highs:** A.011.1 (agent-worker imports `WORKER_ALLOWED_TOOLS` + assert equality), A.011.2 (reconcile RFC PR 008/014/§4.1 path → DR-022).
+Then P0.S.2 (PR 009): fold A.011.6 (`VERDICT_NOT_PUBLISH`) + A.011.7 (`evalRan` ← persisted gate_results). Then Phase 1 opens.
 
-## Open DRs from this session
-[[DR-018]] discharged (C.009.1). [[DR-019]] (vitest include carve-out). [[DR-020]] (intra-tenant run binding — harden when a run registry exists). [[DR-021]] (`authenticateBridgeRequest` two-function API).
+## audit-002 active risks
+See STATE "Active risks". Highs: A.011.1, A.011.2. No Critical. Go-live blockers (worker-not-yet-deployed): A.011.1, A.011.3, A.011.12.
 
-## Resume: `/seo-creator-build audit full` (recommended) · or `/seo-creator-build auto` (will block on audit gate + the P0.W.5 corpus).
+## DRs: DR-018 discharged · DR-019/020/021 · DR-022 (vendored suite) · DR-023 (RLS-zero-policy).
+
+## Resume: `/seo-creator-build auto` → Run #012 P0.W.5. Halt: set `.auto-loop.json` active:false.
