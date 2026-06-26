@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-26
 **Run:** audit-004
-**Status:** active — **REQUIRED before P1.R.3 wires `[photo:]` resolution into published bodies**
+**Status:** **IMPLEMENTED in P1.R.3 (#47 `cd5a49c`)** — `TransitionContext.referencedImages` + `canPublish` `UNLICENSED_ASSET` block (fail-closed incl. absent resolver) + render-gate landed; judge-verified. Follow-up: wire the live `resolveReferencedAssets`/`resolveHeroAssets` Drizzle impls (optional seam today → image-bearing pieces are fail-closed-unpublishable until wired).
 **Build phase:** Phase 1 — Pilot
 
 ## Context

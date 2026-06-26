@@ -242,3 +242,10 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **audit-004 (4 auditors):** NO Critical; **P1.R.3 CLEAR to build**; MERGED integrity 11/11; security posture holds; ~958 tests (RLS Tier-2 live 19/19). Report: `audits/audit-004-2026-06-26.md`.
 - **Top actionable:** F1 edit `status='draft'` guard (High); **F-LICENSE-1 → [[DR-033]]** publish-side image-license gate (MUST land with P1.R.3 photo-resolution); F6 version-switch AC; F7 stale imagegen path in RFC/PRD; C-1 `migration-runs-on-live-pooled-role` judge check + C-1b promote the audit-002 checks (A.014.5) — 3 cycles unwired; C-2 VERCEL_PROJECT_ID **fixed**.
 - **runs_since_last_audit → 0.** **Next:** P1.R.3 (PR 017 homepage + imagegen hero) folding F1 + DR-033 + F8 trip-hazards.
+
+## Run #021 — 2026-06-26 — P1.R.3 (homepage + hero + DR-033)
+- **Merged:** P1.R.3 (PR 017 — resource-library homepage + imagegen hero + DR-033 publish-side image-license gate) [#47](https://github.com/digital-seniority/sagemark/pull/47) `cd5a49c` (judge 5/5·5/5).
+- **DR-033 IMPLEMENTED** (canPublish UNLICENSED_ASSET, fail-closed). imagegen hero async/job-wrapped + Pexels-first + IMAGEGEN_LIVE-gated + degrade-to-placeholder.
+- **Plan complete:** imagegen Stage 2 (#43/#45 + applied) → audit-004 → P1.R.3. Phase 1: 8/12.
+- **Next:** P1.C.1 (review preview). Follow-ups: live seam-resolver Drizzle wiring; F1 edit status-guard; wire 3 structured judge checks; imagegen live-flip.
+- **Checkpoint:** `checkpoints/run-021-2026-06-26.md`
