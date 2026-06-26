@@ -1,9 +1,9 @@
 # SEO Creator Build — Current State
 
 **Last updated:** 2026-06-26 (attended — **P1.C.2 #56 + P1.C.3 #58 OPEN** for review (judge 5/5·5/5); C.021.2 #52 + C.022.3 #54 MERGED; **0036+0037 APPLIED**; `0038`/`0039` pending their merges; DR-037/038)
-**Current build phase:** Phase 1 — Pilot (audit-004 CLEAR, no Critical/High)
+**Current build phase:** Phase 1 — Pilot (**audit-005 CLEAR — no Critical; HEALTHY to continue to P1.C.4 / Phase-1 close**)
 **Phase progress:** **19 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 9/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, **P1.C.1 #50**) · **★ SLICE 1 CLOSED ★** · +imagegen built out (#43/#45) (+5 correctives incl. C.020.1 #49 + C.021.2 #52 OPEN · +1 spike · 4 audit fixes · suite #24)
-**Runs since last audit:** 2 (audit-004 done 2026-06-26 — `audits/audit-004-2026-06-26.md`, no Critical; runs #021, #022 since). **NOTE: audit DUE at 5 — currently 2; the next work-doing run is fine, but an audit is due before ~Run #025.**
+**Runs since last audit:** **0** (audit-005 done 2026-06-26 — `audits/audit-005-2026-06-26.md`, **no Critical**; 4 High → A.005.x correctives queued + [[DR-039]] + manifest check added).
 **Sibling build:** `@sagemark/imagegen` BUILT OUT — Stage 1 #43 + Stage 2 #45 (engine + generateHeroImage + Supabase persistence; 0035 applied to Sagemark + private bucket; [[DR-032]]). Pexels key provisioned.
 **Loop status:** **⏹ AUTO-LOOP ENDED (active:false) — Run #022 terminal.** Run #22 (James-directed `auto`, 6h budget from 2026-06-26T16:23Z): wired 4 structured judge checks into the manifest (process debt A.014.5 discharged), then a 3-agent floodgate batch → **C.020.1 #49 MERGED** (audit-004 F1 edit draft-guard; judge 5/5·5/5; CI green); **P1.C.1 #50 OPEN** held for human merge (High-risk public tenant-isolation review surface + new `0036` migration; judge security boundary APPROVED after a CI-wiring fix); **C.021.1 BLOCKED** (structural mis-scope — no live Drizzle adapter ([[DR-026]]) + no slug→generated_images linkage ([[DR-033]]); agent correctly refused to fabricate fail-open; → [[DR-035]]). **Terminal reason:** remaining mapped Phase-1 engineering (P1.C.2/3/4) blocked on NON-ENGINEERING (D6 credentialed reviewer; ≥3-engine share-of-model measurement) + C.021.1 blocked on a schema-tenancy prerequisite. **To resume:** (1) James merges #50 + applies `0036` to Sagemark Supabase; (2) land the schema-tenancy-lane live-Drizzle-adapter + asset-linkage PR (unblocks C.021.1 + P1.C.x); (3) provide the non-eng inputs (D6 reviewer, ≥3-engine SoM) for P1.C.2/3/4.
 
@@ -19,7 +19,7 @@ _(Attended build in progress. **TWO OPEN PRs awaiting James review:** [#56 P1.C.
 - **P1.C.4 (PR 021) — the LAST mapped Phase-1 PR.** SoM defined (ChatGPT·Claude·Gemini via Gateway, [[DR-038]]); deps PR 020 (#58) + PR 017 ✓. **Needs the per-client SoM prompt-set** (Whispering Willows queries to test for citation) before the ingestion cron — the one remaining non-eng input. NOTE the RFC's measurement-feasibility caveat (≥3 legal/reliable channels — DR-038's Gateway-direct method satisfies it).
 - **Before live YMYL publish:** swap the [[DR-037]] placeholder for a real credentialed reviewer; the live-publish wiring must pass `pilot:false`.
 - **Still deferred (full live pipeline):** the broader [[DR-026]] `ContentDataAccess` → live-DB wiring (loadPiece / voice specs / version writes; + the live ledger writers) — C.021.2 wired only the image resolvers; P1.C.3 ships the ledger schema + logic but the live writer is NOT_WIRED.
-- **⚠ AUDIT DUE:** 6 work-doing increments since audit-004 (Run #021, #022, then attended C.021.2 / C.022.3 / P1.C.2 / P1.C.3) — past the 5-threshold. **Run `/seo-creator-build audit full` before P1.C.4.** Per-PR judging has been 5/5 with structured checks, but the periodic cross-cutting audit is overdue.
+- **✅ AUDIT DONE — audit-005** (`audits/audit-005-2026-06-26.md`, 5 auditors, no Critical, build HEALTHY). **3 correctives queued before P1.C.4** (never auto-merge): **A.005.2** (fix the `token-scope.test.ts` hollow Tier-2 now that `DATABASE_URL` is set — it passes vacuously; + glob-discover gate files in `gate-path-lint`); **A.005.1** (widen `PersistedAuthorization` with `granted_at`/`scope` per [[DR-039]] — §11.5 release predicate; + wire `recordCredentialedRelease` with `pilot:false`); **A.005.3** (spec-update RFC/PRD for gate_results-as-projection + `0039`/accumulator + 3-engine list; mount the two unmounted Inspector panels + smoke tests).
 
 ## Active items (human / deployment)
 
@@ -37,6 +37,13 @@ _(Attended build in progress. **TWO OPEN PRs awaiting James review:** [#56 P1.C.
 - **Opportunistic correctives (audit-002):** A.011.4 (agent-worker/emit tests), A.011.5 (no-console posture), A.011.8 (schema-flywheel test), A.011.13 (alg check), live-infra verification pass (Tier-3), wire `build:worker` → `apps/seo/dist/` (so the Dockerfile COPY resolves).
 
 ## Active risks (audit-002 + Run #012 — High/Med; no Critical)
+
+### audit-005 (2026-06-26) — High (→ A.005.x correctives; none block P1.C.4)
+- **[High] H1/H2 ([[DR-039]]):** #58 did not discharge [[DR-025]]'s PR-020 obligations — `gate_results` shipped as a seam projection (no table; ratified in DR-039 + spec-update A.005.3) AND `PersistedAuthorization` was NOT widened with `granted_at`/`scope` (the §11.5 YMYL release predicate can't evaluate scope) → **A.005.1** (load-bearing).
+- **[High] H3:** `token-scope.test.ts:279-284` Tier-2 body is `assert.ok(true)` — now that `DATABASE_URL` is set it **passes vacuously** (the load-bearing P1.C.1 anon-isolation proof); skips in CI (turbo doesn't pass `DATABASE_URL`) → **A.005.2** (fix the body + a CI node:test step).
+- **[High] H4:** `gate-path-lint.ts` scans a hardcoded 2-file list — a future gate calling `resolveGatewayModel` w/o `forceGateway` escapes the lint → the cost ledger (DR-013 invariant). Manifest check `gate-metering-lint-coverage-complete` added; code fix = glob discovery → **A.005.2**.
+- **[Med] M1:** the `credentialed_releases` writer (`signoff.ts`) has zero non-test callers — tested-but-unwired; the DR-037 `pilot:false` production guarantee is fully deferred (DR-026 lane) → A.005.1 + a blocking Phase-1-exit item. **[Med] M2:** `ApprovalDebtPanel`/`CostLedgerPanel` unmounted + untested → A.005.3. **[Med] M6:** DR-036 ff-guard is config-only — promote to a Phase-5 verify assertion + agent STEP-0.5.
+
 - **DISCHARGED:** ~~A.011.1~~ (allowlist single-source — closed in P0.W.5 #26, asserted by test), ~~A.011.2~~ (RFC path reconciled), ~~A.011.9~~ (Dockerfile COPY + context).
 - **[Med] A.011.6** FSM `NOT_PUBLISH_VERDICT` vs §9.1 `VERDICT_NOT_PUBLISH` → fold into P0.S.2. **[Med] A.011.7** `evalRan` from `verdict!==null` (DR-009) → fold into P0.S.2. **[Med] A.011.5** no-console dead directives. **[Med] A.011.8** schema-flywheel vacuous test.
 - **[Med] Run#012 cross-lane ([[DR-024]]):** the canonical Whispering Willows demo prose is itself gate-vetoed for em-dash density (all 10 golden pieces `VETO_BANNED_LEXICON`) — demo-content vs banned-lexicon-threshold decision (content ↔ gate lane).
@@ -150,6 +157,8 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 020 | audit | audit | — | — |
 | 021 | 5.0 | 5.0 | 0% | 0% |
 | 022 | 4.5 | 5.0 | 33% (1/3 BLOCKED — orchestrator mis-scope) | 50% (1/2 re-judge, judge caught CI-wiring gap on the leak-test) |
+| attended (C.021.2/C.022.3/P1.C.2/P1.C.3) | 5.0 | 5.0 | 0% | 33% (P1.C.3 accumulator-table fix-pass) |
+| audit-005 | audit | audit | — | — |
 
 ## Status legend
 
