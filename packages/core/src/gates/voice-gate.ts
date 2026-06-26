@@ -6,11 +6,17 @@
  * (brandMd). It provides section-level feedback on tone, prohibited terms,
  * marketing-speak, and audience fit.
  *
- * Independence note: we use claude-haiku-4-5 (smaller / faster) rather than
- * the draft model (claude-sonnet-4.5). Tone/language pattern checking does not
- * require the same reasoning depth as generation. This also differs from the
- * faithfulness gate which uses haiku for factual verification — same model,
- * different task and prompt.
+ * Independence note: we use the verifier model (`VERIFIER_MODEL_ID` =
+ * claude-haiku-4-5, smaller / faster) rather than the draft model (the drafter,
+ * `DRAFTER_MODEL_ID` = claude-sonnet-4-6). Tone/language pattern checking does
+ * not require the same reasoning depth as generation. This also differs from
+ * the faithfulness gate which uses the same verifier model for factual
+ * verification — same model, different task and prompt.
+ *
+ * Transport (audit-001 fix, RFC §2): the gate routes its model call through the
+ * metered Vercel **AI Gateway** seam (`resolveGatewayModel` + the AI SDK), NOT
+ * a raw provider endpoint — every model call is accounted (D4 cost ledger) and
+ * no raw provider key is held here.
  *
  * Safety contract: gate failure NEVER blocks the marketer.
  *   - No brandMd provided       → SKIP (skipped=true, skipReason='no_brand_bible')
@@ -23,6 +29,12 @@
  */
 
 import "server-only";
+
+import { generateText, Output } from "ai";
+import { z } from "zod";
+
+import { resolveGatewayModel } from "../ai/resolve-gateway-model";
+import { VERIFIER_MODEL_ID } from "../config/models";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,13 +62,16 @@ export interface VoiceGateResult {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * Use haiku (smaller/faster) not the draft model — tone pattern checking does
- * not require deep reasoning. Different from draft model (claude-sonnet-4.5).
+ * Use the verifier model (smaller/faster) not the draft model — tone pattern
+ * checking does not require deep reasoning. Pulled from the canonical,
+ * invariant-checked `config/models.ts` (`VERIFIER_MODEL_ID` =
+ * "anthropic/claude-haiku-4-5"), distinct from the drafter
+ * ("anthropic/claude-sonnet-4-6"), rather than a hardcoded literal.
  *
  * Exported so the voice gate's verifier model can be asserted distinct from the
  * drafter in tests against `@sagemark/core`'s `config/models.ts`.
  */
-export const GATE_MODEL = "anthropic/claude-haiku-4-5";
+export const GATE_MODEL = VERIFIER_MODEL_ID;
 /**
  * 3s timeout keeps total budget within maxDuration=60s:
  * 45s draft + 12s faithfulness + 3s voice = 60s.
@@ -68,7 +83,6 @@ export const GATE_MODEL = "anthropic/claude-haiku-4-5";
  */
 export const GATE_TIMEOUT_MS = 3_000;
 export const GATE_MAX_TOKENS = 1_500;
-const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 /** Minimum brand bible length to be actionable. */
 const MIN_BRAND_MD_LENGTH = 50;
@@ -104,33 +118,24 @@ For each section, assign:
 
 Your output must be valid JSON only — no prose, no markdown.`;
 
-// ── JSON schema for structured output ────────────────────────────────────────
+// ── Zod schema for structured output (AI SDK `Output.object`) ─────────────────
+//
+// Mirrors the prior OpenRouter `json_schema`: `overallStatus` + a `sections[]`
+// array of { section, status, issue?, suggestion? }. The AI SDK validates the
+// model output against this; a violation throws and is caught as a fail-closed
+// gate_error below. (`normalizeSection` still defends against off-enum labels.)
 
-const GATE_JSON_SCHEMA = {
-  type: "object",
-  required: ["overallStatus", "sections"],
-  additionalProperties: false,
-  properties: {
-    overallStatus: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
-    sections: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["section", "status"],
-        additionalProperties: false,
-        properties: {
-          section: {
-            type: "string",
-            enum: ["introduction", "body", "conclusion", "overall"],
-          },
-          status: { type: "string", enum: ["PASS", "WARN", "FAIL"] },
-          issue: { type: "string" },
-          suggestion: { type: "string" },
-        },
-      },
-    },
-  },
-};
+const GATE_OUTPUT_SCHEMA = z.object({
+  overallStatus: z.enum(["PASS", "WARN", "FAIL"]),
+  sections: z.array(
+    z.object({
+      section: z.enum(["introduction", "body", "conclusion", "overall"]),
+      status: z.enum(["PASS", "WARN", "FAIL"]),
+      issue: z.string().optional(),
+      suggestion: z.string().optional(),
+    }),
+  ),
+});
 
 // ── Skip result factories ─────────────────────────────────────────────────────
 
@@ -192,12 +197,7 @@ export async function runContentVoiceGate(
     return skipResult("brand_bible_too_short");
   }
 
-  const openrouterKey = process.env.OPENROUTER_API_KEY;
-  if (!openrouterKey || openrouterKey.trim().length === 0) {
-    return skipResult("gate_error");
-  }
-
-  // Truncate brand bible and article body to keep the prompt within haiku's context.
+  // Truncate brand bible and article body to keep the prompt within the verifier's context.
   const brandContext = brandMd.trim().slice(0, MAX_BRAND_MD_CHARS);
   const bodyExcerpt =
     draft.body.length > MAX_ARTICLE_BODY_CHARS
@@ -229,92 +229,39 @@ Check the article's introduction, body, and conclusion against the brand style g
 
 Only include issue and suggestion for non-PASS sections. The overallStatus should be the worst status across all sections (FAIL > WARN > PASS).`;
 
+  // 3s timeout preserved: the gate self-aborts after GATE_TIMEOUT_MS, feeding
+  // the AI SDK call's `abortSignal` so a slow Gateway round-trip degrades soft
+  // (gate_error) rather than blocking the marketer.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GATE_TIMEOUT_MS);
 
-  let res: Response;
+  // Route the voice-check call through the metered AI Gateway seam (audit-001):
+  // resolveGatewayModel + the AI SDK. No raw provider endpoint, no
+  // OPENROUTER_API_KEY — the Gateway seam is the only model path, so this call
+  // is accounted in the D4 cost ledger. Host context (host/operator runtime).
+  let raw: { overallStatus: "PASS" | "WARN" | "FAIL"; sections: unknown[] };
   try {
-    res = await fetch(OPENROUTER_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openrouterKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://agents.flywheel.love",
-        "X-Title": "ContentEngine Voice Gate",
-      },
-      body: JSON.stringify({
-        model: GATE_MODEL,
-        messages: [
-          { role: "system", content: GATE_SYSTEM },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: GATE_MAX_TOKENS,
-        temperature: 0.1,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "voice_gate_result",
-            strict: true,
-            schema: GATE_JSON_SCHEMA,
-          },
-        },
-      }),
-      signal: controller.signal,
+    const model = await resolveGatewayModel(GATE_MODEL, "host");
+    const { output } = await generateText({
+      model,
+      system: GATE_SYSTEM,
+      prompt: userPrompt,
+      maxOutputTokens: GATE_MAX_TOKENS,
+      temperature: 0.1,
+      abortSignal: controller.signal,
+      output: Output.object({ schema: GATE_OUTPUT_SCHEMA }),
     });
+    raw = output;
   } catch {
+    // Network error, timeout/abort, provider error, or output-validation
+    // failure → soft failure (the marketer is never blocked).
+    return skipResult("gate_error");
+  } finally {
     clearTimeout(timer);
-    return skipResult("gate_error");
-  }
-  clearTimeout(timer);
-
-  if (!res.ok) {
-    return skipResult("gate_error");
   }
 
-  let rawContent: string | undefined;
-  try {
-    const rawBody = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    rawContent = rawBody.choices?.[0]?.message?.content;
-  } catch {
-    return skipResult("gate_error");
-  }
-
-  if (!rawContent || typeof rawContent !== "string") {
-    return skipResult("gate_error");
-  }
-
-  // Parse the JSON response — strip markdown fences if present.
-  let parsed: unknown;
-  try {
-    const cleaned = rawContent.replace(/```(?:json)?/g, "").trim();
-    const jsonStart = cleaned.indexOf("{");
-    if (jsonStart === -1) return skipResult("gate_error");
-    parsed = JSON.parse(cleaned.slice(jsonStart));
-  } catch {
-    return skipResult("gate_error");
-  }
-
-  // Validate shape.
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    typeof (parsed as Record<string, unknown>).overallStatus !== "string" ||
-    !Array.isArray((parsed as Record<string, unknown>).sections)
-  ) {
-    return skipResult("gate_error");
-  }
-
-  const raw = parsed as { overallStatus: string; sections: unknown[] };
-
-  // Validate overallStatus.
   const validStatuses = ["PASS", "WARN", "FAIL"] as const;
-  if (!validStatuses.includes(raw.overallStatus as (typeof validStatuses)[number])) {
-    return skipResult("gate_error");
-  }
-
-  const overallStatus = raw.overallStatus as "PASS" | "WARN" | "FAIL";
+  const overallStatus = raw.overallStatus;
 
   // Coerce each section, dropping malformed entries.
   const sections: VoiceSection[] = raw.sections.flatMap((item) => {
