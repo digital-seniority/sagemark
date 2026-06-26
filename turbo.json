@@ -28,7 +28,8 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["DATABASE_URL", "RLS_TEST_PG_CONTAINER"]
     },
     "lint": {
       "dependsOn": ["^build"]

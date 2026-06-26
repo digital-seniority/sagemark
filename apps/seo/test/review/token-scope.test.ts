@@ -21,11 +21,16 @@
  *         test). The denial is the data-layer lookup (zero rows), proven against
  *         a fixture review_tokens table keyed by token_hash.
  *
- *  - TIER 2 (RUNS when a Postgres is reachable): applies 0030..0036 and asserts
- *    anon SELECT on review_tokens / comment_threads returns ZERO rows, and that
- *    a token-hash lookup is scoped to one tuple. SKIPPED (never falsely passed)
- *    with a NEEDS-INPUT note when no DB env (DATABASE_URL / RLS_TEST_PG_CONTAINER)
- *    is set.
+ *  - TIER 2 (RUNS when a Postgres is reachable): applies 0030..0036 and, as the
+ *    `anon` role (in-band `SET ROLE anon`), asserts a real SELECT count(*) on
+ *    review_tokens AND comment_threads returns ZERO rows — the load-bearing
+ *    anon-isolation proof for the tokenized review tables (RLS fail-closed, NO
+ *    anon policy). The runner is auto-detected exactly like rls-contract.test.ts:
+ *    `psql "$DATABASE_URL"` (when DATABASE_URL is set AND a `psql` binary is on
+ *    PATH) OR `docker exec $RLS_TEST_PG_CONTAINER psql`. When NEITHER runner is
+ *    reachable — no DB env, OR DATABASE_URL set but `psql` is not installed (e.g.
+ *    a Windows worktree) — the test SKIPS CLEANLY with a NEEDS-INPUT note. It is
+ *    NEVER a vacuous `assert.ok(true)` pass.
  */
 
 import { test } from "node:test";
@@ -33,6 +38,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 
 import {
@@ -269,16 +275,118 @@ test("[T1] hashReviewToken is sha256-hex and matches node:crypto", () => {
 });
 
 // ===========================================================================
-// TIER 2 — anon -> zero rows on review_tokens/comment_threads (needs Postgres).
+// TIER 2 — anon -> ZERO rows on review_tokens + comment_threads (needs Postgres).
+//
+// This is the LOAD-BEARING anon-isolation proof for P1.C.1's tokenized review
+// tables. Both tables are RLS-enabled + fail-closed with NO anon policy (0036),
+// so an `anon`-role SELECT must read ZERO rows. The anon role is applied IN-BAND
+// via `SET ROLE anon;` (the Supabase pooler strips connection-startup options —
+// see rls-contract.test.ts), and the runner is auto-detected in the SAME order
+// rls-contract uses:
+//   (a) DATABASE_URL set AND a usable `psql` on PATH -> psql "$DATABASE_URL"
+//   (b) RLS_TEST_PG_CONTAINER set                    -> docker exec <c> psql -U postgres
+// If neither runner is reachable (no DB env, OR DATABASE_URL set but `psql` is
+// not installed — e.g. a Windows worktree) the test SKIPS CLEANLY with a
+// NEEDS-INPUT note. It is NEVER a vacuous `assert.ok(true)` pass.
 // ===========================================================================
 
-const HAS_DB =
-  Boolean(process.env.DATABASE_URL) ||
-  Boolean(process.env.RLS_TEST_PG_CONTAINER);
+import { test as t2test, before as t2before } from "node:test";
 
-test("[T2] anon reaches ZERO rows on review_tokens + comment_threads", { skip: !HAS_DB ? "NEEDS-INPUT: set DATABASE_URL or RLS_TEST_PG_CONTAINER to run the live anon-zero-rows check (apply 0030..0036, SET ROLE anon, assert 0 rows on both tables)" : false }, () => {
-  // When a Postgres is reachable, the live check (apply migrations, SET ROLE
-  // anon, SELECT both tables → 0 rows) runs through the same psql runner the
-  // rls-contract suite uses. Left as a NEEDS-INPUT skip in floodgate mode (no DB).
-  assert.ok(true);
+type PgRunner = (sqlText: string, opts?: { role?: "anon" }) => string;
+
+// `SET ROLE anon;` prepended in-band (the pooler strips startup `role=` options).
+function withAnonRole(sqlText: string, opts?: { role?: "anon" }): string {
+  return opts?.role === "anon" ? `SET ROLE anon;\n${sqlText}` : sqlText;
+}
+
+// A missing `psql` binary must degrade to "no runner" → SKIP, never an ENOENT
+// crash. (DATABASE_URL alone is not proof of a reachable engine — see
+// rls-contract.test.ts, which shares this hardening.) Probed once.
+function psqlAvailable(): boolean {
+  try {
+    execFileSync("psql", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function detectRunner(): { runner: PgRunner; engine: string } | null {
+  const url = process.env.DATABASE_URL;
+  if (url && psqlAvailable()) {
+    const runner: PgRunner = (sqlText, opts) =>
+      execFileSync(
+        "psql",
+        [url, "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", withAnonRole(sqlText, opts)],
+        { encoding: "utf8" },
+      );
+    return { runner, engine: "psql DATABASE_URL" };
+  }
+  const container = process.env.RLS_TEST_PG_CONTAINER;
+  if (container) {
+    const runner: PgRunner = (sqlText, opts) =>
+      execFileSync(
+        "docker",
+        ["exec", "-i", container, "psql", "-U", "postgres", "-q", "-v", "ON_ERROR_STOP=1", "-At", "-c", withAnonRole(sqlText, opts)],
+        { encoding: "utf8" },
+      );
+    return { runner, engine: `docker exec ${container} psql` };
+  }
+  return null;
+}
+
+const t2detected = detectRunner();
+const TIER2_SKIP = t2detected
+  ? false
+  : "TIER-2 NEEDS-INPUT: set DATABASE_URL (with `psql` on PATH) OR RLS_TEST_PG_CONTAINER (a running docker postgres) to run the live anon-zero-rows check on review_tokens + comment_threads.";
+
+function t2run(sqlText: string, opts?: { role?: "anon" }): string {
+  return t2detected!.runner(sqlText, opts).trim();
+}
+
+// The migration chain the tokenized-review tables depend on. 0036 FKs
+// review_tokens/comment_threads → content_clients (0030) + content_pieces
+// (0030), so the dependency migrations are applied first. All are idempotent
+// (IF NOT EXISTS), so re-applying against a live Supabase branch (where the
+// tables already exist) is a harmless no-op.
+const T2_DRIZZLE = (f: string) => readFileSync(join(DRIZZLE_DIR, f), "utf8");
+
+t2before(() => {
+  if (TIER2_SKIP) return;
+  // The migrations create policies `TO anon`, so the `anon` role must exist
+  // before they run. Supabase ships one; a bare postgres (docker) needs it.
+  t2run(`DO $$ BEGIN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+             CREATE ROLE anon NOLOGIN;
+           END IF;
+         END $$;
+         GRANT USAGE ON SCHEMA public TO anon;`);
+  // Apply the dependency chain then 0036 (all idempotent).
+  for (const f of [
+    "0030_content_pieces.sql",
+    "0031_cluster_funnel_columns.sql",
+    "0032_release_records.sql",
+    "0033_content_clients_rls.sql",
+    "0036_comment_threads.sql",
+  ]) {
+    t2run(T2_DRIZZLE(f));
+  }
+  // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
+  // thing under test. With RLS enabled + NO anon policy, a table grant without a
+  // matching policy still yields ZERO rows: that is exactly the guarantee.
+  t2run(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;`);
 });
+
+t2test(
+  "[T2] anon reaches ZERO rows on review_tokens + comment_threads (fail-closed, no anon policy)",
+  { skip: TIER2_SKIP },
+  () => {
+    for (const tbl of ["review_tokens", "comment_threads"]) {
+      const c = t2run(`SELECT count(*) FROM public.${tbl};`, { role: "anon" });
+      assert.equal(
+        c,
+        "0",
+        `anon must read ZERO rows from public.${tbl} (RLS fail-closed, no anon policy), got ${c}`,
+      );
+    }
+  },
+);
