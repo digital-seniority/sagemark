@@ -28,6 +28,11 @@ export default defineConfig({
       // PR 015 / P1.R.1 (DR-019 append-only carve-out): the content-hub SSR
       // render suites (ssr-body, faq-jsonld, placeholder-strip, status-filter).
       "test/render/**/*.test.ts",
+      // PR 010 / P1.U.1 (DR-019 append-only carve-out): the three-zone canvas
+      // shell — the SSE message-stream reducer suite + a react-dom/server render
+      // smoke test (the `.tsx` glob picks up the component render suite).
+      "test/ui/**/*.test.ts",
+      "test/ui/**/*.test.tsx",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server

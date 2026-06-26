@@ -10,3 +10,27 @@ body {
   color: var(--foreground);
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
+
+/*
+ * Studio canvas (PR 010 / P1.U.1): the running-tool spinner + live-stream caret
+ * pulse. Keyframe lives here (not inline) so components stay declarative and the
+ * animation respects a single source. No colour — opacity only, so it inherits
+ * the brand `--foreground` token via `currentColor`.
+ */
+@keyframes studio-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-signal-dot,
+  [data-status="running"],
+  [data-testid="stream-caret"] {
+    animation: none !important;
+  }
+}
