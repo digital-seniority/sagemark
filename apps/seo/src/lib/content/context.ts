@@ -221,6 +221,77 @@ export type ReadOnlyDataAccess = Pick<
   "clientBelongsToWorkspace" | "getApprovedVoiceSpec" | "loadPiece"
 >;
 
+// ── Public render seam (PR 015, lane render-geo) ──────────────────────────────
+
+/**
+ * A client resolved from its public `blog_slug` (the `[client]` URL segment).
+ * The public render route NEVER receives a workspace/client UUID from the URL —
+ * it resolves the tenant from the human-facing slug, and every subsequent read
+ * is scoped by the resolved `id`. (Multi-tenant: no cross-client serve.)
+ */
+export interface PublicClient {
+  id: string;
+  blogSlug: string;
+  name: string;
+}
+
+/**
+ * The PUBLIC projection of a published piece — only the fields the render route
+ * needs, and ONLY ever populated for `status='published'` rows (the seam itself
+ * filters; the DB RLS anon policy `content_pieces_public_read` is the second,
+ * authoritative gate — DR-023). No draft body, no internal fields, leak.
+ */
+export interface PublishedPiece {
+  clientId: string;
+  slug: string;
+  title: string;
+  body: string;
+  excerpt: string | null;
+  metaDescription: string | null;
+  faqData: GeoFaqItem[] | null;
+  publishedAt: string | null;
+  updatedAt: string | null;
+}
+
+/**
+ * The fail-closed PUBLIC read seam. Every method is read-only and returns only
+ * published rows; a non-published slug resolves to `null` (the route 404s — it
+ * NEVER returns the content). Tests inject a fixture impl; production swaps the
+ * Drizzle/Supabase impl that runs through the anon (published-only) path.
+ */
+export interface PublicContentDataAccess {
+  /** Resolve a client by its public blog slug, or null if no such client. */
+  resolveClientByBlogSlug(blogSlug: string): Promise<PublicClient | null>;
+  /**
+   * Load a PUBLISHED piece by (clientId, slug). Returns null for a missing slug
+   * OR a slug whose piece is in any non-published status (draft/review/approved/
+   * archived) — the fail-closed public-read contract (criterion 4).
+   */
+  loadPublishedPiece(clientId: string, slug: string): Promise<PublishedPiece | null>;
+  /**
+   * List the client's published+indexable pieces for the sitemap (criterion 5).
+   * Only published rows; ordered is the impl's choice.
+   */
+  listPublishedPieces(clientId: string): Promise<PublishedPiece[]>;
+}
+
+/**
+ * Production default for the public seam: fail-closed "not wired" — every method
+ * throws rather than fabricating/leaking. Swapped for the Drizzle impl by the
+ * schema-tenancy lane; injected with a fixture in tests.
+ */
+export const NOT_WIRED_PUBLIC_DATA_ACCESS: PublicContentDataAccess = {
+  resolveClientByBlogSlug: () => {
+    throw new DataAccessNotWiredError("resolveClientByBlogSlug");
+  },
+  loadPublishedPiece: () => {
+    throw new DataAccessNotWiredError("loadPublishedPiece");
+  },
+  listPublishedPieces: () => {
+    throw new DataAccessNotWiredError("listPublishedPiece");
+  },
+};
+
 // ── Production default: fail-closed "not wired" stub (DR-006) ──────────────────
 
 class DataAccessNotWiredError extends Error {
