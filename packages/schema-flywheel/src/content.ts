@@ -511,6 +511,116 @@ export const imageGenerations = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Tokenized client-review surface (PR 018 / P1.C.1, migration 0036).
+//
+// `reviewTokens` — the opaque-token boundary. One row per issued review link; a
+// SHA-256 hash of the opaque token (NEVER the token itself) resolves to EXACTLY
+// ONE (workspace_id, client_id, piece_id, version) tuple. The token is a
+// FAIL-CLOSED ROW-SCOPED boundary, never a render-time flag: a token for client
+// A can never resolve client B's piece or another version (the unique
+// token_hash → one tuple is the structural guarantee). `commentThreads` — the
+// element-anchored pins (normalized 0..1 anchor + elementHint) + the section
+// verbs (section-approve | request-changes), scoped by workspace_id/client_id.
+// Both RLS-enabled fail-closed with NO anon policy (the 0032/0033/0035 pattern,
+// DR-023): tokens resolve + comments write through the service-role seam only;
+// anon reaches ZERO rows.
+//
+// The `version` column on commentThreads records the version a pin/verb was left
+// on (the AC's `version_left_on`, reconciled to the canonical `version` column —
+// see drizzle/0036_comment_threads.sql header).
+// ---------------------------------------------------------------------------
+
+export const COMMENT_THREAD_KINDS = [
+  "pin",
+  "section-approve",
+  "request-changes",
+] as const;
+export const COMMENT_THREAD_STATUSES = ["open", "resolved"] as const;
+export type CommentThreadKind = (typeof COMMENT_THREAD_KINDS)[number];
+export type CommentThreadStatus = (typeof COMMENT_THREAD_STATUSES)[number];
+
+export const reviewTokens = pgTable(
+  "review_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // SHA-256 hex of the opaque token (the lookup key). The opaque token is
+    // NEVER stored — a DB leak does not hand out a working review link.
+    tokenHash: text("token_hash").notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "cascade" }),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "cascade" }),
+    // The single version this token grants read of (cross-version → no match).
+    version: integer("version").notNull(),
+    // Optional expiry; null = never expires.
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    // Revocation is a new state, never a delete.
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // One tuple per token hash — the structural one-tuple guarantee.
+    uniqueIndex("review_tokens_token_hash_unique").on(t.tokenHash),
+    index("review_tokens_tuple_idx").on(
+      t.workspaceId,
+      t.clientId,
+      t.pieceId,
+      t.version,
+    ),
+  ],
+);
+
+export const commentThreads = pgTable(
+  "comment_threads",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "cascade" }),
+    pieceId: uuid("piece_id")
+      .notNull()
+      .references(() => contentPieces.id, { onDelete: "cascade" }),
+    // The version this comment was left on (version_left_on, reconciled).
+    version: integer("version").notNull(),
+    // pin | section-approve | request-changes.
+    kind: text("kind").notNull(),
+    // Normalized pin anchor { x:0..1, y:0..1, elementHint?, ... }; null for a
+    // non-anchored section verb. Coords validated finite+[0,1] before insert.
+    anchor: jsonb("anchor"),
+    body: text("body").default("").notNull(),
+    // The reviewer (client contact); opaque id, no FK to auth yet.
+    author: text("author").notNull(),
+    status: text("status").default("open").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    // RFC §133 index.
+    index("comment_threads_piece_version_status_idx").on(
+      t.pieceId,
+      t.version,
+      t.status,
+    ),
+    index("comment_threads_tenant_idx").on(t.workspaceId, t.clientId),
+    check(
+      "comment_threads_kind_check",
+      sql`${t.kind} IN ('pin','section-approve','request-changes')`,
+    ),
+    check(
+      "comment_threads_status_check",
+      sql`${t.status} IN ('open','resolved')`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations.
 // ---------------------------------------------------------------------------
 
@@ -629,3 +739,7 @@ export type GeneratedImage = typeof generatedImages.$inferSelect;
 export type NewGeneratedImage = typeof generatedImages.$inferInsert;
 export type ImageGeneration = typeof imageGenerations.$inferSelect;
 export type NewImageGeneration = typeof imageGenerations.$inferInsert;
+export type ReviewToken = typeof reviewTokens.$inferSelect;
+export type NewReviewToken = typeof reviewTokens.$inferInsert;
+export type CommentThread = typeof commentThreads.$inferSelect;
+export type NewCommentThread = typeof commentThreads.$inferInsert;

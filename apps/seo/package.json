@@ -8,7 +8,7 @@
     "start": "next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node --test test/tenancy/rls-contract.test.ts"
+    "test": "vitest run && node --test test/tenancy/rls-contract.test.ts test/review/token-scope.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
