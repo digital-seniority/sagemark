@@ -1385,6 +1385,12 @@
         "trigger_shape": "any PR adding/renaming a file under packages/core/src/gates/ OR touching gate-path-lint.ts / resolveGatewayModel call sites",
         "forced_output": "LINT-COVERAGE: PASS|FAIL -- enumerate every file under packages/core/src/gates/ that calls resolveGatewayModel (or any model-resolution helper); confirm EACH is present in GATE_PATH_SOURCE_FILES (or covered by a glob-discovered scan) AND passes forceGateway:true. A gate call site outside the lint file set, or reached via an aliased/wrapped import, -> FAIL. Prefer glob discovery over a hardcoded list. Cite file:line.",
         "citation": "DR-013; C.022.3 #54; audit-005 H4; gate-path-lint.ts:93-96"
+      },
+      {
+        "name": "worktree-base-freshness",
+        "trigger_shape": "every engineering PR (spawned-agent worktree work)",
+        "forced_output": "BASE-FRESHNESS: PASS|FAIL -- confirm the PR branch was based on (or rebased/ff-onto) current origin/preview HEAD and the diff shows ONLY this PRs intended changes (no stale-base phantom adds/deletes from a worktree cut behind preview -- the DR-036 hazard). Cite the base SHA vs origin/preview. A diff that reverts unrelated merged work -> FAIL.",
+        "citation": "DR-036; Run #22 stale-compile-commit hazard; orchestrator Phase-0.5 ff-guard + Phase-5 base check"
       }
     ]
   },
