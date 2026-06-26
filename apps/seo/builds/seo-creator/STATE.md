@@ -1,6 +1,6 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #022 + attended follow-up — **C.021.2 #52 + C.022.3 #54 MERGED**; **0036+0037 APPLIED to Supabase**; **P1.C.2 #56 OPEN** for review; #3 decisions → DR-037/038)
+**Last updated:** 2026-06-26 (attended — **P1.C.2 #56 + P1.C.3 #58 OPEN** for review (judge 5/5·5/5); C.021.2 #52 + C.022.3 #54 MERGED; **0036+0037 APPLIED**; `0038`/`0039` pending their merges; DR-037/038)
 **Current build phase:** Phase 1 — Pilot (audit-004 CLEAR, no Critical/High)
 **Phase progress:** **19 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 9/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, **P1.C.1 #50**) · **★ SLICE 1 CLOSED ★** · +imagegen built out (#43/#45) (+5 correctives incl. C.020.1 #49 + C.021.2 #52 OPEN · +1 spike · 4 audit fixes · suite #24)
 **Runs since last audit:** 2 (audit-004 done 2026-06-26 — `audits/audit-004-2026-06-26.md`, no Critical; runs #021, #022 since). **NOTE: audit DUE at 5 — currently 2; the next work-doing run is fine, but an audit is due before ~Run #025.**
@@ -11,17 +11,15 @@
 
 ## Currently in flight
 
-_(Attended build in progress. **OPEN PR awaiting James:** [#56 P1.C.2](https://github.com/digital-seniority/sagemark/pull/56) (request-changes→edit routing + dual sign-off + approval-debt; judge 5/5·5/5; REQUIRES_HUMAN_MERGE — YMYL release path; adds migration `0038` to apply after merge). C.021.2 #52 + C.022.3 #54 MERGED; **0036+0037 applied to Supabase + verified** (RLS fail-closed).)_
+_(Attended build in progress. **TWO OPEN PRs awaiting James review:** [#56 P1.C.2](https://github.com/digital-seniority/sagemark/pull/56) (request-changes→edit routing + dual sign-off + approval-debt; judge 5/5·5/5; YMYL release path; +`0038`) and [#58 P1.C.3](https://github.com/digital-seniority/sagemark/pull/58) (SEO cost ledger conditional-UPDATE reservation + share-of-model; judge 5/5·5/5 after accumulator-table fix-pass; +`0039`). Both REQUIRES_HUMAN_MERGE (release/billing). C.021.2 #52 + C.022.3 #54 MERGED; **0036+0037 applied to Supabase + verified** (RLS fail-closed); `0038`+`0039` apply after their merges.)_
 
 ## Next up (post-follow-up)
 
-- **James (deployment / human):** merge [#52 (C.021.2)](https://github.com/digital-seniority/sagemark/pull/52); apply `0036_comment_threads.sql` + `0037_generated_image_slug.sql` to the Sagemark Supabase project (no service-role/DATABASE_URL in Claude's env — apply via dashboard SQL editor, or set `SUPABASE_ACCESS_TOKEN`/`DATABASE_URL` in `.claude/settings.local.json` so Claude's CLI can).
-- **P1.C.2 (PR 019) — BUILT, [#56](https://github.com/digital-seniority/sagemark/pull/56) OPEN** (judge 5/5·5/5; REQUIRES_HUMAN_MERGE). Next mapped target after merge is **P1.C.3 (PR 020)** — fully unblocked (SoM defined [[DR-038]] + metering done [[DR-013]]/C.022.3).
-- **P1.C.3 (PR 020) — UNBLOCKED & ready** (SoM defined [[DR-038]]; [[DR-013]] Gateway-only-metering corrective **DONE** in C.022.3 #54): the SEO cost ledger + share-of-model instrumentation can now be built.
-- **P1.C.4 (PR 021) — SPEC-UNBLOCKED** (SoM = ChatGPT·Claude·Gemini via Gateway, [[DR-038]]) but **needs the per-client SoM prompt-set** (Whispering Willows queries to test for citation) before the ingestion cron.
-- **Before live YMYL publish:** swap the [[DR-037]] placeholder for a real credentialed reviewer.
-- **Still deferred (full live pipeline):** the broader [[DR-026]] `ContentDataAccess` → live-DB wiring (loadPiece / voice specs / version writes) — C.021.2 only wired the image resolvers.
-- **Audit:** due before ~Run #025 (currently 2/5 since audit-004).
+- **James — review/merge the two open PRs:** [#56 (P1.C.2)](https://github.com/digital-seniority/sagemark/pull/56) + [#58 (P1.C.3)](https://github.com/digital-seniority/sagemark/pull/58). After each merges, Claude applies its migration (`0038` / `0039`) + the P1.C.2 pilot reviewer seed to Supabase (Claude now has `DATABASE_URL`).
+- **P1.C.4 (PR 021) — the LAST mapped Phase-1 PR.** SoM defined (ChatGPT·Claude·Gemini via Gateway, [[DR-038]]); deps PR 020 (#58) + PR 017 ✓. **Needs the per-client SoM prompt-set** (Whispering Willows queries to test for citation) before the ingestion cron — the one remaining non-eng input. NOTE the RFC's measurement-feasibility caveat (≥3 legal/reliable channels — DR-038's Gateway-direct method satisfies it).
+- **Before live YMYL publish:** swap the [[DR-037]] placeholder for a real credentialed reviewer; the live-publish wiring must pass `pilot:false`.
+- **Still deferred (full live pipeline):** the broader [[DR-026]] `ContentDataAccess` → live-DB wiring (loadPiece / voice specs / version writes; + the live ledger writers) — C.021.2 wired only the image resolvers; P1.C.3 ships the ledger schema + logic but the live writer is NOT_WIRED.
+- **⚠ AUDIT DUE:** 6 work-doing increments since audit-004 (Run #021, #022, then attended C.021.2 / C.022.3 / P1.C.2 / P1.C.3) — past the 5-threshold. **Run `/seo-creator-build audit full` before P1.C.4.** Per-PR judging has been 5/5 with structured checks, but the periodic cross-cutting audit is overdue.
 
 ## Active items (human / deployment)
 
@@ -122,7 +120,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | **MERGED** (judge 5/5·5/5; +DR-033 publish image-license gate; hero async/Pexels-first/gated) | Run #021 | cd5a49c | [#47](https://github.com/digital-seniority/sagemark/pull/47) |
 | P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | **MERGED** (judge security-boundary APPROVED; [[DR-034]]; ⚠ apply `0036` to Sagemark Supabase) | Run #022 | 94cde1f | [#50](https://github.com/digital-seniority/sagemark/pull/50) |
 | P1.C.2 | PR 019 — "Request changes" -> agent edit loop routing + named sign-off + approval-debt KPI | client-review | **PR_CREATED** (OPEN [#56](https://github.com/digital-seniority/sagemark/pull/56); judge 5/5·5/5; REQUIRES_HUMAN_MERGE — YMYL release path; +migration `0038` + pilot seed; [[DR-037]] guard) | attended | — | [#56](https://github.com/digital-seniority/sagemark/pull/56) |
-| P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | client-review | NOT_STARTED | — | — | — |
+| P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | worker-runtime | **PR_CREATED** (OPEN [#58](https://github.com/digital-seniority/sagemark/pull/58); judge 5/5·5/5 after accumulator-table fix-pass; REQUIRES_HUMAN_MERGE — billing; +migration `0039`; [[DR-038]]) | attended | — | [#58](https://github.com/digital-seniority/sagemark/pull/58) |
 | P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | client-review | NOT_STARTED | — | — | — |
 
 ## Drift-watch trend (5-run rolling)
@@ -159,6 +157,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Attended (post-Run-22) · Phase 1 (9/12 merged): P1.C.1 #50 + C.021.2 #52 + C.020.1 #49 + C.022.3 #54 (DR-013) all MERGED · **0036+0037 APPLIED to Supabase (RLS fail-closed)** · **P1.C.2 [#56](https://github.com/digital-seniority/sagemark/pull/56) OPEN for review** (YMYL release path; judge 5/5·5/5; +`0038`) · DR-034/035/036/037/038. **Next: James merges #56 → apply `0038`+pilot seed → build P1.C.3 (cost ledger + SoM, fully unblocked).***
+*Attended (post-Run-22) · Phase 1 (9/12 merged): P1.C.1 #50 + C.021.2 #52 + C.020.1 #49 + C.022.3 #54 all MERGED · **0036+0037 APPLIED (RLS fail-closed)** · **P1.C.2 [#56](https://github.com/digital-seniority/sagemark/pull/56) + P1.C.3 [#58](https://github.com/digital-seniority/sagemark/pull/58) OPEN for review** (judge 5/5·5/5; +`0038`/`0039`) · DR-034..038. **Next: James merges #56/#58 → apply `0038`/`0039`+pilot seed → AUDIT (overdue) → P1.C.4 (needs SoM prompt-set) = last Phase-1 PR.***
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.
