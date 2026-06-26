@@ -236,3 +236,9 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **★ AUTO-LOOP ENDED (active:false) ★** terminal: eligible mapped engineering depleted + audit-due (5 since audit-003) + ~9.2h/10h budget. Remaining Phase-1 (P1.R.3/P1.C.1-4) non-eng-blocked (imagegen keys, D6 reviewer, ≥3-engine SoM).
 - **State:** 17/23 engineering (Phase 1: 7/12). **Next session:** audit (DUE) → unblock non-eng items.
 - **Checkpoint:** `checkpoints/run-019-2026-06-26.md`
+
+## Run #020 — 2026-06-26 (AUDIT — audit-004) + imagegen build (out-of-band)
+- **imagegen built out (user-directed):** Stage 1 (#43 `d55a7bb`) + Stage 2 (#45 `2478669`, CI fix `0817379`) — engine + generateHeroImage + Supabase persistence; **0035 applied to Sagemark + private bucket created**; judges 5/5. [[DR-032]] (+stage-2 addendum). Pexels key provisioned (local + sagemark-seo).
+- **audit-004 (4 auditors):** NO Critical; **P1.R.3 CLEAR to build**; MERGED integrity 11/11; security posture holds; ~958 tests (RLS Tier-2 live 19/19). Report: `audits/audit-004-2026-06-26.md`.
+- **Top actionable:** F1 edit `status='draft'` guard (High); **F-LICENSE-1 → [[DR-033]]** publish-side image-license gate (MUST land with P1.R.3 photo-resolution); F6 version-switch AC; F7 stale imagegen path in RFC/PRD; C-1 `migration-runs-on-live-pooled-role` judge check + C-1b promote the audit-002 checks (A.014.5) — 3 cycles unwired; C-2 VERCEL_PROJECT_ID **fixed**.
+- **runs_since_last_audit → 0.** **Next:** P1.R.3 (PR 017 homepage + imagegen hero) folding F1 + DR-033 + F8 trip-hazards.

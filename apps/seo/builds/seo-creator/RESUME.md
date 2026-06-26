@@ -2,27 +2,25 @@
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`. Never restart; never re-merge MERGED PRs.
 
-**Status:** ⏹ **AUTO-LOOP ENDED** (`.auto-loop.json` `active:false`). The 10h unattended run (2026-06-26T04:14Z → ~13:29Z, ~9.2h) completed cleanly. **Phase 1 at 7/12 · Slice 1 closed.** No run-lock; worktree clean.
-
-## Terminal reason
-Eligible **mapped engineering depleted** + **audit DUE** (5 runs since audit-003) + ~9.2h/10h budget. Remaining Phase-1 PRs are blocked on **non-engineering deliverables**.
+**Status:** Phase 1 at 7/12. The 10h unattended run ended at Run #019; since then (user-directed): **imagegen built out** (Stage 1 #43 + Stage 2 #45, 0035 applied to Sagemark + bucket) and **audit-004 done (no Critical — P1.R.3 CLEAR)**. `.auto-loop.json` is `active:false`. No run-lock. **Next: build P1.R.3.**
 
 ## Already MERGED (do NOT redo)
-Phase 0 (10): #2,#3,#5,#6,#8,#11,#17,#19,#20,#26,#28. Phase 1 (7): P1.R.1 #31, P1.W.1 #32, P1.R.2 #34, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41. Correctives C.004.1/C.008.1/C.009.1(#22). audit fixes #13-16. suite #24. state #21,#23,#25,#27,#29,#30,#33,#36,#38,#40 (+ Run #019 state next). audits 001/002/003.
+Phase 0 (10): #2,#3,#5,#6,#8,#11,#17,#19,#20,#26,#28. Phase 1 (7): #31,#32,#34,#35,#37,#39,#41. imagegen: #43 (stage1), #45 (stage2). Correctives C.004.1/C.008.1/C.009.1(#22). audit fixes #13-16. suite #24. state #21,#23,#25,#27,#29,#30,#33,#36,#38,#40,#42,#44. audits 001/002/003/004.
 
-## POST-RUN PROGRESS (user-directed, after the loop terminal)
-- **Pexels API key provisioned** (local `.claude/settings.local.json` + skill `.env.local`; Vercel `sagemark-seo` prod/preview/dev). Stock-photo path unblocked. ⚠️ `settings.local.json` `VERCEL_PROJECT_ID` still points at the unused `sagemark` project (`prj_ZZ2O…`), NOT the live `sagemark-seo` (`prj_wd0r52tSJmtXppKUdMnzRwHwWj7i`) — repoint when convenient.
-- **imagegen Stage 1 BUILT + MERGED** (PR #43 `d55a7bb`, judge 5/5·5/5) — [[DR-032]]. `@sagemark/imagegen` now exports `generateHeroImage` (engine ported from flywheel-main; Gateway-metered, pre-spend moderation+cap, provenance; fail-closed NOT_WIRED store). apps/seo can import it in-process for P1.R.3.
+## NEXT — P1.R.3 (PR 017 — resource-library homepage + imagegen hero), the only dep-eligible engineering PR
+Files (RFC §616): `apps/seo/src/app/clients/[client]/page.tsx` (homepage off the clusterRole/funnelStage columns), `apps/seo/src/lib/render/hub-homepage.ts`, `apps/seo/src/lib/tools/hero-image.ts` (in-process `generateHeroImage` from `@sagemark/imagegen`, async/job-wrapped, tenancy+cost-cap host-side), `apps/seo/test/render/homepage.test.ts`, `apps/seo/test/tools/hero-provenance.test.ts`.
+**MUST FOLD IN (audit-004):**
+- **DR-033 (the landmine):** add the publish-side image-license precondition — `canPublish` (likely a new `TransitionContext.referencedImages` field in @sagemark/core) asserts every image referenced in the body resolves to a licensed `generated_images`/stock row (workspace-scoped); render-gate refuses unprovenanced assets (key off `license` presence). **Do NOT ship `[photo:]` resolution without this.** Stock (Pexels) assets also need a recorded license/attribution.
+- **F1 (High):** add a `status==='draft'` guard to `/api/edit` (a non-draft piece must not be editable) + a guards test. (Separate quick corrective C.020.1 OR fold in.)
+- **F8 trip-hazards:** async/job-wrap the hero gen (don't block the SSR homepage `await`); inject `makeNotWiredImageStore()` so the homepage degrades to placeholder-strip (not 500) when imagegen isn't live; Pexels-stock-first then generate; the live generated path stays behind `IMAGEGEN_LIVE` (OFF) until creds + a Gateway image-model smoke.
+- A.014.1 funnel-enum already discharged → the 0031 CHECK won't reject.
 
-## TO RESUME (next session) — in order:
-1. **`/seo-creator-build audit full`** — DUE (5 runs since audit-003; the Phase 2 gate blocks work until it runs). ~5-10 min.
-2. **imagegen Stage 2** (dependency-free engineering, [[DR-032]]): Supabase `store-supabase.ts` + the `generated_images`/`image_generations` migration + `seo-generated-images` bucket + workspace RLS; gate live `/api/run` behind a flag; confirm Gateway image-model ids; true-up the cost-cap estimate. Then the generated-hero path is production-usable.
-3. **P1.R.3** (PR 017 homepage + imagegen hero) is now buildable — Pexels stock path keyed; generated-hero path has the engine (wire `apps/seo/src/lib/tools/hero-image.ts` against `@sagemark/imagegen`, store injected/fail-closed until Stage 2). → then **P1.C.1** (PR 018 review preview).
-4. **Other non-engineering inputs** for the rest of Phase 1:
-   - **D6 credentialed reviewer (+ named backup + pages/week ceiling)** → unblocks **P1.C.2** (PR 019 edit-loop sign-off / approval-debt) + the YMYL go-live gate + the golden-label expert certification.
-   - **≥3-engine share-of-model measurement channel** (sanctioned APIs / contracted vendor) → unblocks **P1.C.4** (PR 021 SoM cron); degraded single/dual-engine v1 fallback is specced.
-3. **Dependency-free engineering still available** (could run before/without the above): the **DR-013 Gateway-only-metering corrective** (force-Gateway gate resolution + CI assertion no raw-Anthropic provider resolves — before the PR 020 cost ledger), and the **[[DR-031]] schema follow-up** (add `content_piece_versions` name/active/is_signoff columns + DB-level sign-off immutability/no-delete + the ON DELETE CASCADE decision; wire the P1.U.4 version seam off its NOT_WIRED stubs). **P1.C.3** (PR 020 cost ledger + gate_results table per DR-025) is the largest remaining eng PR — needs the DR-013 corrective first + the SoM decision for its SoM half.
+## Then: P1.C.1 (PR 018 review preview, ←P1.R.3). NON-ENG-blocked: P1.C.2 (←D6 reviewer), P1.C.3/P1.C.4 (←≥3-engine SoM; +DR-013 metering corrective; renumber the aux migration 0036+ since 0035 is imagegen).
 
-## Open DRs/risks (full list in STATE active-risks + audits/audit-003): DR-026 (public-data seam wiring), DR-028 (subpath scorer imports), DR-029 (jsdom opt-in), DR-030 (distributed rate-limiter before multi-instance), DR-031 (sign-off DB immutability), DR-013 metering corrective, F-1 bridge audience claim, F-2 operator-authZ before real auth, gate_results→PR020 (DR-025), live-Sandbox Tier-2/3 (now runnable — deployed host + Supabase branch exist), demo em-dash gate tension (NON-ENG/James), A.014.5 promote 2 structured judge checks to manifest.
+## Process debt to wire (audit-004 C-1b — 3 cycles open): promote into `build-flywheel-manifest.json` judge_criteria: `tool-allowlist-single-source`, `worker-credential-publish-scope` (audit-002), the normalize-before-gate lesson (DR-024), and the new `migration-runs-on-live-pooled-role` (audit-004 C-1). Do before the next worker/schema/imagegen PR.
 
-## To restart the autonomous loop: `/seo-creator-build auto` (it will hit the audit gate first — run the audit, then it proceeds as non-eng blockers clear). Or run a single PR with `/seo-creator-build <PR-id>`.
+## imagegen live-flip checklist (DR-032): set `IMAGEGEN_LIVE=1` + service-role creds on the deploy; confirm the 4 Gateway image-model ids via a smoke; true-up `ESTIMATED_USD_PER_IMAGE_BY_TIER` (null today).
+
+## Open DRs/risks (full list in STATE active-risks + audits/audit-003/004): DR-013 metering corrective, DR-025 (gate_results writer→PR020), DR-026 (public-data adapter wiring), DR-030 (distributed rate-limiter), DR-031 (sign-off DB immutability), DR-033 (publish image-license gate), F-2 operator-authZ before real auth, live-Sandbox Tier-2/3, demo em-dash tension (NON-ENG/James).
+
+## Resume: `/seo-creator-build auto` (clear of the audit gate now) → P1.R.3. Halt: set `.auto-loop.json` active:false (already false).
