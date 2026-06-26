@@ -1,10 +1,10 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-25 (Run #005 — AUDIT complete; audit-001 written; P0.W.1 merged)
+**Last updated:** 2026-06-26 (Run #006 — A.005.1 + A.005.2 PRs created, awaiting human merge)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +6 spike (P0.W.1)
-**Runs since last audit:** 0 (audit-001 ran this run — threshold 5)
-**Loop status:** P0.W.1 MERGED (#3, hardened profile CONFIRMED). Audit-001 done → audit gate cleared. **Next work-doing run = P0.W.2 (worker host)** — but resolve **A.005.2** (spec reconcile) BEFORE handing P0.W.2 to an agent so it reads the correct topology. `.auto-loop.json` still `active:false`; resuming runs the next batch.
+**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +6 spike (P0.W.1) · +2 audit-finding PRs OPEN (A.005.1 #13, A.005.2 #14)
+**Runs since last audit:** 1 (audit-001 was Run #005 — threshold 5)
+**Loop status:** P0.W.1 MERGED. Audit-001 done. Run #006 created the Critical/blocker fixes as **human-merge PRs** (#13 RLS, #14 spec reconcile). **HARD-STOP: P0.W.2 is gated on a human merging #14** (the worker-host spec must read the reconciled topology) and ideally #13. The judge `source-consumed-integration-build` check is now LIVE (committed `060b6b1`). `.auto-loop.json` `active:false`.
 
 ## Currently in flight
 
@@ -13,7 +13,10 @@ _(none — loop terminated **depleted** after Run #004; P0.W.1 gate since CONFIR
 ## Next up (dependencies satisfied)
 
 - **PR P0.W.2** (PR 006 — Agent-SDK worker on Vercel Sandbox, the autonomous loop host) — deps [P0.W.1 ✓ MERGED] — worker-runtime. **The next work-doing PR.** Must implement the hardened profile (DR-010 egress + DR-011 no-shell worker; reference impl in `apps/seo/spike/capability-enforcement/_harness.ts`). High-risk + production-critical → will be `REQUIRES_HUMAN_MERGE`. **Gate: resolve A.005.2 first** (the spec it would read still says "never self-host/Sandbox" — superseded by D5/D9).
-- **Audit-finding PRs (A.005.x, never auto-merge):** A.005.1 (Critical — `content_clients` RLS), A.005.2 (High — reconcile Approach-B spec vs D5/D9, **do before P0.W.2**), A.005.3 (High — route faithfulness/voice gates through the metered Gateway + DR), A.005.4 (High — CI: run tests + wire `node:test` RLS + worker-env-lint). See `audits/audit-001-2026-06-25.md`.
+- **Audit-finding PRs — Run #006 created 2 (OPEN, human-merge):**
+  - **A.005.1 (Critical) — [PR #13](https://github.com/digital-seniority/sagemark/pull/13)** — `content_clients` RLS. Judge APPROVED 5/5·5/5. `PR_CREATED` / `REQUIRES_HUMAN_MERGE`.
+  - **A.005.2 (High) — [PR #14](https://github.com/digital-seniority/sagemark/pull/14)** — reconcile Approach-B spec vs D5/D9. Judge APPROVED 4/5·4/5 (residual lines fixed). `PR_CREATED` / `REQUIRES_HUMAN_MERGE`. **Merge before P0.W.2.**
+  - **Still queued (not yet built):** A.005.3 (High — route faithfulness/voice gates through the metered Gateway + DR), A.005.4 (High — CI: run tests + wire `node:test` RLS + worker-env-lint), A.005.5 (High — PG harness for Tier-2 RLS, fold into P0.S.2). See `audits/audit-001-2026-06-25.md`.
 
 ## Blocked / awaiting input
 
@@ -30,7 +33,8 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 - **[High] Model spend escapes the metered Gateway (A.005.3):** faithfulness/voice gates call OpenRouter directly → invisible to the D4 cost ledger. Re-route through `resolveGatewayModel` + DR.
 - **[High] No CI runs the tests (A.005.4):** no workflow, no `turbo run test`; the `node:test` RLS suite is invoked by nothing; worker-env-lint never runs (AC#3).
 - **[High] RLS behavioral assertions unproven (A.005.5):** Tier-2 RLS tests skip without Postgres → fold a PG harness into P0.S.2 + A.005.4.
-- **Process:** `flywheel-events.jsonl` reconciled for the out-of-loop P0.W.1 resolution (done); judge `source-consumed-integration-build` check (DR-008 lesson) **drafted, PENDING your approval** — it edits the self-modifying `judge-prompt.md`; apply before P0.W.2's judge runs.
+- **Process (done):** `flywheel-events.jsonl` reconciled for the out-of-loop P0.W.1 resolution; judge `source-consumed-integration-build` check (DR-008 lesson) **applied** (user-approved, committed `060b6b1`) — it already gated A.005.1's judge (SOURCE-CONSUMED build PASS).
+- **[remaining] A.005.3 / A.005.4 / A.005.5** — High audit findings not yet built (Gateway routing, CI, RLS Tier-2 execution). Next engineering batch after #13/#14 merge + P0.W.2.
 
 ## Recent learnings (last 5)
 
@@ -91,6 +95,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 003 | 5.0 | 4.0 | 0% | 0% |
 | 004 | 5.0 | 4.75 | 0% | 0% |
 | 005 | audit | audit | — | — |
+| 006 | 4.5 | 4.5 | 0% | 0% |
 
 ## Status legend
 
@@ -98,6 +103,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #005 (AUDIT) complete · audit-001 written (1 Critical + 4 High + 2 process fixes) · 5/23 merged + 1 corrective · P0.W.1 MERGED (#3) · audit gate cleared (0 runs since audit) · next work-doing run = P0.W.2 (after A.005.2 spec reconcile)*
+*Run #006 complete · A.005.1 (#13, Critical RLS) + A.005.2 (#14, spec reconcile) created — both human-merge · judge avg 4.5/4.5 · 5/23 merged + 1 corrective · HARD-STOP: P0.W.2 gated on human merge of #14 (+#13)*
 
-> **Reachability note (post-gate):** P0.W.1 is merged, so the worker lane is open. Next dependency-eligible work: **P0.W.2** (worker host), then P0.W.3/W.4/W.5 + P0.S.2 + the Phase-1 lanes. The audit-finding PRs (A.005.x) are human-merge and should be triaged alongside — A.005.2 (spec reconcile) is a prerequisite for handing P0.W.2 to an agent with a correct topology spec.
+> **Reachability note:** P0.W.1 merged → worker lane open. Run #006 produced the audit's Critical (A.005.1 #13) + the P0.W.2 blocker (A.005.2 #14) as human-merge PRs. **The loop stops here (REQUIRES_HUMAN_MERGE):** a human merges #14 (and #13), then the next work-doing run builds **P0.W.2** (worker host, hardened profile per DR-010/011) against the reconciled spec. Remaining audit findings A.005.3/4/5 (Gateway routing, CI, RLS Tier-2) queue alongside.

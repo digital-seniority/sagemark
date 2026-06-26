@@ -90,3 +90,17 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Audit counter:** reset to 0.
 - **Next:** P0.W.2 (worker host) is the next work-doing PR — **resolve A.005.2 (spec reconcile) first** so the agent reads the correct worker topology. Audit-finding PRs A.005.x are human-merge.
 - **Checkpoint:** `audits/audit-001-2026-06-25.md` (the audit report IS the run-005 checkpoint).
+
+## Run #006 — 2026-06-26
+
+- **Duration:** ~00:25 · Mode: work-doing (2 audit-finding PRs; first run after audit-001)
+- **PRs created (human-merge, NOT auto-merged — audit findings):** 2
+  - `A.005.1` (Critical) — enable RLS on `content_clients` (fail-closed) + RLS contract test — **[PR #13](https://github.com/digital-seniority/sagemark/pull/13)**, judge APPROVED 5/5·5/5 (mutation-verified; SOURCE-CONSUMED build PASS).
+  - `A.005.2` (High) — reconcile `01-architecture`/`00-vision` to D5/D9 + correct worker topology — **[PR #14](https://github.com/digital-seniority/sagemark/pull/14)**, judge APPROVED 4/5·4/5 (2 residual stale-fact lines fixed before PR).
+- **PRs merged:** 0 (both are audit-finding PRs → `REQUIRES_HUMAN_MERGE` by policy).
+- **Process:** 4.5/5 · **Product:** 4.5/5 (PR-count-weighted avg of the two shards).
+- **Judge calibration in effect:** the new `source-consumed-integration-build` check fired on A.005.1 (touches `packages/schema-flywheel`) → judge ran `pnpm --filter @sagemark/seo typecheck` (PASS). The DR-008 lesson is now load-bearing.
+- **Decisions flagged:** DR-NEEDED (A.005.1) — tenancy-root tables use RLS-enabled-with-zero-policy in v1 (service-role-bypass + anon-published-only); add workspace-scoped policies when authenticated tenant users land. (Queue a DR.)
+- **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE. P0.W.2 (worker host) is gated on a human merging #14 (spec reconcile — its agent must read the corrected topology) and #13 (close the tenancy leak before building more on the boundary).
+- **Next:** human merges #13 + #14 → next work-doing run builds P0.W.2; remaining audit findings A.005.3/4/5 queue.
+- **Checkpoint:** `checkpoints/run-006-2026-06-26.md`
