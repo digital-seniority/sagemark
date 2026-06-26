@@ -10,10 +10,12 @@
 
 _(none — P0.W.2 #17 merged. No run-lock held.)_
 
-## Active items (human / deployment — not autonomously reachable)
+## Active items (human / deployment)
 
-- **P0.W.2 live Tier-2/3 — BLOCKED on deployment + secrets.** Running the live serpFetch→runScorers→runGate→persistPiece loop + recycle/residue + the manual brief needs: a running `apps/seo` host (deployed) holding the **Supabase service-role key** + the **AI Gateway** base URL/creds, the worker image (Dockerfile) deployed to a Sandbox with the `claude` CLI, and a per-run bridge JWT. The agent has the Vercel token (Sandbox provisioning) but NOT the service-role/Gateway secrets and there is no running host — so this is a deploy task. Runbook in the Run #008 checkpoint / PR #17 body.
+- **Deploy Stage A — DONE.** `apps/seo` host is live in production at **https://sagemark-seo.vercel.app** (Vercel project `digital-seniority/sagemark-seo`, `prj_wd0r52t`, rootDirectory=apps/seo, monorepo build green). `/api/health` 200; `/content/api/*` live (400 on empty body). `SUPABASE_SERVICE_ROLE_KEY` set (user); Vercel Deployment Protection DISABLED (user-approved); Gateway via OIDC. This is the worker's host-tool bridge URL.
+- **Deploy Stage B/C — REMAINING (P0.W.2 live Tier-2/3).** Build the worker `Dockerfile` → Sandbox (snapshot, or the base-`node24` fallback path), provision it pointed at `sagemark-seo.vercel.app` with a per-run **bridge JWT** + the Gateway base URL, drive a real brief → assert serpFetch→runGate→persistPiece writes to Sagemark → teardown → state reloads, + the recycle/residue test. **Still needs:** the bridge-JWT signing secret configured on BOTH host + worker (new shared secret), the worker Gateway credential, and the Sandbox wiring. The Vercel token (Sandbox provisioning) is available.
 - **DR-013 enforcement corrective (before PR 020 / the D4 ledger):** make the gate calls Gateway-only (force-Gateway resolution) + a CI assertion that the gate path can't resolve a raw-Anthropic provider. Decision recorded in [[DR-013]]; implementation queued (Medium).
+- **Stale worktrees:** several merged-PR worktrees under `.claude/worktrees/` can be pruned (kaishi / `git worktree prune`).
 
 ## Next up (worker lane open — P0.W.2 merged)
 
@@ -55,10 +57,11 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ## Files most recently touched
 
-- `packages/core/src/ai/{resolve-gateway-model,cost-accountant,worker-env-lint}.ts` (+tests)
-- `apps/seo/src/app/(studio)/page.tsx`, `apps/seo/src/lib/auth.ts`
-- `apps/seo/spike/capability-enforcement/*` (spike, PR #3 open)
-- `packages/core/{package.json,src/index.ts}`, `turbo.json`
+- `apps/seo/src/worker/{agent-worker,sandbox-launch,host-tool-bridge,session-store,entry}.ts` + `Dockerfile` (P0.W.2 / PR #17)
+- `packages/schema-flywheel/drizzle/0034_worker_sessions.sql` + drizzle schema
+- `packages/core/src/gates/{faithfulness,voice}-gate.ts` (PR #15 — Gateway seam)
+- `.github/workflows/ci.yml` (PR #16 — CI bootstrap)
+- `apps/seo/test/tenancy/rls-contract.test.ts` (C.008.1 — in-band SET ROLE anon fix)
 
 ## Phase 0 — Foundations PR map
 
@@ -112,6 +115,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #008 complete · audit PRs #13–#16 MERGED · P0.W.2 worker host built → [PR #17](https://github.com/digital-seniority/sagemark/pull/17) (human-merge, judge 5/5·4/5, GATE-BYPASS+TENANCY PASS) · HARD-STOP: P0.W.2 production-critical, gates P0.W.3/W.4/W.5*
+*Run #008 complete · P0.W.2 [PR #17](https://github.com/digital-seniority/sagemark/pull/17) MERGED (68ad820) · CI green (RLS 17/17) · DR-013 decided (Gateway-only) · host live at sagemark-seo.vercel.app · **worker lane OPEN***
 
-> **Reachability note:** Audit fixes #13–#16 merged; Supabase = Sagemark/`rilaycjkksfosnxvenzt` (DR-015). Run #008 built **P0.W.2** (worker host) at PR #17 — Tier-1 green, fail-closed boot proven, Tier-2/3 NEEDS-INPUT (live Sandbox). **HARD-STOP (REQUIRES_HUMAN_MERGE):** P0.W.3/W.4/W.5 are gated on P0.W.2 merging. **Human actions:** (1) review + merge PR #17 (the worker host); (2) apply `0034_worker_sessions.sql` to the Sagemark project (DB write); (3) set the GitHub `DATABASE_URL` secret (Sagemark) for CI RLS Tier-2; (4) provision live Vercel-Sandbox+Supabase infra to run P0.W.2's Tier-2/3; (5) decide the DR-013 host-context metering policy. **Possibly-next without waiting:** P0.S.2 (PR 009) if its deps are worker-independent. Audit due before Run #010 (3 since last).
+> **Reachability note (post-Run #008):** All audit fixes (#13–#16) + P0.W.2 worker host MERGED. CI RLS 17/17 green (Sagemark, `DATABASE_URL` set + C.008.1 fix). DR-013 metering policy DECIDED (gates Gateway-only; enforcement corrective queued before PR 020). `apps/seo` host live at `sagemark-seo.vercel.app` (Stage A done; Stage B/C = live Sandbox run still pending). **Worker lane now open: P0.W.3/W.4/W.5 are reachable.** Runs since last audit: 3 (audit due before Run #010 — one more work-doing run is fine). Next: `/seo-creator-build auto` → Run #009 → P0.W.3 (worker adversarial confinement suite) or P0.S.2.
