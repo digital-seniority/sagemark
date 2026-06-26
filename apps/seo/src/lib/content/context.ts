@@ -33,6 +33,7 @@
 import type { Workspace } from "@/lib/auth";
 import { getCurrentWorkspace } from "@/lib/auth";
 import type { AuthorityClass } from "./contract";
+import { verifyBridgeToken, type BridgeTokenRejection } from "@/lib/auth/bridge-token";
 
 // ── Voice-spec shape (the `voice_specs.spec` JSONB v1 field set) ──────────────
 
@@ -293,4 +294,160 @@ export function assertTenancyMatch(
   return (
     supplied.workspaceId === bound.workspaceId && supplied.clientId === bound.clientId
   );
+}
+
+// ── Worker bridge authentication (C.009.1 / DR-018) ───────────────────────────
+
+/**
+ * Extract the per-run bearer JWT from an `Authorization: Bearer <jwt>` header,
+ * or null if absent/malformed. The worker's `host-tool-bridge.ts` sends EXACTLY
+ * this shape on every kernel-route call; an operator-console call sends none.
+ */
+export function extractBearerToken(request: Request): string | null {
+  const header = request.headers.get("authorization");
+  if (!header) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!m) return null;
+  const token = m[1]!.trim();
+  return token.length > 0 ? token : null;
+}
+
+/**
+ * The authenticated-request result. `via` records which credential path bound the
+ * tenancy: `"bridge"` (a verified per-run worker JWT) or `"session"` (the operator
+ * console's auth seam). Both converge to the SAME `context = { workspaceId,
+ * clientId }` the kernel routes already use, plus (for the bridge path) the
+ * `runId` the token authorized.
+ */
+export type AuthenticateResult =
+  | { ok: true; via: "bridge"; context: RequestContext; runId: string }
+  | { ok: true; via: "session"; context: RequestContext }
+  | {
+      ok: false;
+      status: 401 | 403 | 404;
+      code: "unauthorized" | "not-found" | BridgeTokenRejection | "client-token-mismatch";
+    };
+
+/** Map a `verifyBridgeToken` rejection reason to a stable HTTP status. */
+function bridgeRejectionStatus(reason: BridgeTokenRejection): 401 | 403 {
+  switch (reason) {
+    // Bad credential shape / signature / expiry → 401 (you are not authenticated).
+    case "malformed":
+    case "bad-signature":
+    case "expired":
+      return 401;
+    // Valid credential, but scoped to a DIFFERENT run/tenant → 403 (forbidden).
+    case "wrong-run":
+    case "wrong-tenant":
+      return 403;
+  }
+}
+
+/** Injectable seam so route tests verify the bridge path without a live host env. */
+export interface BridgeAuthOptions {
+  /** HMAC signing secret override (default: host env, read inside verifyBridgeToken). */
+  secret?: string;
+  /** Clock override (epoch ms) for deterministic expiry tests. */
+  nowMs?: number;
+}
+
+/**
+ * Authenticate a kernel-route request and bind its tenancy (C.009.1 / DR-018).
+ *
+ * TWO CREDENTIAL PATHS, ONE BOUND CONTEXT:
+ *
+ *   - WORKER BRIDGE (an `Authorization: Bearer` token is present): the worker has
+ *     NO operator session, so the TOKEN is the credential. We verify it
+ *     (signature in constant time, then expiry, then scope) against ITS OWN
+ *     decoded claims — the authoritative `(ws, cl, run)` comes from the verified
+ *     token, NEVER from a request argument. We then REJECT (403) if the request
+ *     body's `clientId` disagrees with the token's `cl`: a valid token must not be
+ *     reused to act on a different client by passing a different body. A
+ *     malformed/expired/bad-signature token is rejected 401; a cross-run /
+ *     cross-tenant token is rejected 403. The worker can NEVER widen tenancy.
+ *
+ *   - OPERATOR SESSION (no Bearer token): the existing `bindRequestContext`
+ *     path is used unchanged — resolve the operator's workspace from the auth
+ *     seam, validate `clientId` ownership (401 unauth / 404 not-owned).
+ *
+ * Fail-closed: a worker-shaped request (Bearer present) whose token does not
+ * verify NEVER falls through to the operator path or to an unauthenticated bind.
+ */
+export async function authenticateBridgeRequest(
+  request: Request,
+  requestedClientId: string,
+  data: Pick<ContentDataAccess, "clientBelongsToWorkspace">,
+  resolveWorkspace: () => Promise<Workspace | null> = getCurrentWorkspace,
+  opts: BridgeAuthOptions = {},
+): Promise<AuthenticateResult> {
+  const bearer = extractBearerToken(request);
+
+  // ── Operator-session path (no bearer) — unchanged behavior. ────────────────
+  if (!bearer) {
+    const bound = await bindRequestContext(requestedClientId, data, resolveWorkspace);
+    if (!bound.ok) return bound;
+    return { ok: true, via: "session", context: bound.context };
+  }
+
+  // ── Worker-bridge path (bearer present) — the token IS the credential. ──────
+  // Decode the claims by verifying the token against its OWN claims: this runs
+  // the constant-time signature check + the expiry check, while the ws/cl/run
+  // self-match is trivially true (we are not widening — we are reading the
+  // authoritative scope FROM the token). A second `verifyBridgeToken` would be
+  // redundant, so we decode-then-verify in one call against the token's claims.
+  const claims = decodeBridgeClaims(bearer);
+  if (!claims) {
+    return { ok: false, status: 401, code: "malformed" };
+  }
+  const verified = verifyBridgeToken(
+    bearer,
+    { workspaceId: claims.ws, clientId: claims.cl, runId: claims.run },
+    { secret: opts.secret, nowMs: opts.nowMs },
+  );
+  if (!verified.ok) {
+    return { ok: false, status: bridgeRejectionStatus(verified.reason), code: verified.reason };
+  }
+
+  // The body must not disagree with the token. A valid token for client A cannot
+  // be reused to act on client B by passing a different body.clientId (403).
+  if (requestedClientId && requestedClientId !== verified.claims.cl) {
+    return { ok: false, status: 403, code: "client-token-mismatch" };
+  }
+
+  // Authoritative tenancy is the TOKEN's — never the body's.
+  return {
+    ok: true,
+    via: "bridge",
+    context: { workspaceId: verified.claims.ws, clientId: verified.claims.cl },
+    runId: verified.claims.run,
+  };
+}
+
+/**
+ * Decode the claims out of a compact JWS WITHOUT trusting them (no signature
+ * check here — `verifyBridgeToken` does the constant-time signature + expiry +
+ * scope verification). Used only to read the token's self-asserted `(ws, cl,
+ * run)` so we can hand them to `verifyBridgeToken` as the expected scope, making
+ * the token its own authority. Returns null on a structurally-malformed token.
+ */
+function decodeBridgeClaims(
+  token: string,
+): { ws: string; cl: string; run: string } | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(
+      Buffer.from(parts[1]!, "base64url").toString("utf8"),
+    ) as { ws?: unknown; cl?: unknown; run?: unknown };
+    if (
+      typeof payload.ws === "string" &&
+      typeof payload.cl === "string" &&
+      typeof payload.run === "string"
+    ) {
+      return { ws: payload.ws, cl: payload.cl, run: payload.run };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

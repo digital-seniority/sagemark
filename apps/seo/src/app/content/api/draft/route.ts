@@ -33,7 +33,7 @@ import {
   checkContractVersion,
 } from "@/lib/content/contract";
 import {
-  bindRequestContext,
+  authenticateBridgeRequest,
   assertTenancyMatch,
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
@@ -46,6 +46,10 @@ export const maxDuration = 30;
 export interface DraftDeps {
   data: ContentDataAccess;
   resolveWorkspace: () => Promise<Workspace | null>;
+  /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
+  jwtSecret?: string;
+  /** Bridge-JWT clock override (epoch ms) for deterministic expiry tests. */
+  bridgeNowMs?: () => number;
 }
 
 const DEFAULT_DEPS: DraftDeps = {
@@ -90,8 +94,17 @@ export async function handleDraft(
   const mismatch = checkContractVersion(body.contractVersion);
   if (mismatch) return json({ error: "contract version mismatch", ...mismatch }, 409);
 
-  // 2. Bind tenancy SERVER-side (resolve workspace + validate client ownership).
-  const bound = await bindRequestContext(body.clientId, deps.data, deps.resolveWorkspace);
+  // 2. Authenticate + bind tenancy SERVER-side. A worker call carrying a Bearer
+  //    per-run JWT is authenticated by the TOKEN (DR-018); an operator-console
+  //    call (no bearer) resolves the workspace + validates client ownership. The
+  //    bound (workspaceId, clientId) is the SERVER's, never the request's.
+  const bound = await authenticateBridgeRequest(
+    request,
+    body.clientId,
+    deps.data,
+    deps.resolveWorkspace,
+    { secret: deps.jwtSecret, nowMs: deps.bridgeNowMs?.() },
+  );
   if (!bound.ok) {
     return json({ error: bound.code, code: bound.code }, bound.status);
   }

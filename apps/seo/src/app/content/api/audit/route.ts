@@ -44,7 +44,7 @@ import {
   checkContractVersion,
 } from "@/lib/content/contract";
 import {
-  bindRequestContext,
+  authenticateBridgeRequest,
   assertTenancyMatch,
   type ReadOnlyDataAccess,
   type ContentPieceRow,
@@ -69,6 +69,10 @@ export interface AuditDeps {
   data: ReadOnlyDataAccess;
   resolveWorkspace: () => Promise<Workspace | null>;
   runGate: GateRunner;
+  /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
+  jwtSecret?: string;
+  /** Bridge-JWT clock override (epoch ms) for deterministic expiry tests. */
+  bridgeNowMs?: () => number;
 }
 
 const DEFAULT_DEPS: AuditDeps = {
@@ -137,8 +141,16 @@ export async function handleAudit(
   const mismatch = checkContractVersion(body.contractVersion);
   if (mismatch) return json({ error: "contract version mismatch", ...mismatch }, 409);
 
-  // 2. Bind tenancy SERVER-side (criterion 7).
-  const bound = await bindRequestContext(body.clientId, deps.data, deps.resolveWorkspace);
+  // 2. Authenticate + bind tenancy SERVER-side (criterion 7). A worker call
+  //    carrying a Bearer per-run JWT is authenticated by the TOKEN (DR-018); an
+  //    operator-console call (no bearer) uses the unchanged session path.
+  const bound = await authenticateBridgeRequest(
+    request,
+    body.clientId,
+    deps.data,
+    deps.resolveWorkspace,
+    { secret: deps.jwtSecret, nowMs: deps.bridgeNowMs?.() },
+  );
   if (!bound.ok) {
     return json({ error: bound.code, code: bound.code }, bound.status);
   }
