@@ -158,7 +158,7 @@ describe("publish — host-enforced canPublish (the moat)", () => {
       publishEnabled: flagOn,
     });
     expect(res.status).toBe(422);
-    expect((await res.json()).reason).toBe("NOT_PUBLISH_VERDICT");
+    expect((await res.json()).reason).toBe("VERDICT_NOT_PUBLISH");
   });
 
   it("the global publish flag OFF refuses publish up front (403)", async () => {

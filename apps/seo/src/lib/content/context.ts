@@ -139,6 +139,24 @@ export interface PersistedAuthorization {
   expiresAt: string | null;
 }
 
+/**
+ * A persisted `gate_results` row projection (RFC §, migration 0033). The publish
+ * gate reads `evalRan` from HERE — the authoritative record of whether the eval
+ * actually RAN and produced a usable scorecard — never inferring it from the
+ * loose `verdict != null` heuristic (audit-002 A.011.7: a Stage-A veto sets a
+ * verdict with no eval_score, which the heuristic would mis-read as evalRan=true).
+ */
+export interface PersistedGateResult {
+  /** Whether the eval actually ran (a usable scorecard was produced). */
+  evalRan: boolean;
+  /** Stage-B composite, null when a Stage-A veto suppressed scoring. */
+  stageBScore: number | null;
+  /** The verdict band, or null when no gate has run. */
+  verdict: Verdict | null;
+  /** Whether sourcing was blocked (the D3 reversal metric). */
+  sourcingBlocked: boolean;
+}
+
 // ── The data-access seam ──────────────────────────────────────────────────────
 
 /**
@@ -175,6 +193,16 @@ export interface ContentDataAccess {
   getRelease(pieceId: string, clientId: string, version: number): Promise<PersistedRelease | null>;
   /** Resolve a byline authorization by id (for the §11.5 active check), or null. */
   getAuthorization(authorizationId: string, clientId: string): Promise<PersistedAuthorization | null>;
+  /**
+   * The persisted gate_results row for a piece+version, or null when no gate has
+   * run. The publish route binds `evalRan` from this row (A.011.7) instead of
+   * inferring it from verdict/eval_score.
+   */
+  getGateResult(
+    pieceId: string,
+    clientId: string,
+    version: number,
+  ): Promise<PersistedGateResult | null>;
 
   // ── Mutations (the audit route is wired with a view that LACKS these) ────────
   /** Host-validated content_pieces insert (draft route only). Returns the new id+slug. */
@@ -227,6 +255,9 @@ export const NOT_WIRED_DATA_ACCESS: ContentDataAccess = {
   },
   getAuthorization: () => {
     throw new DataAccessNotWiredError("getAuthorization");
+  },
+  getGateResult: () => {
+    throw new DataAccessNotWiredError("getGateResult");
   },
   insertDraftPiece: () => {
     throw new DataAccessNotWiredError("insertDraftPiece");

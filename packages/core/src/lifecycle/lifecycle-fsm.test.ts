@@ -232,7 +232,7 @@ describe("approved -> published (THE fail-closed gate)", () => {
     it(`BLOCKED on a non-PUBLISH verdict (${verdict})`, () => {
       const d = canTransition("approved", "published", fullPublishCtx({ verdict }));
       expect(d.allowed).toBe(false);
-      expect(d.reason).toBe("NOT_PUBLISH_VERDICT");
+      expect(d.reason).toBe("VERDICT_NOT_PUBLISH");
     });
   }
 

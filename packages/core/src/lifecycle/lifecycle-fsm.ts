@@ -279,7 +279,7 @@ export interface TransitionDecision {
 export type TransitionRejection =
   | "ILLEGAL_EDGE"
   | "PUBLISH_DISABLED"
-  | "NOT_PUBLISH_VERDICT"
+  | "VERDICT_NOT_PUBLISH"
   | "NO_HUMAN_RELEASE"
   | "EVAL_DID_NOT_RUN"
   | "YMYL_NO_BYLINE"
@@ -310,7 +310,7 @@ export function canTransition(
       return { allowed: false, reason: "EVAL_DID_NOT_RUN" };
     }
     if (ctx.verdict !== "PUBLISH") {
-      return { allowed: false, reason: "NOT_PUBLISH_VERDICT" };
+      return { allowed: false, reason: "VERDICT_NOT_PUBLISH" };
     }
     if (!hasRecordedRelease(ctx.humanRelease)) {
       return { allowed: false, reason: "NO_HUMAN_RELEASE" };
