@@ -2,9 +2,9 @@
 
 **Last updated:** 2026-06-26 (Run #013 — P0.S.2 #28 MERGED → ★ PHASE 0 COMPLETE ★; phase-close audit next, then Phase 1)
 **Current build phase:** Phase 1 — Pilot (ENTERED — Phase 0 complete; audit-003 phase-close CLEAR, no Critical/High)
-**Phase progress:** **10 / 23 engineering PRs merged — ALL of Phase 0 done** (P0.E.1–4, P0.S.1, P0.W.2 #17, P0.W.3 #19, P0.W.4 #20, P0.W.5 #26, P0.S.2 #28) (+3 correctives · +1 spike · 4 audit fixes · suite #24) · Phase 1: 0/12
-**Runs since last audit:** 0 (audit-003 phase-close done Run #014 — `audits/audit-003-2026-06-26.md`; CLEAR to Phase 1)
-**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **audit-003 phase-close: CLEAR** (no Critical/High; Phase-0 DoD PASS; security fail-closed). Entering Phase 1 under the unattended mandate (engineering-only; skip non-eng/design/live-infra-blocked). **Next: Run #015 = P1.R.1 (PR 015 SSR render floor — highest leverage) + P1.W.1 (PR 014 wire strategist/assistant/audit) in parallel; fold A.014.1 funnel-enum into the golden touch.** See `audits/audit-003-2026-06-26.md` for triaged risks + the Phase-1 eligibility map.
+**Phase progress:** **12 / 23 engineering PRs merged** — all 10 Phase-0 + **Phase 1: 2/12** (P1.R.1 #31 SSR render, P1.W.1 #32 full suite chain + N=3 cap) (+3 correctives · +1 spike · 4 audit fixes · suite #24)
+**Runs since last audit:** 1 (audit-003 phase-close was Run #014; next audit due ~Run #019)
+**Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **Phase 1 underway** (audit-003 CLEAR). Run #015 merged P1.R.1 (#31 SSR render floor) + P1.W.1 (#32 full suite chain + N=3 cap), both judge-APPROVED 5/5·5/5; A.014.1 funnel-enum discharged. ~2h of the 10h window used. **Next: Run #016 = P1.R.2 (PR 016 CI reachability gate, ←P1.R.1) + P1.U.1 (PR 010 canvas shell, ←P0.W.4).** Then P1.U.2-4 chain; P1.R.3/P1.C.x blocked on non-eng (imagegen keys, D6 reviewer, ≥3-engine SoM). See `audits/audit-003-2026-06-26.md` for the full eligibility map.
 
 ## Currently in flight
 
@@ -100,8 +100,8 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P1.U.2 | PR 011 — Live token streaming into the center editor + Inspector gate scorecard | agent-ui | NOT_STARTED | — | — | — |
 | P1.U.3 | PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning | agent-ui | NOT_STARTED | — | — | — |
 | P1.U.4 | PR 013 — Version hub: switch / name / compare + undeletable named sign-off | agent-ui | NOT_STARTED | — | — | — |
-| P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | NOT_STARTED | — | — | — |
-| P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | NOT_STARTED | — | — | — |
+| P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | **MERGED** (judge 5/5·5/5; N=3 cap [[DR-027]]; A.014.1+A.014.5 folded) | Run #015 | 659b083 | [#32](https://github.com/digital-seniority/sagemark/pull/32) |
+| P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; escape-first [[DR-026]]) | Run #015 | 6258732 | [#31](https://github.com/digital-seniority/sagemark/pull/31) |
 | P1.R.2 | PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions) | render-geo | NOT_STARTED | — | — | — |
 | P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | NOT_STARTED | — | — | — |
 | P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | NOT_STARTED | — | — | — |
@@ -126,6 +126,8 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 011 | audit | audit | — | — |
 | 012 | 5.0 | 5.0 | 0% | 100% (1/1, judge caught golden mask) |
 | 013 | 5.0 | 5.0 | 0% | 0% |
+| 014 | audit | audit | — | — |
+| 015 | 5.0 | 5.0 | 0% | 50% (1/2, judge caught JSON-LD bug) |
 
 ## Status legend
 
@@ -133,6 +135,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #013 · P0.S.2 [#28](https://github.com/digital-seniority/sagemark/pull/28) (ea0fc0f) MERGED · judge 5/5·5/5 · ★ PHASE 0 COMPLETE (10/10) ★ · fail-closed publish closes the YMYL byline-trust hole · DR-025 · next: phase-close audit → Phase 1 (unattended)*
+*Run #015 · Phase 1 (2/12): P1.R.1 [#31](https://github.com/digital-seniority/sagemark/pull/31) SSR render + P1.W.1 [#32](https://github.com/digital-seniority/sagemark/pull/32) suite chain + N=3 cap MERGED · judge 5/5·5/5 · DR-026/027 · A.014.1 discharged · auto-loop unattended → Run #016 = P1.R.2 + P1.U.1*
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.

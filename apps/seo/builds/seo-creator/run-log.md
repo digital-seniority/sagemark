@@ -199,3 +199,12 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Phase-1 eligible NOW (3 lanes):** P1.R.1 (PR 015 SSR render — highest leverage), P1.U.1 (PR 010 canvas), P1.W.1 (PR 014 wire 3 suite skills). Non-eng blockers: D6 reviewer, imagegen keys, ≥3-engine SoM.
 - **runs_since_last_audit → 0.** Report: `audits/audit-003-2026-06-26.md`.
 - **Next:** Run #015 = first Phase-1 batch (P1.R.1 + P1.W.1).
+
+## Run #015 — 2026-06-26 — Phase 1 first batch (P1.R.1 + P1.W.1)
+
+- **Mode:** work-doing (2 PRs, parallel, render-geo + worker-runtime), auto-loop unattended.
+- **Merged (unattended auto-merge):** `P1.R.1` (PR 015 — SSR render route) **[#31](https://github.com/digital-seniority/sagemark/pull/31)** `6258732` (judge NEEDS-FIXES→fixed→5/5·5/5; FAQ JSON-LD `<!--` invalid-escape fix); `P1.W.1` (PR 014 — wire 3 suite skills + N=3 cap) **[#32](https://github.com/digital-seniority/sagemark/pull/32)** `659b083` (judge 5/5·5/5).
+- **Process:** 5.0/5 · **Product:** 5.0/5 · re-judge 50% (1/2, P1.R.1 one fix-pass).
+- **DRs:** [[DR-026]] (escape-first render + public-data seam), [[DR-027]] (revise-cap in worker loop). **A.014.1 funnel-enum discharged** in P1.W.1.
+- **Next:** Run #016 = P1.R.2 (reachability gate) + P1.U.1 (canvas shell).
+- **Checkpoint:** `checkpoints/run-015-2026-06-26.md`
