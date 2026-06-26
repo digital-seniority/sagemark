@@ -2,15 +2,19 @@
 
 This document fixes the runtime, the reuse boundary, the request/stream lifecycle, where the service sits in the Sagemark monorepo, the data model, and inter-service calls for the **SEO Creator** — the tool that produces a Whispering-Willows-style content hub (one pillar + ~8 funnel-staged guides), not a brochure site.
 
-The one-line thesis the rest of the plan hangs on: **the LLM is the replaceable middle; the moat is the harness** — the deterministic scorers, the cross-model faithfulness gate, the non-compensatory `seo-gate`, the fail-closed lifecycle FSM, the per-tenant voice/byline boundary. That harness is engine-agnostic, so the cheapest runtime that can host a *real* agent loop wins. It is the native AI SDK v6 loop.
+The one-line thesis the rest of the plan hangs on: **the LLM is the replaceable middle; the moat is the harness** — the deterministic scorers, the cross-model faithfulness gate, the non-compensatory `seo-gate`, the fail-closed lifecycle FSM, the per-tenant voice/byline boundary. That harness is engine-agnostic, so the runtime that can host a *real* agent loop while keeping that moat host-enforced wins. Per `DECISIONS.md` **D5/D9**, that runtime is a **self-hosted Claude Agent SDK worker on a Vercel Sandbox microVM** (not the in-process AI SDK v6 loop this doc originally recommended — see the superseded banner in §1).
 
 ---
 
-## 1. Recommended runtime: native AI SDK v6 agent loop in `apps/seo`
+## 1. Runtime
 
-**Decision: Approach B.** Build the SEO Creator as a native **AI SDK v6 `ToolLoopAgent`** running on a normal Vercel **Node/Fluid** route inside a new `apps/seo` service. Generation uses the trailhead provider seam (`resolveGatewayModel`) + the fail-closed `CostAccountant`, both already live in `apps/trailhead/src/lib/ai.ts`. The deterministic scorers and the gate are exposed to the agent as **read-only tools**; Stage-A vetoes and `canPublish()` are enforced in **host code the agent can never reason past**.
+> ### ⚠️ SUPERSEDED by DECISIONS.md D5/D9 (2026-06)
+>
+> **This section's original recommendation — "Approach B: native AI SDK v6 `ToolLoopAgent` in-process on a Vercel route; never self-host the Agent SDK and never use a Sandbox for content" — was OVERRIDDEN.** `DECISIONS.md` **D5** ("Harness runtime = Claude Agent SDK self-hosted worker") and **D9** ("Agent-SDK worker host = Vercel Sandbox") are the locked calls, and the merged code + the P0.W.1 capability spike (`apps/seo/spike/capability-enforcement/RESULTS.md` — "VERCEL SANDBOX CONFIRMED", hardened profile) implement exactly that. The Approach-B comparison below is retained as **historical analysis only**; read the **LOCKED RUNTIME** block immediately under it for what is actually built.
+>
+> **LOCKED RUNTIME (D5/D9 — what is built).** The SEO Creator runs the autonomous loop (D1) in a **self-hosted Claude Agent SDK worker on a Vercel Sandbox microVM** — the real Claude Code harness as a library (loop + subagents + hooks + `SKILL.md` skills), spawning a `claude` CLI subprocess (Node-only, non-serverless, so it *cannot* run in a Vercel function). `apps/seo` on Vercel is a **thin UI + orchestration API**: it authenticates, resolves `workspace_id`/`client_id`, reserves cost pre-flight, dispatches the run, and relays worker SDK events to the browser as **SSE (worker → `apps/seo` → browser)**. The worker reaches the deterministic kernel **only** through the host-side `/content/api/{brief,draft,audit,publish}` routes (the ported `seo-gate` / `lifecycle-fsm` / scorers / `content-store` behind them — these *are* the host-side tools the worker calls; `apps/seo/src/lib/content/contract.ts` is their single source-of-truth contract). The kernel stays **host-enforced**: Stage-A vetoes + `canPublish()` execute in `@sagemark/core` behind those routes, where the agent can never reason past them, and the worker can reach publish only through the fail-closed `/content/api/{audit,publish}` routes. The worker holds **no durable state** (Supabase is the only system of record; the Sandbox is compute-only, D9). Confinement is a **capability-denial profile** proven in the spike: an SDK `networkPolicy` default-deny **egress allowlist** (Gateway + DDG) **plus an in-VM `iptables` DROP on `169.254.0.0/16`** to close the hypervisor-local MMDS (DR-010), and a **no-shell worker** whose only filesystem access is a workdir-scoped read tool refusing out-of-jail paths (DR-011); a control that fails to apply is a **boot refusal**. All model traffic routes through the **metered AI Gateway** — the worker holds a run-scoped Gateway base URL + bridge JWT as its only model credential, never a raw provider key. **`canPublish()` + Stage-A vetoes stay HOST-side, never in the loop.**
 
-### The three approaches, and why B
+### The three approaches, and why B *(historical analysis — superseded by the LOCKED RUNTIME block above)*
 
 | | A — Claude Agent SDK / Managed Agents | B — Native AI SDK v6 (**chosen**) | C — Vercel Sandbox (headless Claude Code) |
 |---|---|---|---|
@@ -27,11 +31,13 @@ The decisive facts:
 - **The artifact is content, not runnable code.** A Sandbox (C) is a code-execution engine. For markdown + meta + FAQ JSON-LD + a deterministic gate, the microVM capability is dead weight that adds cost and a cold-start dead stare to the "watch it work" demo.
 - **B is the only path proven in-repo today.** `apps/trailhead` already ships `ai@^6.0.191`, `@ai-sdk/anthropic@^3`, `@ai-sdk/gateway@^3`, the lazy `resolveGatewayModel()` provider seam (Anthropic-direct BYOK when `ANTHROPIC_API_KEY` is set, else Gateway), and a `CostAccountant` that fail-closed-aborts at a per-request USD cap (`CostCapExceededError`). B reuses a vetted in-house pattern; A and C introduce new infra.
 
-**Reserved, not chosen:** keep Managed Agents (real Approach A) as a flagged later *"true autonomous research-agent"* tier **only if literal `SKILL.md` execution ever becomes non-negotiable**. Never self-host the Agent SDK and never use a Sandbox for content.
+**Reserved, not chosen:** keep Managed Agents (real Approach A) as a flagged later *"true autonomous research-agent"* tier **only if literal `SKILL.md` execution ever becomes non-negotiable**. ~~Never self-host the Agent SDK and never use a Sandbox for content.~~ **⚠️ SUPERSEDED by DECISIONS.md D5/D9 (2026-06):** this prohibition is reversed — the locked runtime *is* a **self-hosted Claude Agent SDK worker on a Vercel Sandbox** (see the SUPERSEDED banner + LOCKED RUNTIME block at the top of §1). The Sandbox does not run *content as code*; it hosts the autonomous loop process, and the literal `SKILL.md` `seo-copywriter` suite runs directly on it, kernel-backed via the `/content/api/*` routes.
 
 ---
 
-## 2. Harness reuse: PORT the moat, RE-AUTHOR the four prompts
+## 2. Harness reuse: PORT the moat, RUN the four skills directly
+
+> **⚠️ Runtime-reuse note — SUPERSEDED by DECISIONS.md D5/D9 (2026-06).** This section originally said the four producer skills are **RE-AUTHORED as AI SDK v6 system prompts**. Under the locked Agent-SDK-on-Sandbox runtime (§1 LOCKED RUNTIME) they instead **run directly as their literal `SKILL.md` skills** on the worker, kernel-backed via the host-side `/content/api/{brief,draft,audit,publish}` routes — *not* re-authored. The **PORT** dispositions (scorers, gates, `seo-gate`, `lifecycle-fsm`, schema → `@sagemark/core`, host-side) are unchanged and correct; only the "4 runtime producers" row's disposition flips from RE-AUTHOR to RUN-DIRECTLY (corrected in the table below).
 
 The single most important scoping fact: **the content-hub engine is not greenfield. It exists on `origin/preview` (PRs #1668–1684) and must be PORTED, not reinvented.** The local checkout (`apps/agents/src/app/content`) only has the older single-piece `ContentEngine`; the local `packages/schema-flywheel/drizzle/` stops at `0029_videogen_image_generations_provenance.sql` — there is no `content_pieces`/`seo-gate`/`lifecycle-fsm` locally. **Phase 0 pulls `origin/preview` first.** A plan that reads only local code will mis-locate the schema and badly under-estimate what already exists.
 
@@ -42,11 +48,11 @@ The single most important scoping fact: **the content-hub engine is not greenfie
 | Non-compensatory `seo-gate` (Stage-A vetoes → Stage-B 8-dim composite) | **PORT** to host code | `origin/preview` |
 | Fail-closed `lifecycle-fsm` (`canPublish`/`canTransition`, snapshot rules) | **PORT** to host code | `origin/preview` |
 | Drizzle schema (`content_clients`/`content_pieces`/`content_piece_versions`/`voice_specs`) | **PORT** + extend (`clusterRole`/`funnelStage` columns) | `origin/preview` PRs #1668–1684 |
-| 4 runtime producers (seo-strategist, seo-assistant, seo-blog-writer, seo-audit) | **RE-AUTHOR** as AI SDK v6 system prompts + typed tools | `learnings/SKILLS/seo-copywriter/*/SKILL.md` |
+| 4 runtime producers (seo-strategist, seo-assistant, seo-blog-writer, seo-audit) | **RUN DIRECTLY** as literal `SKILL.md` skills on the Agent-SDK worker, kernel-backed via `/content/api/{brief,draft,audit,publish}` (D5/D9) — *~~RE-AUTHOR as AI SDK v6 system prompts~~, superseded* | `learnings/SKILLS/seo-copywriter/*/SKILL.md` |
 | `/seo-copywriter-build` orchestrator | **DROP at runtime** — build-time dev tool only | — |
 | `judge-prompt.md` domain checks | **Repurpose** as the runtime acceptance-test spec | — |
 
-This collapses B's headline cost from "rebuild the engine" down to **just four prompts**. The risk that survives this collapse is **methodology-fidelity regression** (§7) — re-authored prompts quietly underperforming the `SKILL.md` harness, invisible to CI. The mitigation is mandatory and gates Phase 0: **capture the live Whispering Willows hub as a human-labeled GOLDEN SET before a single prompt is written**, and regress every prompt/model bump against it.
+This collapses B's headline cost from "rebuild the engine" down to **just four prompts**. The risk that survives is **methodology-fidelity regression** (§7) — ~~re-authored prompts quietly underperforming the `SKILL.md` harness~~ **[superseded by D5/D9: producers run as literal `SKILL.md` skills — the live risk is the producer skills drifting on a model / tool-order / skill-config change]**, invisible to CI. The mitigation is mandatory and gates Phase 0: **capture the live Whispering Willows hub as a human-labeled GOLDEN SET before a single prompt is written**, and regress every prompt/model bump against it.
 
 Model ids are re-baselined off the stale `anthropic/claude-sonnet-4.5` to the trailhead-current ids: **`claude-sonnet-4-6` drafter / `claude-haiku-4-5` faithfulness verifier / `claude-opus-4-7` judge**, dropping `budget_tokens` on 4.6+/Opus.
 
@@ -54,7 +60,9 @@ Model ids are re-baselined off the stale `anthropic/claude-sonnet-4.5` to the tr
 
 ## 3. Request / stream lifecycle
 
-Generation runs as a `ToolLoopAgent` on a Node/Fluid route. The human's primary checkpoint is the **brief**, not the 2,200-word draft — get the brief right and the draft is bookkeeping.
+> **⚠️ Runtime note — SUPERSEDED by DECISIONS.md D5/D9 (2026-06).** Where the prose and the diagram below place the loop "on a Node/Fluid route in `apps/seo`," the locked topology instead runs the loop in the **Claude Agent SDK worker on a Vercel Sandbox**; `apps/seo` is the thin orchestration tier that dispatches the run and **relays the worker's SDK events as SSE (worker → `apps/seo` → browser)**, and the agent's "tools" are the host-side `/content/api/{brief,draft,audit,publish}` routes (see §1 LOCKED RUNTIME). **The three invariants below are unchanged and remain exactly correct** — the gate is host code outside the loop, a green eval makes a draft eligible (not published), and cost is reserved pre-flight — only *where the loop physically runs* moved from in-process to the Sandbox worker.
+
+Generation runs the autonomous loop (the Claude Agent SDK worker; D5/D9), with the deterministic kernel reached as host-side `/content/api/*` tools. The human's primary checkpoint is the **brief**, not the 2,200-word draft — get the brief right and the draft is bookkeeping.
 
 ```
  CLIENT (three-zone canvas)                apps/seo SERVER (Node/Fluid route)            @sagemark/core (host-side, deterministic)
@@ -96,6 +104,8 @@ Three invariants this lifecycle enforces:
 
 ## 4. Where it sits in Sagemark
 
+> **⚠️ Runtime-placement note — SUPERSEDED by DECISIONS.md D5/D9 (2026-06).** The tree below shows the loop (`api/run`, `agent.ts`, `ToolLoopAgent`) running **in-process inside `apps/seo`**. Under the locked topology that loop runs on the **Claude Agent SDK worker on a Vercel Sandbox** (§1 LOCKED RUNTIME); `apps/seo` instead owns the **thin orchestration API + the `/content/api/{brief,draft,audit,publish}` kernel routes** (the host-side tools the worker calls) + the **SSE relay**. The package boundaries (`@sagemark/core` as the host-side moat; `apps/site` render surface; imagegen in-process) are unchanged — only the loop's *host* moved from an `apps/seo` route to the Sandbox worker.
+
 ```
 flywheel-main/
 ├── apps/
@@ -120,7 +130,7 @@ flywheel-main/
 │   └── videogen/imagegen/           ◀── hero-image engine, called in-process (§6)
 ```
 
-**Why a new `apps/seo` rather than extending `apps/agents`:** the SEO Creator is the first service built on the AI SDK v6 agent-loop pattern. `apps/agents` is uniformly hand-rolled `fetch → OpenRouter`. A clean service keeps the two LLM ecosystems from tangling, lets `apps/seo` own its Fluid `maxDuration` and Gateway config, and gives the scorers a natural home (`@sagemark/core`) shared by both. It reuses `apps/agents`' auth/credit/workspace conventions and `apps/site`'s render surface — no fork of those.
+**Why a new `apps/seo` rather than extending `apps/agents`:** the SEO Creator is the first service built on the ~~AI SDK v6 agent-loop pattern~~ **self-hosted Claude Agent SDK worker pattern (D5/D9)** — a thin `apps/seo` host exposing the deterministic kernel over `/content/api/*` to a Sandbox-hosted loop. `apps/agents` is uniformly hand-rolled `fetch → OpenRouter`. A clean service keeps the two LLM ecosystems from tangling, lets `apps/seo` own its Fluid `maxDuration` and Gateway config, and gives the scorers a natural home (`@sagemark/core`) shared by both. It reuses `apps/agents`' auth/credit/workspace conventions and `apps/site`'s render surface — no fork of those.
 
 **`@sagemark/core` is the moat made a package.** It registers the deterministic primitives (scorers, faithfulness gate, `seo-gate`, `lifecycle-fsm`) plus the provider seam (`resolveGatewayModel`, `CostAccountant`) as **host-side platform code**. Both the agent's read-only tools and the host's enforcement call the *same* gate module — there is exactly one gate, never a drifted copy.
 
@@ -181,7 +191,7 @@ Rules that keep this on-thesis:
 
 | Risk | Mitigation baked into the architecture |
 |---|---|
-| **Methodology-fidelity regression** — re-authored prompts underperform `SKILL.md`, invisible to CI | Golden set captured in Phase 0 **before** any prompt; regressed on every prompt/model bump |
+| **Methodology-fidelity regression** — the runtime producer behavior drifts from the proven `SKILL.md` methodology, invisible to CI *(under D5/D9 the skills run literally, so this is loop/model/tool-order drift rather than ~~re-authored-prompt~~ drift)* | Golden set captured in Phase 0 **before** any prompt; regressed on every prompt/model bump |
 | **Agent reasons past a hard gate** | Stage-A vetoes + `canPublish()` enforced in **host code**; agent gets read-only `runGate` only |
 | **Cross-tenant leakage / voice bleed** (agency-ending) | Host-side tools keyed to one `workspace_id`/`client_id`; fail-closed RLS; review token scoped to exactly one piece/version |
 | **Crawler-invisibility** (any CSR slip kills the GEO thesis) | SSR full-body as a CI-enforced reachability gate; `apps/site` vitest stood up first |
@@ -192,6 +202,8 @@ Rules that keep this on-thesis:
 ---
 
 ## Component diagram
+
+> **⚠️ SUPERSEDED by DECISIONS.md D5/D9 (2026-06).** This diagram shows the loop (`ToolLoopAgent (ai@6)`) running **inside `apps/seo`**. The locked topology runs it on the **Claude Agent SDK worker on a Vercel Sandbox**, with `apps/seo` as the thin orchestration tier exposing the `/content/api/*` kernel routes (host-side tools) + the SSE relay. For the current architecture diagram see RFC §2 (`plans/seo-creator/flywheel/engineering-rfc.md`); `@sagemark/core` as the host-enforced moat and the gate/`canPublish()` host-side invariants below remain exactly correct.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────┐
