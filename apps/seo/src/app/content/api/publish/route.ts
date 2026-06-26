@@ -42,9 +42,12 @@ import {
 import {
   authenticateBridgeRequest,
   assertTenancyMatch,
+  parseReferencedPhotoSlugs,
+  toReferencedImages,
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
   type ContentPieceRow,
+  type ReferencedImageDecision,
 } from "@/lib/content/context";
 import { readCredentialedRelease } from "@/lib/release/read-credentialed-release";
 import { resolveBylineAuthor } from "@/lib/byline/resolve-author";
@@ -75,6 +78,32 @@ const DEFAULT_DEPS: PublishDeps = {
 
 function json(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status });
+}
+
+/**
+ * Resolve the `[photo:slug]` references a publishing body carries to the core
+ * FSM's `ReferencedImage` decision rows (DR-033), FAIL-CLOSED:
+ *   - A body with NO `[photo:]` token references no image → [] (gate passes).
+ *   - A body WITH tokens but NO `resolveReferencedAssets` seam method available
+ *     → every token is treated as UNRESOLVED (orphan) → the gate BLOCKS
+ *     (UNLICENSED_ASSET). We never fail OPEN: if we can't prove the assets are
+ *     licensed, we refuse the publish.
+ *   - Otherwise each token resolves to `licensed` iff its asset row carries a
+ *     non-null license, scoped to the bound client.
+ */
+async function resolveReferencedImages(
+  body: string,
+  clientId: string,
+  data: ContentDataAccess,
+): Promise<ReferencedImageDecision[]> {
+  const slugs = parseReferencedPhotoSlugs(body);
+  if (slugs.length === 0) return [];
+  if (!data.resolveReferencedAssets) {
+    // Fail-closed: tokens present but no resolver → all orphaned (block).
+    return slugs.map((slug) => ({ slug, resolved: false, licensed: false }));
+  }
+  const assets = await data.resolveReferencedAssets(clientId, slugs);
+  return toReferencedImages(slugs, assets);
 }
 
 export async function handlePublish(
@@ -160,6 +189,13 @@ export async function handlePublish(
     // loose `evalScore != null || verdict != null` heuristic (a Stage-A veto sets
     // a verdict with no eval_score → the heuristic would mis-read evalRan=true).
     const gate = await deps.data.getGateResult(body.pieceId, ctx.clientId, piece.version);
+    // DR-033: resolve the body's `[photo:]` references to licensed asset records
+    // (fail-closed) so canPublish blocks an orphaned/unlicensed image publish.
+    const referencedImages = await resolveReferencedImages(
+      piece.body,
+      ctx.clientId,
+      deps.data,
+    );
     const transitionCtx: TransitionContext = {
       verdict: piece.verdict,
       evalRan: gate?.evalRan === true,
@@ -169,6 +205,7 @@ export async function handlePublish(
       // YMYL citation presence is read from the persisted brief snapshot
       // (graded sources present == citations available).
       hasCitations: (piece.briefSnapshot?.sources?.length ?? 0) > 0,
+      referencedImages,
       publishEnabled: flagOn,
     };
 

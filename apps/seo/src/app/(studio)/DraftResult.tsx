@@ -63,6 +63,7 @@ const REASON_LABELS: Record<TransitionRejection, string> = {
   VERDICT_NOT_PUBLISH: "The gate verdict is not PUBLISH.",
   NO_HUMAN_RELEASE: "No recorded credentialed release (a client sign-off cannot release).",
   EVAL_DID_NOT_RUN: "The eval did not run — no usable scorecard.",
+  UNLICENSED_ASSET: "An image in this piece is missing a licensed/provenanced asset record.",
   YMYL_NO_BYLINE: "YMYL piece needs a named, credentialed byline.",
   YMYL_NO_CITATIONS: "YMYL piece needs authoritative citations.",
   VERDICT_NOT_APPROVABLE: "The verdict is not approvable.",
