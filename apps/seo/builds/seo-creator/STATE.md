@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-26 (Run #013 — P0.S.2 #28 MERGED → ★ PHASE 0 COMPLETE ★; phase-close audit next, then Phase 1)
 **Current build phase:** Phase 1 — Pilot (ENTERED — Phase 0 complete; audit-003 phase-close CLEAR, no Critical/High)
-**Phase progress:** **17 / 23 engineering PRs merged** — all 10 Phase-0 + **Phase 1: 7/12** (P1.R.1 #31, P1.W.1 #32, P1.R.2 #34, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41 version hub) · **★ SLICE 1 CLOSED ★** (+3 correctives · +1 spike · 4 audit fixes · suite #24)
+**Phase progress:** **18 / 23 engineering PRs merged** — all 10 Phase-0 + **Phase 1: 8/12** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41) · **★ SLICE 1 CLOSED ★** · +imagegen built out (#43/#45) (+3 correctives · +1 spike · 4 audit fixes · suite #24)
 **Runs since last audit:** 0 (audit-004 done 2026-06-26 — `audits/audit-004-2026-06-26.md`, no Critical; **P1.R.3 CLEAR to build**)
 **Sibling build:** `@sagemark/imagegen` BUILT OUT — Stage 1 #43 + Stage 2 #45 (engine + generateHeroImage + Supabase persistence; 0035 applied to Sagemark + private bucket; [[DR-032]]). Pexels key provisioned. Unblocks P1.R.3's hero paths.
 **Loop status:** **AUTO-LOOP RUNNING ~10h unattended** (James-directed; `.auto-loop.json` budget 10h from 2026-06-26T04:14Z; ~1.5h elapsed; autonomous auto-merge). **★ PHASE 0 — FOUNDATIONS COMPLETE ★** (10/10 PRs: ported kernel + gates/FSM, multi-tenant RLS 17/17, /content/api/* contract, hardened Agent-SDK worker + SSE + bridge-auth, suite wired + golden harness, fail-closed publish). **Phase 1 (7/12) · ★ SLICE 1 CLOSED ★ · ⏹ AUTO-LOOP ENDED (active:false)** — the 10h unattended run completed cleanly. Runs #015–#019 merged P1.R.1/R.2/W.1/U.1/U.2/U.3/U.4 (all judge-APPROVED 5/5·5/5). **Terminal reason:** eligible *mapped engineering* depleted + **audit DUE** (5 runs since audit-003) + ~9.2h/10h budget. **Remaining Phase-1 PRs are blocked on NON-ENGINEERING deliverables** — P1.R.3 (imagegen keys), P1.C.1 (←P1.R.3), P1.C.2 (←D6 credentialed reviewer), P1.C.3/P1.C.4 (←≥3-engine share-of-model measurement; + the DR-013 Gateway-only-metering corrective). **To resume:** run `/seo-creator-build audit full` (DUE) first, then provide the non-eng inputs to reach P1.R.3 / client-review. Dependency-free engineering still available if desired: the DR-013 metering corrective + the [[DR-031]] schema follow-up (sign-off DB immutability + version-metadata columns).
@@ -104,7 +104,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | **MERGED** (judge 5/5·5/5; N=3 cap [[DR-027]]; A.014.1+A.014.5 folded) | Run #015 | 659b083 | [#32](https://github.com/digital-seniority/sagemark/pull/32) |
 | P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; escape-first [[DR-026]]) | Run #015 | 6258732 | [#31](https://github.com/digital-seniority/sagemark/pull/31) |
 | P1.R.2 | PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions) | render-geo | **MERGED** (judge 5/5·5/5; both-directions + failing-case proofs; ci.yml step) | Run #016 | 2232ee3 | [#34](https://github.com/digital-seniority/sagemark/pull/34) |
-| P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | NOT_STARTED | — | — | — |
+| P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | **MERGED** (judge 5/5·5/5; +DR-033 publish image-license gate; hero async/Pexels-first/gated) | Run #021 | cd5a49c | [#47](https://github.com/digital-seniority/sagemark/pull/47) |
 | P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | NOT_STARTED | — | — | — |
 | P1.C.2 | PR 019 — "Request changes" -> agent edit loop routing + named sign-off + approval-debt KPI | client-review | NOT_STARTED | — | — | — |
 | P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | client-review | NOT_STARTED | — | — | — |
@@ -133,6 +133,9 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 017 | 5.0 | 5.0 | 0% | 0% |
 | 018 | 5.0 | 5.0 | 0% | 0% |
 | 019 | 5.0 | 5.0 | 0% | 0% |
+| imagegen S1/S2 | 5.0 | 5.0 | 0% | 50% (1/2, CI storage-perms fix) |
+| 020 | audit | audit | — | — |
+| 021 | 5.0 | 5.0 | 0% | 0% |
 
 ## Status legend
 
@@ -140,6 +143,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Post-#019 (user-directed): imagegen built out (#43 Stage 1 + #45 Stage 2, 0035 applied to Sagemark + bucket; Pexels keyed; DR-032) · audit-004 done (no Critical, P1.R.3 CLEAR) · DR-033 (publish-side image-license gate, must land with P1.R.3) · VERCEL_PROJECT_ID fixed → sagemark-seo. **Next: P1.R.3 (PR 017 homepage + hero) folding F1 edit-status-guard + DR-033 + the F8 trip-hazards.***
+*Run #021 · Phase 1 (8/12): P1.R.3 [#47](https://github.com/digital-seniority/sagemark/pull/47) (cd5a49c) MERGED · judge 5/5·5/5 · homepage + imagegen hero + DR-033 publish image-license gate IMPLEMENTED · plan complete (imagegen S2 + audit-004 + P1.R.3). **Next: P1.C.1 (review preview); follow-ups: live seam-resolver Drizzle wiring, F1 edit status-guard, wire 3 structured judge checks, imagegen live-flip.***
 
 > **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.

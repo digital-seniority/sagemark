@@ -2,12 +2,21 @@
 
 > Re-read THIS first after a compaction, then STATE.md, then continue `/seo-creator-build auto`. Never restart; never re-merge MERGED PRs.
 
-**Status:** Phase 1 at 7/12. The 10h unattended run ended at Run #019; since then (user-directed): **imagegen built out** (Stage 1 #43 + Stage 2 #45, 0035 applied to Sagemark + bucket) and **audit-004 done (no Critical — P1.R.3 CLEAR)**. `.auto-loop.json` is `active:false`. No run-lock. **Next: build P1.R.3.**
+**Status:** Phase 1 at **8/12**. Plan complete (imagegen Stage 1 #43 + Stage 2 #45 applied to Sagemark + bucket → audit-004 no-Critical → **P1.R.3 #47 MERGED** with the DR-033 publish image-license gate). `.auto-loop.json` `active:false`. No run-lock. **Next: P1.C.1** (+ the live seam-resolver wiring so image-bearing pieces can publish).
 
 ## Already MERGED (do NOT redo)
 Phase 0 (10): #2,#3,#5,#6,#8,#11,#17,#19,#20,#26,#28. Phase 1 (7): #31,#32,#34,#35,#37,#39,#41. imagegen: #43 (stage1), #45 (stage2). Correctives C.004.1/C.008.1/C.009.1(#22). audit fixes #13-16. suite #24. state #21,#23,#25,#27,#29,#30,#33,#36,#38,#40,#42,#44. audits 001/002/003/004.
 
-## NEXT — P1.R.3 (PR 017 — resource-library homepage + imagegen hero), the only dep-eligible engineering PR
+## ✅ P1.R.3 DONE (#47, DR-033 gate implemented). NEXT = P1.C.1 + the follow-ups below.
+
+### Immediate follow-ups (dependency-free engineering)
+- **Live seam-resolver wiring (unblocks publishing image-bearing pieces):** implement the Drizzle `resolveReferencedAssets` (publish/DR-033) + `resolveHeroAssets` (homepage) impls on the `ContentDataAccess`/`PublicContentDataAccess` seam (today they're optional → publish fail-closed-blocks any `[photo:]`-bearing body, homepage shows no hero). Also widen the public-read Drizzle impl to select `clusterRole`/`funnelStage`.
+- **F1 (audit-004 High):** add `status==='draft'` guard to `/api/edit` + a guards test.
+- **Process debt (A.014.5, 3 cycles):** wire `tool-allowlist-single-source`, `worker-credential-publish-scope`, normalize-before-gate, and `migration-runs-on-live-pooled-role` into `build-flywheel-manifest.json` judge_criteria.
+- **imagegen live-flip:** `IMAGEGEN_LIVE=1` + service-role creds on the deploy + a Gateway image-model-id smoke + true-up `ESTIMATED_USD_PER_IMAGE_BY_TIER`.
+
+## NEXT MAPPED PR — P1.C.1 (PR 018 — tokenized client-review preview + pinned comments + section verbs), dep P1.R.3 ✓
+### (superseded note) the original P1.R.3 plan — DONE:
 Files (RFC §616): `apps/seo/src/app/clients/[client]/page.tsx` (homepage off the clusterRole/funnelStage columns), `apps/seo/src/lib/render/hub-homepage.ts`, `apps/seo/src/lib/tools/hero-image.ts` (in-process `generateHeroImage` from `@sagemark/imagegen`, async/job-wrapped, tenancy+cost-cap host-side), `apps/seo/test/render/homepage.test.ts`, `apps/seo/test/tools/hero-provenance.test.ts`.
 **MUST FOLD IN (audit-004):**
 - **DR-033 (the landmine):** add the publish-side image-license precondition — `canPublish` (likely a new `TransitionContext.referencedImages` field in @sagemark/core) asserts every image referenced in the body resolves to a licensed `generated_images`/stock row (workspace-scoped); render-gate refuses unprovenanced assets (key off `license` presence). **Do NOT ship `[photo:]` resolution without this.** Stock (Pexels) assets also need a recorded license/attribution.
