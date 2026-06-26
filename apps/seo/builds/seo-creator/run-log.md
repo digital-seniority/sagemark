@@ -117,3 +117,16 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Escalations (user decisions, non-blocking):** (a) DR-013 — host-context gate calls can BYOK-bypass the Gateway when `ANTHROPIC_API_KEY` is set; decide Gateway-only-for-gates before the D4 ledger (PR 020). (b) set the GitHub `DATABASE_URL` repo secret so CI RLS Tier-2 runs (closes A.005.5).
 - **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE. All reachable audit fixes are now PRs (#13–#16); P0.W.2 (worker host) needs a human to merge #14 (+#13) first. No autonomously-reachable engineering work remains.
 - **Checkpoint:** `checkpoints/run-007-2026-06-26.md`
+
+## Run #008 — 2026-06-26
+
+- **Duration:** ~00:35 · Mode: work-doing (1 high-risk PR; the marquee worker host). Preceded by merging audit PRs #13–#16 (user-approved).
+- **PR created (human-merge — production-critical):** `P0.W.2` (PR 006 — Agent-SDK worker on Vercel Sandbox) — **[PR #17](https://github.com/digital-seniority/sagemark/pull/17)**, judge APPROVED 5/5·4/5; GATE-BYPASS PASS (no publish tool; `tools:[]`+2-item allowlist), TENANCY PASS (frozen per-run binding), fail-closed boot-refusal proven (ports the spike profile), no Supabase creds in the worker env (host-side `session-store`), worker Gateway-only via the CLI env seam ([[DR-016]]). SOURCE-CONSUMED build GREEN.
+- **Also merged this run (user-approved):** audit fixes #13 (A.005.1 RLS), #14 (A.005.2 spec), #15 (A.005.3 gates→Gateway), #16 (A.005.4 CI).
+- **PRs merged by the run:** 0 engineering (P0.W.2 is `REQUIRES_HUMAN_MERGE`).
+- **Process:** 5.0/5 · **Product:** 4.0/5 (host lease-reclaim watchdog library-built-not-wired; §C17 via env seam not the named resolver — both defensible at this slice).
+- **DRs recorded:** DR-016 (worker model traffic via Agent-SDK CLI env seam), DR-017 (host lease-reclaim watchdog deferred to the host-orchestrator PR).
+- **Added:** `apps/seo/src/worker/*` + Dockerfile + worker tests; `0034_worker_sessions.sql` + `workerSessions` drizzle def; deps `@anthropic-ai/claude-agent-sdk`, `@vercel/sandbox`, `@supabase/supabase-js`.
+- **Escalations (user/infra):** (1) merge PR #17; (2) apply `0034` to the Sagemark project; (3) add `worker_sessions` to the RLS contract test; (4) provision live Vercel-Sandbox+Supabase to run P0.W.2 Tier-2/3; (5) set the CI `DATABASE_URL` secret (Sagemark).
+- **HARD-STOP (loop terminal):** REQUIRES_HUMAN_MERGE — P0.W.3/W.4/W.5 gate on P0.W.2 (#17) merging. P0.S.2 may be worker-independent (next candidate without waiting).
+- **Checkpoint:** `checkpoints/run-008-2026-06-26.md`

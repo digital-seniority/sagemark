@@ -1,22 +1,22 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #007 — A.005.3 + A.005.4 PRs created; 4 audit-finding PRs now await human merge)
+**Last updated:** 2026-06-26 (Run #008 complete — P0.W.2 worker host created at PR #17, human-merge)
 **Current build phase:** Phase 0 — Foundations
-**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +6 spike (P0.W.1) · **+4 audit-finding PRs OPEN** (A.005.1 #13, A.005.2 #14, A.005.3 #15, A.005.4 #16)
-**Runs since last audit:** 2 (audit-001 was Run #005 — threshold 5)
-**Loop status:** P0.W.1 MERGED; Supabase = **Sagemark/`rilaycjkksfosnxvenzt`** (DR-015, redirected from DSN). Runs #006–#007 built all reachable audit fixes (A.005.1–.4) as **human-merge PRs #13–#16**. **HARD-STOP: P0.W.2 gated on a human merging #14** (worker-host spec must read the reconciled topology) + #13. The remaining audit item A.005.5 is reduced to "set the CI `DATABASE_URL` secret." `.auto-loop.json` `active:false`.
+**Phase progress:** 5 / 23 engineering PRs merged (+1 corrective C.004.1) · +1 spike (P0.W.1) · 4 audit fixes MERGED (#13–#16) · **P0.W.2 (#17) OPEN, human-merge**
+**Runs since last audit:** 3 (audit-001 was Run #005 — threshold 5; audit due before Run #010)
+**Loop status:** Audit PRs #13–#16 MERGED; Supabase = **Sagemark/`rilaycjkksfosnxvenzt`** (DR-015). Run #008 built **P0.W.2 (worker host) → [PR #17](https://github.com/digital-seniority/sagemark/pull/17)**, judge 5/5·4/5, GATE-BYPASS + TENANCY PASS, fail-closed boot proven, Tier-2/3 NEEDS-INPUT (live Sandbox). **HARD-STOP: P0.W.2 is production-critical → REQUIRES_HUMAN_MERGE; P0.W.3/W.4/W.5 are gated on it.**
 
 ## Currently in flight
 
-_(none — loop terminated **depleted** after Run #004; P0.W.1 gate since CONFIRMED out-of-loop via the manual live Sandbox run + remediation. Next action is human merge of PR #3, then resume.)_
+- **P0.W.2 (PR 006 — worker host) — [PR #17](https://github.com/digital-seniority/sagemark/pull/17)** — `PR_CREATED` / `REQUIRES_HUMAN_MERGE` (production-critical). Judge 5/5·4/5. Awaiting human review/merge.
 
-## Next up (dependencies satisfied)
+## Next up (after P0.W.2 merges)
 
-- **PR P0.W.2** (PR 006 — Agent-SDK worker on Vercel Sandbox, the autonomous loop host) — deps [P0.W.1 ✓ MERGED] — worker-runtime. **The next work-doing PR.** Must implement the hardened profile (DR-010 egress + DR-011 no-shell worker; reference impl in `apps/seo/spike/capability-enforcement/_harness.ts`). High-risk + production-critical → will be `REQUIRES_HUMAN_MERGE`. **Gate: resolve A.005.2 first** (the spec it would read still says "never self-host/Sandbox" — superseded by D5/D9).
-- **Audit-finding PRs — Run #006 created 2 (OPEN, human-merge):**
-  - **A.005.1 (Critical) — [PR #13](https://github.com/digital-seniority/sagemark/pull/13)** — `content_clients` RLS. Judge APPROVED 5/5·5/5. `PR_CREATED` / `REQUIRES_HUMAN_MERGE`.
-  - **A.005.2 (High) — [PR #14](https://github.com/digital-seniority/sagemark/pull/14)** — reconcile Approach-B spec vs D5/D9. Judge APPROVED 4/5·4/5 (residual lines fixed). `PR_CREATED` / `REQUIRES_HUMAN_MERGE`. **Merge before P0.W.2.**
-  - **Still queued (not yet built):** A.005.3 (High — route faithfulness/voice gates through the metered Gateway + DR), A.005.4 (High — CI: run tests + wire `node:test` RLS + worker-env-lint), A.005.5 (High — PG harness for Tier-2 RLS, fold into P0.S.2). See `audits/audit-001-2026-06-25.md`.
+- **P0.W.3** (PR 006b — worker capability-denial adversarial confinement suite) — dep [P0.W.2]. The standing adversarial tests (curl/env-dump/cross-run-read/direct-write all fail) + the lint that no model-reachable tool shells out.
+- **P0.W.4** (PR 007 — worker↔apps/seo SSE transport) — dep [P0.W.2].
+- **P0.W.5** (PR 008 — wire seo-blog-writer suite skill + golden-set harness) — dep [P0.W.2].
+- **P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish endpoint) — schema-tenancy; **check deps** — may be independent of the worker lane (deps P0.E.4 ✓ + P0.S.1 ✓), so possibly the next *non-worker-gated* batch even before P0.W.2 merges.
+- **Mediums (A.012.x):** core barrel `server-only` split, passive-voice regex drift, schema-flywheel in-package tests, console.* logging, dual route namespace — opportunistic.
 
 ## Blocked / awaiting input
 
@@ -28,17 +28,18 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ## Audit-001 findings — disposition (all reachable ones now fixed; await human merge)
 
-- **[Critical] A.005.1 anon tenancy-map leak** → **PR #13** (content_clients RLS, judge 5/5·5/5). `PR_CREATED` / human-merge.
-- **[High] A.005.2 governance spec contradiction** → **PR #14** (reconcile to D5/D9, judge 4/5·4/5). `PR_CREATED` / human-merge. **Merge before P0.W.2.**
-- **[High] A.005.3 model spend escapes the Gateway** → **PR #15** (gates via `resolveGatewayModel`, judge 5/5·5/5; [[DR-013]]). `PR_CREATED` / human-merge. ⚠️ open policy: host-context BYOK can bypass metering — decide Gateway-only-for-gates before the D4 ledger (PR 020).
-- **[High] A.005.4 no CI runs tests** → **PR #16** (GitHub Actions: typecheck/lint/test/build + node:test RLS + worker-env-lint, judge 4/5·5/5; [[DR-014]]). `PR_CREATED` / human-merge.
+- **[Critical] A.005.1 anon tenancy-map leak** → **PR #13** (content_clients RLS, judge 5/5·5/5). **MERGED** (user-approved).
+- **[High] A.005.2 governance spec contradiction** → **PR #14** (reconcile to D5/D9, judge 4/5·4/5). **MERGED** (user-approved). **Merge before P0.W.2.**
+- **[High] A.005.3 model spend escapes the Gateway** → **PR #15** (gates via `resolveGatewayModel`, judge 5/5·5/5; [[DR-013]]). **MERGED** (user-approved). ⚠️ open policy: host-context BYOK can bypass metering — decide Gateway-only-for-gates before the D4 ledger (PR 020).
+- **[High] A.005.4 no CI runs tests** → **PR #16** (GitHub Actions: typecheck/lint/test/build + node:test RLS + worker-env-lint, judge 4/5·5/5; [[DR-014]]). **MERGED** (user-approved).
 - **[High→nearly closed] A.005.5 RLS behaviorally unproven** → schema applied to **Sagemark/`rilaycjkksfosnxvenzt`** + RLS verified as anon ([[DR-015]]); CI Tier-2 wired in PR #16. **Remaining: a human sets the GitHub `DATABASE_URL` secret** (→ the Sagemark project) so Tier-2 runs in CI.
 - **Process (done):** event-log reconciled; judge `source-consumed-integration-build` check applied (`060b6b1`) — it gated A.005.1 + A.005.3.
 - **Mediums (logged, not yet built):** core barrel re-exports `server-only` (A.012.1), passive-voice regex drift (A.012.2), schema-flywheel in-package tests / dual runner, console.* logging, dual route namespace. Pick up opportunistically.
 
 ## Recent learnings (last 5)
 
-0. **Supabase project = Sagemark/`rilaycjkksfosnxvenzt` (2026-06-26)** [[DR-015]], redirected from DSN (now orphaned). It's in a DIFFERENT org (`dbukahlorzsipthfpwda`) — the MCP token was re-scoped to reach it. `0030`–`0033` applied; RLS verified behaviorally as anon. Public conn vars (`NEXT_PUBLIC_SUPABASE_URL`/publishable key/`SUPABASE_PROJECT_REF`) wired in `.claude/settings.local.json`; service-role + `DATABASE_URL` are human/CI secrets (point the CI `DATABASE_URL` secret at THIS project). The pre-existing `rls_auto_enable()` event trigger had anon/authenticated EXECUTE revoked. Future migrations apply here. Supersedes the old "No Supabase wired" + DSN notes.
+0. **P0.W.2 worker host built (Run #008, PR #17)** — the spike's proven controls (`hardenSandbox`/`networkPolicy`/`readViaWorkdirTool`/`assertControlsOrRefuse`) are now REAL in `apps/seo/src/worker/sandbox-launch.ts`; fail-closed boot, no-publish-tool model surface (`tools:[]` + 2-item allowlist), frozen per-run tenancy binding, host-side `session-store` (worker has no Supabase creds), worker model traffic via the Agent-SDK CLI env seam not `resolveGatewayModel` ([[DR-016]]), host lease-reclaim watchdog deferred ([[DR-017]]). 0034_worker_sessions migration added (needs applying to Sagemark). Tier-2/3 = live-Sandbox NEEDS-INPUT.
+0a. **Supabase project = Sagemark/`rilaycjkksfosnxvenzt` (2026-06-26)** [[DR-015]], redirected from DSN (now orphaned). It's in a DIFFERENT org (`dbukahlorzsipthfpwda`) — the MCP token was re-scoped to reach it. `0030`–`0033` applied; RLS verified behaviorally as anon. Public conn vars (`NEXT_PUBLIC_SUPABASE_URL`/publishable key/`SUPABASE_PROJECT_REF`) wired in `.claude/settings.local.json`; service-role + `DATABASE_URL` are human/CI secrets (point the CI `DATABASE_URL` secret at THIS project). The pre-existing `rls_auto_enable()` event trigger had anon/authenticated EXECUTE revoked. Future migrations apply here. Supersedes the old "No Supabase wired" + DSN notes.
 0b. **Audit-001 (Run #005): the moat is solid; the gaps are at the edges.** Deterministic kernel + host-side enforcement + tests are spec-faithful (zero hollow tests). Real risks: anon-RLS on `content_clients`, the Approach-B/D5-D9 spec contradiction, gates bypassing the metered Gateway, and NO CI executing any test. See [[audit-001]] + Active risks above.
 1. **P0.W.1 gate CONFIRMED via live run + remediation (2026-06-25).** Vercel Sandbox is a viable worker runtime *with a hardened profile*: (a) egress = SDK `networkPolicy` allowlist + in-VM `iptables` DROP on `169.254.0.0/16` (the Firecracker MMDS is hypervisor-local and token-gated — the egress policy can't refuse it; the iptables block can) [[DR-010]]; (b) fs = **no-shell worker** + a workdir-scoped file tool — a VM shell jail is unachievable (non-root run, permissive image, no chroot), so the control lives at the tool layer [[DR-011]]. All 4 probes PASS. The `vercel-sandbox` run user is uid 1000 but can `sudo` and the base image is permissive. PR 006 must build this profile.
 1. **Port sources live in `C:/Users/stone/Code/flywheel-main/`** (DR-001), not in sagemark. RFC `apps/trailhead`/`apps/agents` paths are relative to that sibling repo (read-only). Agents read them by absolute path.
@@ -64,7 +65,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
 | P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | MERGED | 2 | 895507e | [#6](https://github.com/digital-seniority/sagemark/pull/6) |
 | P0.E.4 | PR 005 — /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | MERGED | 4 | ca776f0 | [#11](https://github.com/digital-seniority/sagemark/pull/11) |
-| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | NOT_STARTED (GATED by P0.W.1 live run) | — | — | — |
+| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | **PR_CREATED** / REQUIRES_HUMAN_MERGE (judge 5/5·4/5; Tier-2/3 NEEDS-INPUT) | Run #008 | 08785ab | [#17](https://github.com/digital-seniority/sagemark/pull/17) |
 | P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | NOT_STARTED | — | — | — |
 | P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | NOT_STARTED | — | — | — |
@@ -98,6 +99,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | 005 | audit | audit | — | — |
 | 006 | 4.5 | 4.5 | 0% | 0% |
 | 007 | 4.5 | 5.0 | 0% | 0% |
+| 008 | 5.0 | 4.0 | 0% | 0% |
 
 ## Status legend
 
@@ -105,6 +107,6 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
 ---
 
-*Run #007 complete · A.005.3 (#15, gates→Gateway) + A.005.4 (#16, CI) created — human-merge · judge 4.5/5.0 · all reachable audit fixes done (PRs #13–#16) · HARD-STOP: P0.W.2 gated on human merge of #14 (+#13)*
+*Run #008 complete · audit PRs #13–#16 MERGED · P0.W.2 worker host built → [PR #17](https://github.com/digital-seniority/sagemark/pull/17) (human-merge, judge 5/5·4/5, GATE-BYPASS+TENANCY PASS) · HARD-STOP: P0.W.2 production-critical, gates P0.W.3/W.4/W.5*
 
-> **Reachability note:** P0.W.1 merged → worker lane open; Supabase = Sagemark/`rilaycjkksfosnxvenzt` (DR-015, redirected from DSN). Runs #006–#007 built every audit fix that didn't need the worker lane: A.005.1 (#13), A.005.2 (#14), A.005.3 (#15, DR-013), A.005.4 (#16, DR-014). **The loop is HARD-STOPPED on REQUIRES_HUMAN_MERGE — there is no autonomously-reachable engineering work left until a human acts:** (1) merge PRs #13–#16 (review the 4 audit fixes); (2) merging #14 (+#13) unblocks **P0.W.2** (worker host) as the next work-doing run; (3) set the GitHub `DATABASE_URL` secret so CI RLS Tier-2 runs (closes A.005.5); (4) decide the DR-013 host-context metering policy before the D4 ledger. Mediums (A.012.x) queue opportunistically.
+> **Reachability note:** Audit fixes #13–#16 merged; Supabase = Sagemark/`rilaycjkksfosnxvenzt` (DR-015). Run #008 built **P0.W.2** (worker host) at PR #17 — Tier-1 green, fail-closed boot proven, Tier-2/3 NEEDS-INPUT (live Sandbox). **HARD-STOP (REQUIRES_HUMAN_MERGE):** P0.W.3/W.4/W.5 are gated on P0.W.2 merging. **Human actions:** (1) review + merge PR #17 (the worker host); (2) apply `0034_worker_sessions.sql` to the Sagemark project (DB write); (3) set the GitHub `DATABASE_URL` secret (Sagemark) for CI RLS Tier-2; (4) provision live Vercel-Sandbox+Supabase infra to run P0.W.2's Tier-2/3; (5) decide the DR-013 host-context metering policy. **Possibly-next without waiting:** P0.S.2 (PR 009) if its deps are worker-independent. Audit due before Run #010 (3 since last).
