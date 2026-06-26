@@ -20,6 +20,9 @@ node_modules
 # turbo
 .turbo
 
+# flywheel transient agent worktrees
+.claude/worktrees/
+
 # production
 /build
 
