@@ -13,7 +13,31 @@
  * @vitest-environment node
  */
 
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
+
+// The faithfulness gate routes through the metered AI Gateway seam
+// (`resolveGatewayModel` + the AI SDK `generateText`), not a raw fetch. Mock the
+// AI SDK + the seam so we can capture the system prompt the gate sends to the
+// verifier and prove the 25-claim cap is load-bearing.
+const generateTextMock = vi.fn() as Mock;
+
+vi.mock("ai", () => ({
+  generateText: (args: unknown) => generateTextMock(args),
+  Output: { object: (spec: unknown) => ({ __output: "object", ...(spec as object) }) },
+}));
+
+vi.mock("../ai/resolve-gateway-model", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../ai/resolve-gateway-model")
+  >();
+  return {
+    ...actual,
+    resolveGatewayModel: async (modelId: string) => ({
+      __sentinel: "gateway-model" as const,
+      modelId,
+    }),
+  };
+});
 
 import {
   GATE_TIMEOUT_MS as FAITHFULNESS_TIMEOUT_MS,
@@ -26,6 +50,10 @@ import {
   runContentVoiceGate,
 } from "./voice-gate";
 
+afterEach(() => {
+  generateTextMock.mockReset();
+});
+
 describe("faithfulness gate budgets (criterion 2)", () => {
   it("carries the 12s timeout (Bug 2 fix: 30s → 12s)", () => {
     expect(FAITHFULNESS_TIMEOUT_MS).toBe(12_000);
@@ -35,26 +63,12 @@ describe("faithfulness gate budgets (criterion 2)", () => {
     expect(GATE_CLAIM_CAP).toBe(25);
 
     // Prove the cap is load-bearing, not a dead constant: it appears in the
-    // system prompt the gate sends to the verifier.
-    process.env.OPENROUTER_API_KEY = "fake-key";
-    const mockFetch = vi.fn() as Mock;
+    // system prompt the gate sends to the verifier via the AI Gateway seam.
     let systemPrompt = "";
-    mockFetch.mockImplementation((_url: string, init: RequestInit) => {
-      const parsed = JSON.parse(init.body as string) as {
-        messages: Array<{ role: string; content: string }>;
-      };
-      systemPrompt =
-        parsed.messages.find((m) => m.role === "system")?.content ?? "";
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            choices: [{ message: { content: JSON.stringify({ claims: [] }) } }],
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+    generateTextMock.mockImplementation((args: { system?: string }) => {
+      systemPrompt = args.system ?? "";
+      return Promise.resolve({ output: { claims: [] } });
     });
-    vi.stubGlobal("fetch", mockFetch);
 
     await runFaithfulnessGate(
       { body: "Some draft body with claims." },
@@ -66,7 +80,6 @@ describe("faithfulness gate budgets (criterion 2)", () => {
     );
 
     expect(systemPrompt).toContain(String(GATE_CLAIM_CAP));
-    vi.unstubAllGlobals();
   });
 
   it("token budget is bounded (2000) — the headroom the 25-claim cap protects", () => {

@@ -16,7 +16,9 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.0",
     "@ai-sdk/gateway": "^4.0.0",
-    "@ai-sdk/provider": "^4.0.0"
+    "@ai-sdk/provider": "^4.0.0",
+    "ai": "^7.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@sagemark/config": "workspace:*",

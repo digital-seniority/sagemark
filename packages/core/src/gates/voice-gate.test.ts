@@ -1,35 +1,67 @@
 /**
  * Tests for the brand voice gate — runContentVoiceGate.
  *
+ * Transport: the gate routes through the metered AI Gateway seam
+ * (`resolveGatewayModel` + the AI SDK `generateText` + `Output.object`), NOT a
+ * raw OpenRouter `fetch`. These tests mock the AI SDK + the Gateway seam, so we
+ * drive `generateText` (success / throw) and assert the verifier resolves
+ * through `resolveGatewayModel` with the CANONICAL verifier id.
+ *
  * Covers:
  *   - No brandMd → skipped=true, skipReason='no_brand_bible'
- *   - Empty string brandMd → skipped=true, skipReason='no_brand_bible'
+ *   - Empty / whitespace brandMd → skipped=true, skipReason='no_brand_bible'
  *   - brandMd < 50 chars → skipped=true, skipReason='brand_bible_too_short'
- *   - Missing OPENROUTER_API_KEY → skipped=true, skipReason='gate_error'
- *   - LLM throws → skipped=true, skipReason='gate_error'
- *   - LLM returns non-200 → skipped=true, skipReason='gate_error'
- *   - LLM returns malformed JSON → skipped=true, skipReason='gate_error'
+ *   - Model call throws → skipped=true, skipReason='gate_error'
  *   - Article passes → overallStatus=PASS, sections all PASS
  *   - Article has marketing-speak → WARN with section-level issue
  *   - Article contradicts brand rules → FAIL, passed=false
  *   - passed=false only when overallStatus=FAIL
  *   - passed=true for PASS, WARN, and SKIP
- *   - Model used is NOT the draft model (haiku, not sonnet)
+ *   - Model routed through the Gateway seam with the canonical verifier id (not the drafter)
  *   - Article body truncated to 6000 chars when longer
- *   - VOICE_GATE_TIMEOUT_MS is ≤ 3000ms
+ *   - GATE_TIMEOUT_MS wired through an abort signal
  *   - brandMd over 2000 chars gets sliced to 2000 chars in the prompt
  *   - Section label 'intro' normalizes to 'introduction'
  *
  * @vitest-environment node
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
-import { runContentVoiceGate } from "./voice-gate";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+} from "vitest";
 
-// ── Fetch mock ────────────────────────────────────────────────────────────────
+// ── AI SDK + Gateway-seam mocks ───────────────────────────────────────────────
 
-const mockFetch = vi.fn() as Mock;
-vi.stubGlobal("fetch", mockFetch);
+const generateTextMock = vi.fn() as Mock;
+const resolveGatewayModelMock = vi.fn(async (modelId: string) => ({
+  __sentinel: "gateway-model" as const,
+  modelId,
+}));
+
+vi.mock("ai", () => ({
+  generateText: (args: unknown) => generateTextMock(args),
+  Output: { object: (spec: unknown) => ({ __output: "object", ...(spec as object) }) },
+}));
+
+vi.mock("../ai/resolve-gateway-model", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../ai/resolve-gateway-model")
+  >();
+  return {
+    ...actual,
+    resolveGatewayModel: (modelId: string, context?: "host" | "worker") =>
+      resolveGatewayModelMock(modelId, context),
+  };
+});
+
+import { runContentVoiceGate, GATE_MODEL } from "./voice-gate";
+import { DRAFTER_MODEL_ID, VERIFIER_MODEL_ID } from "../config/models";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,27 +72,12 @@ interface SectionInput {
   suggestion?: string;
 }
 
-function buildLLMResponse(
+/** Shape the gate expects from `generateText` with `Output.object`. */
+function mockGateOutput(
   overallStatus: "PASS" | "WARN" | "FAIL",
   sections: SectionInput[],
-): Response {
-  const body = JSON.stringify({
-    choices: [
-      {
-        message: {
-          content: JSON.stringify({ overallStatus, sections }),
-        },
-      },
-    ],
-  });
-  return new Response(body, {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-function buildErrorResponse(status: number): Response {
-  return new Response("upstream error", { status });
+): void {
+  generateTextMock.mockResolvedValue({ output: { overallStatus, sections } });
 }
 
 const SAMPLE_DRAFT = {
@@ -71,16 +88,26 @@ const SAMPLE_DRAFT = {
 const VALID_BRAND_MD =
   "Brand Voice: Clear, direct, evidence-based. Avoid superlatives. No 'market leader' claims unless cited. Do not use 'dominate', 'massive', or 'unlock'. Write for VP-level SaaS buyers.";
 
-function reset() {
-  mockFetch.mockReset();
-  process.env.OPENROUTER_API_KEY = "fake-key";
-}
+const ORIGINAL_OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+
+beforeEach(() => {
+  generateTextMock.mockReset();
+  resolveGatewayModelMock.mockClear();
+});
+
+afterEach(() => {
+  // Restore any env we may have mutated (defensive — the Gateway path no longer
+  // reads OPENROUTER_API_KEY).
+  if (ORIGINAL_OPENROUTER_KEY === undefined) {
+    delete process.env.OPENROUTER_API_KEY;
+  } else {
+    process.env.OPENROUTER_API_KEY = ORIGINAL_OPENROUTER_KEY;
+  }
+});
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("runContentVoiceGate", () => {
-  beforeEach(() => reset());
-
   // ── Skip conditions ──────────────────────────────────────────────────────────
 
   it("skipped=true, skipReason='no_brand_bible' when brandMd is undefined", async () => {
@@ -90,21 +117,22 @@ describe("runContentVoiceGate", () => {
     expect(result.overallStatus).toBe("SKIP");
     expect(result.passed).toBe(true);
     expect(result.sections).toHaveLength(0);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
+    expect(resolveGatewayModelMock).not.toHaveBeenCalled();
   });
 
   it("skipped=true, skipReason='no_brand_bible' when brandMd is empty string", async () => {
     const result = await runContentVoiceGate(SAMPLE_DRAFT, "");
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("no_brand_bible");
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
   });
 
   it("skipped=true, skipReason='no_brand_bible' when brandMd is whitespace only", async () => {
     const result = await runContentVoiceGate(SAMPLE_DRAFT, "   \n  ");
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("no_brand_bible");
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
   });
 
   it("skipped=true, skipReason='brand_bible_too_short' when brandMd < 50 chars", async () => {
@@ -113,7 +141,7 @@ describe("runContentVoiceGate", () => {
     expect(result.skipReason).toBe("brand_bible_too_short");
     expect(result.overallStatus).toBe("SKIP");
     expect(result.passed).toBe(true);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(generateTextMock).not.toHaveBeenCalled();
   });
 
   it("skipped=true, skipReason='brand_bible_too_short' at exactly 49 chars", async () => {
@@ -123,76 +151,54 @@ describe("runContentVoiceGate", () => {
     expect(result.skipReason).toBe("brand_bible_too_short");
   });
 
-  it("does NOT skip at exactly 50 chars (calls LLM)", async () => {
+  it("does NOT skip at exactly 50 chars (calls the model)", async () => {
     const brandMd = "a".repeat(50);
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("PASS", [
-        { section: "introduction", status: "PASS" },
-        { section: "body", status: "PASS" },
-        { section: "conclusion", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("PASS", [
+      { section: "introduction", status: "PASS" },
+      { section: "body", status: "PASS" },
+      { section: "conclusion", status: "PASS" },
+    ]);
     const result = await runContentVoiceGate(SAMPLE_DRAFT, brandMd);
     expect(result.skipped).toBe(false);
-    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(generateTextMock).toHaveBeenCalledOnce();
   });
 
-  it("skipped=true, skipReason='gate_error' when OPENROUTER_API_KEY is missing", async () => {
-    delete process.env.OPENROUTER_API_KEY;
-    const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
-    expect(result.skipped).toBe(true);
-    expect(result.skipReason).toBe("gate_error");
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
+  // ── Fail-closed (gate_error) ────────────────────────────────────────────────
 
-  it("skipped=true, skipReason='gate_error' when LLM call throws", async () => {
-    mockFetch.mockRejectedValue(new Error("network error"));
+  it("skipped=true, skipReason='gate_error' when the model call throws", async () => {
+    generateTextMock.mockRejectedValue(new Error("gateway error"));
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("gate_error");
     expect(result.passed).toBe(true);
   });
 
-  it("skipped=true, skipReason='gate_error' when LLM returns non-200", async () => {
-    mockFetch.mockResolvedValue(buildErrorResponse(503));
+  it("skipped=true, skipReason='gate_error' when the model output fails validation (throws)", async () => {
+    generateTextMock.mockRejectedValue(new Error("response did not match schema"));
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("gate_error");
   });
 
-  it("skipped=true, skipReason='gate_error' when LLM returns malformed JSON", async () => {
-    const body = JSON.stringify({
-      choices: [{ message: { content: "not valid json {{{" } }],
-    });
-    mockFetch.mockResolvedValue(
-      new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }),
+  it("skipped=true, skipReason='gate_error' when resolving the Gateway model throws", async () => {
+    resolveGatewayModelMock.mockRejectedValueOnce(
+      new Error("no gateway credential"),
     );
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("gate_error");
-  });
-
-  it("skipped=true, skipReason='gate_error' when LLM response missing choices", async () => {
-    const body = JSON.stringify({ error: "model overloaded" });
-    mockFetch.mockResolvedValue(
-      new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }),
-    );
-    const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
-    expect(result.skipped).toBe(true);
-    expect(result.skipReason).toBe("gate_error");
+    expect(generateTextMock).not.toHaveBeenCalled();
   });
 
   // ── PASS result ───────────────────────────────────────────────────────────────
 
   it("returns PASS when article aligns with brand bible", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("PASS", [
-        { section: "introduction", status: "PASS" },
-        { section: "body", status: "PASS" },
-        { section: "conclusion", status: "PASS" },
-        { section: "overall", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("PASS", [
+      { section: "introduction", status: "PASS" },
+      { section: "body", status: "PASS" },
+      { section: "conclusion", status: "PASS" },
+      { section: "overall", status: "PASS" },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
@@ -206,18 +212,16 @@ describe("runContentVoiceGate", () => {
   // ── WARN result ───────────────────────────────────────────────────────────────
 
   it("returns WARN with section-level issue when article has marketing-speak", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("WARN", [
-        { section: "introduction", status: "PASS" },
-        {
-          section: "body",
-          status: "WARN",
-          issue: '"dominate your niche" is borderline aggressive — brand uses collaborative language',
-          suggestion: 'Replace "dominate your niche" with "lead in your category"',
-        },
-        { section: "conclusion", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("WARN", [
+      { section: "introduction", status: "PASS" },
+      {
+        section: "body",
+        status: "WARN",
+        issue: '"dominate your niche" is borderline aggressive — brand uses collaborative language',
+        suggestion: 'Replace "dominate your niche" with "lead in your category"',
+      },
+      { section: "conclusion", status: "PASS" },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
@@ -235,18 +239,16 @@ describe("runContentVoiceGate", () => {
   // ── FAIL result ───────────────────────────────────────────────────────────────
 
   it("returns FAIL when article directly contradicts brand rules — passed=false", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("FAIL", [
-        {
-          section: "introduction",
-          status: "FAIL",
-          issue: '"market leader" is a prohibited claim — brand forbids uncited competitive claims',
-          suggestion: "Remove 'market leader' or cite the source",
-        },
-        { section: "body", status: "PASS" },
-        { section: "conclusion", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("FAIL", [
+      {
+        section: "introduction",
+        status: "FAIL",
+        issue: '"market leader" is a prohibited claim — brand forbids uncited competitive claims',
+        suggestion: "Remove 'market leader' or cite the source",
+      },
+      { section: "body", status: "PASS" },
+      { section: "conclusion", status: "PASS" },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
@@ -263,29 +265,23 @@ describe("runContentVoiceGate", () => {
   // ── passed invariant ──────────────────────────────────────────────────────────
 
   it("passed=true for PASS", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-    );
+    mockGateOutput("PASS", [{ section: "overall", status: "PASS" }]);
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.passed).toBe(true);
   });
 
   it("passed=true for WARN (non-blocking)", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("WARN", [
-        { section: "body", status: "WARN", issue: "minor tone issue" },
-      ]),
-    );
+    mockGateOutput("WARN", [
+      { section: "body", status: "WARN", issue: "minor tone issue" },
+    ]);
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.passed).toBe(true);
   });
 
   it("passed=false ONLY when overallStatus=FAIL", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("FAIL", [
-        { section: "introduction", status: "FAIL", issue: "prohibited term used" },
-      ]),
-    );
+    mockGateOutput("FAIL", [
+      { section: "introduction", status: "FAIL", issue: "prohibited term used" },
+    ]);
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
     expect(result.passed).toBe(false);
     expect(result.overallStatus).toBe("FAIL");
@@ -297,109 +293,95 @@ describe("runContentVoiceGate", () => {
     expect(result.overallStatus).toBe("SKIP");
   });
 
-  // ── Model check ───────────────────────────────────────────────────────────────
+  // ── Cross-model isolation: routes through the Gateway with the canonical id ─
 
-  it("uses haiku model (not the draft sonnet model)", async () => {
-    let capturedModel: string | undefined;
-    mockFetch.mockImplementation((_url: string, init: RequestInit) => {
-      try {
-        const body = JSON.parse(init?.body as string) as { model?: string };
-        capturedModel = body.model;
-      } catch {
-        // ignore
-      }
-      return Promise.resolve(
-        buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-      );
-    });
+  it("routes the verifier through the Gateway seam with the canonical verifier id (NOT the drafter)", async () => {
+    mockGateOutput("PASS", [{ section: "overall", status: "PASS" }]);
 
     await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
-    expect(capturedModel).toBeDefined();
-    // Must NOT be the draft model
-    expect(capturedModel).not.toBe("anthropic/claude-sonnet-4.5");
-    // Must be haiku
-    expect(capturedModel).toBe("anthropic/claude-haiku-4-5");
+    expect(resolveGatewayModelMock).toHaveBeenCalledTimes(1);
+    const [calledModelId, calledContext] = resolveGatewayModelMock.mock.calls[0];
+    expect(calledModelId).toBe(VERIFIER_MODEL_ID);
+    expect(calledModelId).toBe(GATE_MODEL);
+    expect(calledContext).toBe("host");
+    // Must NOT be the drafter (the voice gate uses the smaller verifier).
+    expect(calledModelId).not.toBe(DRAFTER_MODEL_ID);
+    expect(calledModelId).not.toBe("anthropic/claude-sonnet-4.5");
+    expect(calledModelId).toBe("anthropic/claude-haiku-4-5");
+  });
+
+  it("passes the resolved Gateway model + canonical budget to generateText", async () => {
+    mockGateOutput("PASS", [{ section: "overall", status: "PASS" }]);
+
+    await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
+
+    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    const args = generateTextMock.mock.calls[0][0] as {
+      model: { __sentinel?: string; modelId?: string };
+      temperature: number;
+      maxOutputTokens: number;
+      abortSignal?: AbortSignal;
+    };
+    expect(args.model.__sentinel).toBe("gateway-model");
+    expect(args.model.modelId).toBe(VERIFIER_MODEL_ID);
+    expect(args.temperature).toBe(0.1);
+    expect(args.maxOutputTokens).toBe(1_500);
+    expect(args.abortSignal).toBeDefined();
   });
 
   // ── Truncation ────────────────────────────────────────────────────────────────
 
   it("truncates article body to 6000 chars in the prompt", async () => {
     let capturedUserMessage: string | undefined;
-    mockFetch.mockImplementation((_url: string, init: RequestInit) => {
-      try {
-        const body = JSON.parse(init?.body as string) as {
-          messages?: Array<{ role: string; content: string }>;
-        };
-        const userMsg = body.messages?.find((m) => m.role === "user");
-        if (userMsg) capturedUserMessage = userMsg.content;
-      } catch {
-        // ignore
-      }
-      return Promise.resolve(
-        buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-      );
+    generateTextMock.mockImplementation((args: { prompt: string }) => {
+      capturedUserMessage = args.prompt;
+      return Promise.resolve({
+        output: { overallStatus: "PASS", sections: [{ section: "overall", status: "PASS" }] },
+      });
     });
 
     const longBody = "x".repeat(8000);
     await runContentVoiceGate({ title: "Test", body: longBody }, VALID_BRAND_MD);
 
     expect(capturedUserMessage).toBeDefined();
-    // The user message should contain truncated body (6000 chars + ellipsis)
     expect(capturedUserMessage).toContain("article truncated for review");
-    // Should NOT contain the full 8000 chars (user message would be much longer)
     const bodyInPrompt = capturedUserMessage!.match(/x+/)?.[0] ?? "";
     expect(bodyInPrompt.length).toBeLessThanOrEqual(6000);
   });
 
   it("does NOT truncate body at exactly 6000 chars", async () => {
     let capturedUserMessage: string | undefined;
-    mockFetch.mockImplementation((_url: string, init: RequestInit) => {
-      try {
-        const body = JSON.parse(init?.body as string) as {
-          messages?: Array<{ role: string; content: string }>;
-        };
-        const userMsg = body.messages?.find((m) => m.role === "user");
-        if (userMsg) capturedUserMessage = userMsg.content;
-      } catch {
-        // ignore
-      }
-      return Promise.resolve(
-        buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-      );
+    generateTextMock.mockImplementation((args: { prompt: string }) => {
+      capturedUserMessage = args.prompt;
+      return Promise.resolve({
+        output: { overallStatus: "PASS", sections: [{ section: "overall", status: "PASS" }] },
+      });
     });
 
     const exactBody = "y".repeat(6000);
     await runContentVoiceGate({ title: "Test", body: exactBody }, VALID_BRAND_MD);
 
     expect(capturedUserMessage).toBeDefined();
-    // Should NOT be truncated
     expect(capturedUserMessage).not.toContain("article truncated for review");
   });
 
   // ── Timeout budget ────────────────────────────────────────────────────────────
 
-  it("VOICE_GATE_TIMEOUT_MS is ≤ 3000ms (fits within 60s maxDuration budget)", async () => {
-    // Import the constant indirectly: if a timeout fires instantly, the gate would
-    // skip via gate_error. We verify the timeout is set to 3000 by checking the
-    // module's behaviour: a 3001ms delay would NOT be aborted with 3000ms timeout.
-    // Instead, confirm the constant value via the AbortController timing.
-    // We capture the AbortSignal timeout indirectly via the fetch call timing.
+  it("GATE_TIMEOUT_MS is wired through an abort signal (not yet aborted on a fast resolve)", async () => {
     let abortSignal: AbortSignal | undefined;
-    mockFetch.mockImplementation(
-      (_url: string, init: RequestInit & { signal?: AbortSignal }) => {
-        abortSignal = init.signal;
-        return Promise.resolve(
-          buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-        );
-      },
-    );
+    generateTextMock.mockImplementation((args: { abortSignal?: AbortSignal }) => {
+      abortSignal = args.abortSignal;
+      return Promise.resolve({
+        output: { overallStatus: "PASS", sections: [{ section: "overall", status: "PASS" }] },
+      });
+    });
 
     await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
-    // The abort signal must be defined (timeout is wired up)
+    // The abort signal must be defined (timeout is wired up) …
     expect(abortSignal).toBeDefined();
-    // Must NOT already be aborted (we resolved fast)
+    // … and not already aborted (we resolved fast).
     expect(abortSignal!.aborted).toBe(false);
   });
 
@@ -407,28 +389,17 @@ describe("runContentVoiceGate", () => {
 
   it("slices brandMd to 2000 chars in the prompt", async () => {
     let capturedUserMessage: string | undefined;
-    mockFetch.mockImplementation((_url: string, init: RequestInit) => {
-      try {
-        const body = JSON.parse(init?.body as string) as {
-          messages?: Array<{ role: string; content: string }>;
-        };
-        const userMsg = body.messages?.find((m) => m.role === "user");
-        if (userMsg) capturedUserMessage = userMsg.content;
-      } catch {
-        // ignore
-      }
-      return Promise.resolve(
-        buildLLMResponse("PASS", [{ section: "overall", status: "PASS" }]),
-      );
+    generateTextMock.mockImplementation((args: { prompt: string }) => {
+      capturedUserMessage = args.prompt;
+      return Promise.resolve({
+        output: { overallStatus: "PASS", sections: [{ section: "overall", status: "PASS" }] },
+      });
     });
 
-    // Brand bible that is well over 2000 chars
     const longBrandMd = "Brand rule: ".repeat(300); // ~3600 chars
     await runContentVoiceGate(SAMPLE_DRAFT, longBrandMd);
 
     expect(capturedUserMessage).toBeDefined();
-    // The repeated string is "Brand rule: " (12 chars each). After 2000 char slice,
-    // we'd have exactly 2000 chars of brand context — confirm it doesn't have more.
     const brandSection = capturedUserMessage!.split("---")[1] ?? "";
     expect(brandSection.trim().length).toBeLessThanOrEqual(2000);
   });
@@ -436,31 +407,26 @@ describe("runContentVoiceGate", () => {
   // ── Section label normalization ───────────────────────────────────────────────
 
   it("normalizes section label 'intro' → 'introduction'", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("WARN", [
-        { section: "intro", status: "WARN", issue: "tone mismatch in opening" },
-        { section: "body", status: "PASS" },
-        { section: "closing", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("WARN", [
+      { section: "intro", status: "WARN", issue: "tone mismatch in opening" },
+      { section: "body", status: "PASS" },
+      { section: "closing", status: "PASS" },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
     expect(result.skipped).toBe(false);
     const introSection = result.sections.find((s) => s.status === "WARN");
     expect(introSection).toBeDefined();
-    // 'intro' should have been normalized to 'introduction'
     expect(introSection!.section).toBe("introduction");
   });
 
   it("normalizes section label 'closing' → 'conclusion'", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("PASS", [
-        { section: "introduction", status: "PASS" },
-        { section: "main", status: "PASS" },
-        { section: "outro", status: "PASS" },
-      ]),
-    );
+    mockGateOutput("PASS", [
+      { section: "introduction", status: "PASS" },
+      { section: "main", status: "PASS" },
+      { section: "outro", status: "PASS" },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
@@ -471,28 +437,19 @@ describe("runContentVoiceGate", () => {
 
   // ── Malformed section entries ─────────────────────────────────────────────────
 
-  it("drops malformed section entries from LLM output gracefully", async () => {
-    const body = JSON.stringify({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({
-              overallStatus: "WARN",
-              sections: [
-                { section: "introduction", status: "PASS" },
-                { section: "body", status: "INVALID_STATUS" }, // invalid — dropped
-                null, // null — dropped
-                42, // wrong type — dropped
-                { status: "WARN" }, // missing section field — dropped
-              ],
-            }),
-          },
-        },
-      ],
+  it("drops malformed section entries from model output gracefully", async () => {
+    generateTextMock.mockResolvedValue({
+      output: {
+        overallStatus: "WARN",
+        sections: [
+          { section: "introduction", status: "PASS" },
+          { section: "body", status: "INVALID_STATUS" }, // invalid — dropped
+          null, // null — dropped
+          42, // wrong type — dropped
+          { status: "WARN" }, // missing section field — dropped
+        ],
+      },
     });
-    mockFetch.mockResolvedValue(
-      new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }),
-    );
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
@@ -506,16 +463,14 @@ describe("runContentVoiceGate", () => {
   // ── Issue + suggestion fields ─────────────────────────────────────────────────
 
   it("attaches issue and suggestion to non-PASS sections", async () => {
-    mockFetch.mockResolvedValue(
-      buildLLMResponse("WARN", [
-        {
-          section: "conclusion",
-          status: "WARN",
-          issue: '"unlock massive growth" uses forbidden superlative',
-          suggestion: 'Replace with "accelerate sustainable growth"',
-        },
-      ]),
-    );
+    mockGateOutput("WARN", [
+      {
+        section: "conclusion",
+        status: "WARN",
+        issue: '"unlock massive growth" uses forbidden superlative',
+        suggestion: 'Replace with "accelerate sustainable growth"',
+      },
+    ]);
 
     const result = await runContentVoiceGate(SAMPLE_DRAFT, VALID_BRAND_MD);
 
