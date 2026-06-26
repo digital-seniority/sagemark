@@ -1,6 +1,6 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (Run #022 + follow-up — P1.C.1 **#50 MERGED**; C.021.2 **#52 OPEN** for human merge; #3 non-eng decisions captured → DR-037/038)
+**Last updated:** 2026-06-26 (Run #022 + follow-up — P1.C.1 **#50 MERGED**; C.022.3 DR-013 metering corrective **#54 MERGED**; C.021.2 **#52 OPEN** for human merge; #3 decisions → DR-037/038)
 **Current build phase:** Phase 1 — Pilot (audit-004 CLEAR, no Critical/High)
 **Phase progress:** **19 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 9/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, **P1.C.1 #50**) · **★ SLICE 1 CLOSED ★** · +imagegen built out (#43/#45) (+5 correctives incl. C.020.1 #49 + C.021.2 #52 OPEN · +1 spike · 4 audit fixes · suite #24)
 **Runs since last audit:** 2 (audit-004 done 2026-06-26 — `audits/audit-004-2026-06-26.md`, no Critical; runs #021, #022 since). **NOTE: audit DUE at 5 — currently 2; the next work-doing run is fine, but an audit is due before ~Run #025.**
@@ -17,7 +17,7 @@ _(none — Run #022 + follow-up complete; auto-loop ENDED active:false. **OPEN P
 
 - **James (deployment / human):** merge [#52 (C.021.2)](https://github.com/digital-seniority/sagemark/pull/52); apply `0036_comment_threads.sql` + `0037_generated_image_slug.sql` to the Sagemark Supabase project (no service-role/DATABASE_URL in Claude's env — apply via dashboard SQL editor, or set `SUPABASE_ACCESS_TOKEN`/`DATABASE_URL` in `.claude/settings.local.json` so Claude's CLI can).
 - **P1.C.2 (PR 019) — now SPEC-UNBLOCKED** (←P1.C.1 ✓ + [[DR-037]] placeholder reviewer): the next mapped target. Build against the seeded placeholder `byline_authorizations` row; add a go-live guard that blocks the placeholder as a real release authority.
-- **P1.C.3 (PR 020) — SPEC-UNBLOCKED** (SoM defined, [[DR-038]]) but **needs the [[DR-013]] Gateway-only-metering corrective FIRST** (force-Gateway resolution + CI assertion) before the cost ledger.
+- **P1.C.3 (PR 020) — UNBLOCKED & ready** (SoM defined [[DR-038]]; [[DR-013]] Gateway-only-metering corrective **DONE** in C.022.3 #54): the SEO cost ledger + share-of-model instrumentation can now be built.
 - **P1.C.4 (PR 021) — SPEC-UNBLOCKED** (SoM = ChatGPT·Claude·Gemini via Gateway, [[DR-038]]) but **needs the per-client SoM prompt-set** (Whispering Willows queries to test for citation) before the ingestion cron.
 - **Before live YMYL publish:** swap the [[DR-037]] placeholder for a real credentialed reviewer.
 - **Still deferred (full live pipeline):** the broader [[DR-026]] `ContentDataAccess` → live-DB wiring (loadPiece / voice specs / version writes) — C.021.2 only wired the image resolvers.
@@ -27,7 +27,7 @@ _(none — Run #022 + follow-up complete; auto-loop ENDED active:false. **OPEN P
 
 - **Deploy Stage A — DONE.** `apps/seo` host is live in production at **https://sagemark-seo.vercel.app** (Vercel project `digital-seniority/sagemark-seo`, `prj_wd0r52t`, rootDirectory=apps/seo, monorepo build green). `/api/health` 200; `/content/api/*` live (400 on empty body). `SUPABASE_SERVICE_ROLE_KEY` set (user); Vercel Deployment Protection DISABLED (user-approved); Gateway via OIDC. This is the worker's host-tool bridge URL.
 - **Deploy Stage B/C — REMAINING (P0.W.2 live Tier-2/3).** Build the worker `Dockerfile` → Sandbox (snapshot, or the base-`node24` fallback path), provision it pointed at `sagemark-seo.vercel.app` with a per-run **bridge JWT** + the Gateway base URL, drive a real brief → assert serpFetch→runGate→persistPiece writes to Sagemark → teardown → state reloads, + the recycle/residue test. **Still needs:** the bridge-JWT signing secret configured on BOTH host + worker (new shared secret), the worker Gateway credential, and the Sandbox wiring. The Vercel token (Sandbox provisioning) is available.
-- **DR-013 enforcement corrective (before PR 020 / the D4 ledger):** make the gate calls Gateway-only (force-Gateway resolution) + a CI assertion that the gate path can't resolve a raw-Anthropic provider. Decision recorded in [[DR-013]]; implementation queued (Medium).
+- ~~**DR-013 enforcement corrective**~~ **DONE** (C.022.3, #54 `a7f03b7`, judge 5/5·5/5): the gates now resolve via `resolveGatewayModel(GATE_MODEL, "host", { forceGateway: true })` (skips the direct-Anthropic BYOK branch even with `ANTHROPIC_API_KEY` set) + a build-failing `gate-path-lint` CI step over both gate files + negative tests. **P1.C.3's Gateway-only-metering prerequisite is cleared.**
 - **Stale worktrees:** several merged-PR worktrees under `.claude/worktrees/` can be pruned (kaishi / `git worktree prune`).
 
 ## Next up (auto-loop, unattended)
