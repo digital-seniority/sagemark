@@ -78,7 +78,13 @@ const clientSignoff: PersistedRelease = {
   actorId: "client-contact-1",
 };
 
-const activeAuth: PersistedAuthorization = { id: AUTH_ID, revokedAt: null, expiresAt: null };
+const activeAuth: PersistedAuthorization = {
+  id: AUTH_ID,
+  grantedAt: "2026-01-01T00:00:00.000Z",
+  revokedAt: null,
+  expiresAt: null,
+  scope: "client",
+};
 
 function pubBody(over: Record<string, unknown> = {}) {
   return {
@@ -138,8 +144,14 @@ describe("/api/publish truth table — fail-closed canPublish", () => {
   });
 
   it.each([
-    ["revoked", { id: AUTH_ID, revokedAt: "2026-01-01T00:00:00Z", expiresAt: null }],
-    ["expired", { id: AUTH_ID, revokedAt: null, expiresAt: "2020-01-01T00:00:00Z" }],
+    // Each inactive case carries an otherwise-valid grant + scope so the ONLY
+    // failing condition is the one under test (non-vacuous: proves revoked /
+    // expired specifically block, not just an incidentally-missing field).
+    ["revoked", { id: AUTH_ID, grantedAt: "2025-01-01T00:00:00Z", revokedAt: "2026-01-01T00:00:00Z", expiresAt: null, scope: "client" }],
+    ["expired", { id: AUTH_ID, grantedAt: "2019-01-01T00:00:00Z", revokedAt: null, expiresAt: "2020-01-01T00:00:00Z", scope: "client" }],
+    ["not-yet-granted (future grant)", { id: AUTH_ID, grantedAt: "2099-01-01T00:00:00Z", revokedAt: null, expiresAt: null, scope: "client" }],
+    ["out-of-scope (unrecognized scope)", { id: AUTH_ID, grantedAt: "2025-01-01T00:00:00Z", revokedAt: null, expiresAt: null, scope: "bogus" }],
+    ["out-of-scope (missing scope)", { id: AUTH_ID, grantedAt: "2025-01-01T00:00:00Z", revokedAt: null, expiresAt: null, scope: undefined }],
     ["dangling (missing)", null],
   ])(
     "BLOCKED: a credentialed release with a %s authorization → 422, no write, byline never resolved",

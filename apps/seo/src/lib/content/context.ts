@@ -135,6 +135,16 @@ export interface PersistedRelease {
 /** A byline-authorization row (the §11.5 consent record). */
 export interface PersistedAuthorization {
   id: string;
+  /**
+   * When this authorization was GRANTED (`byline_authorizations.granted_at`,
+   * timestamptz NOT NULL DEFAULT now()). A.005.1 / DR-039 widens the projection to
+   * carry it so the §11.5 active predicate can require an authorization to be
+   * actually granted (granted_at present and not in the future) — never treat
+   * "granted" implicitly. Optional ONLY so legacy read-only fixtures that predate
+   * this widening still type-check; FAIL-CLOSED: a missing/unparseable `grantedAt`
+   * makes the authorization INACTIVE, never default-active.
+   */
+  grantedAt?: string | null;
   revokedAt: string | null;
   expiresAt: string | null;
   /**
@@ -147,8 +157,13 @@ export interface PersistedAuthorization {
    */
   credential?: { name?: string; credentials?: string };
   /**
-   * The authorization scope (`byline_authorizations.scope` ∈ client|cluster|piece).
-   * Optional; surfaced for completeness — the active check does not read it.
+   * The authorization scope (`byline_authorizations.scope` ∈ client|cluster|piece;
+   * the DB CHECK enforces the vocabulary). A.005.1 / DR-039: the §11.5 active
+   * predicate now READS this — a release for a YMYL piece must resolve an
+   * authorization whose `scope` is a recognized authorization scope. Optional ONLY
+   * so legacy read-only fixtures still type-check; FAIL-CLOSED: a missing/empty/
+   * unrecognized `scope` makes the authorization INACTIVE (the predicate refuses
+   * an un-scoped grant), never default-active.
    */
   scope?: string;
   /**
