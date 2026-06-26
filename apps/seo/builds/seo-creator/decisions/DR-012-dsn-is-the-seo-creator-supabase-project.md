@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-26
 **Run:** manual (post-Run #006, Supabase wiring)
-**Status:** active
+**Status:** SUPERSEDED by [[DR-015]] (2026-06-26) — the project was redirected from DSN to `Sagemark`/`rilaycjkksfosnxvenzt`. DSN is now orphaned (same schema, no data). The setup process below still describes how the schema/RLS were applied + verified (identical steps were re-run on the new project).
 **Build phase:** Phase 0 — Foundations
 
 ## Context

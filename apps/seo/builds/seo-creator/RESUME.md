@@ -25,6 +25,6 @@ _(none — no agents running, no run-lock held)_
 - P0.W.1 gate = **CONFIRMED (hardened profile)**; see PR #3 `RESULTS.md`, DR-010, DR-011. Sandbox is the worker runtime.
 - Live Sandbox creds: a 7-day team-scoped `VERCEL_TOKEN` (`sagemark-seo-spike`, expires 2026-07-02) is in `.claude/settings.local.json`. Sandbox run user = `uid=1000(vercel-sandbox)`, can `sudo`, permissive base image, `iptables` present.
 - Port source: flywheel-main **origin/preview** for the worker host (DR-001). canPublish + Stage-A vetoes enforced HOST-SIDE, never in the loop.
-- **Supabase = DSN** (`gshcdvcfgbzpzwhvlxmg`, [[DR-012]]). `0030`–`0033` applied + RLS verified as anon. Public conn vars in `.claude/settings.local.json`; `DATABASE_URL`/service-role are human/CI secrets (needed for CI Tier-2). Apply future migrations to DSN.
+- **Supabase = Sagemark / `rilaycjkksfosnxvenzt`** ([[DR-015]], redirected from DSN; different org `dbukahlorzsipthfpwda`, MCP token re-scoped). `0030`–`0033` applied + RLS verified as anon. Public conn vars in `.claude/settings.local.json`; `DATABASE_URL`/service-role are human/CI secrets (point CI `DATABASE_URL` here). Apply future migrations here.
 
 ## Resume: `/seo-creator-build auto` (starts Run #005) · Halt: delete `.auto-loop.json`
