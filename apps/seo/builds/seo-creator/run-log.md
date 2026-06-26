@@ -222,3 +222,10 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **DRs:** [[DR-028]] (subpath scorer imports), [[DR-029]] (jsdom per-file opt-in).
 - **State:** 15/23 engineering (Phase 1: 5/12). **Next:** Run #018 = P1.U.3 (PR 012 edit loop, Slice-1 close).
 - **Checkpoint:** `checkpoints/run-017-2026-06-26.md`
+
+## Run #018 — 2026-06-26 — P1.U.3 (★ SLICE 1 CLOSED ★)
+- **Merged:** P1.U.3 (PR 012 — /api/edit bounded diff + full gate re-run + versioning) [#39](https://github.com/digital-seniority/sagemark/pull/39) `13e409c` (judge 5/5·5/5). GATE-BYPASS/TENANCY PASS.
+- **★ SLICE 1 CLOSED ★** end-to-end (judge-confirmed): brief→draft→gate→persist→render→edit→re-gate→version.
+- **DR:** [[DR-030]] (rate-limiter in-process → distributed before multi-instance).
+- **State:** 16/23 engineering (Phase 1: 6/12). **Next:** Run #019 = P1.U.4 (version hub), then likely terminal (rest non-eng-blocked + budget).
+- **Checkpoint:** `checkpoints/run-018-2026-06-26.md`
