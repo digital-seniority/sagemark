@@ -464,6 +464,11 @@ export const generatedImages = pgTable(
     modelVersion: text("model_version"),
     // sha256 of the compiled prompt. Nullable: not supplied to insertAsset.
     promptHash: text("prompt_hash"),
+    // The page slug / brief id this image was generated for (migration 0037,
+    // C.021.2/DR-035). Joins back to the `[photo:slug]` body token the publish
+    // gate + homepage resolve. Nullable: pre-0037 rows / rejected generations
+    // carry no slug → that token resolves to NO row → fail-closed orphan-block.
+    slug: text("slug"),
     // Generation seed, if the provider returned one. Modeled as bigint
     // (driver returns it as a string) — seeds can exceed 2^31.
     seed: bigint("seed", { mode: "bigint" }),
@@ -482,6 +487,9 @@ export const generatedImages = pgTable(
       t.contentHash,
     ),
     index("generated_images_client_idx").on(t.clientId),
+    // The image-resolver lookup key (migration 0037): workspace-scoped + slug-
+    // matched. Serves `WHERE workspace_id = $1 AND slug = ANY($2)`.
+    index("generated_images_workspace_slug_idx").on(t.workspaceId, t.slug),
   ],
 );
 

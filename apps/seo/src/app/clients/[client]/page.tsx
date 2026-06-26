@@ -38,6 +38,7 @@ import {
 } from "@/lib/content/context";
 import { buildClusterMap, type ClusterMap } from "@/lib/render/hub-homepage";
 import { resolveHeroAsset } from "@/lib/tools/hero-image";
+import { makeLiveResolveHeroAssets } from "@/lib/content/image-resolver";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -253,5 +254,15 @@ export default async function ClientHomePage({
   params: Promise<{ client: string }>;
 }) {
   const { client: clientSlug } = await params;
-  return renderHomePage(clientSlug);
+  // Wire the LIVE hero-asset resolver onto the public seam BEHIND a host-config
+  // check (C.021.2/DR-035). When service-role creds are present, attach the live
+  // `resolveHeroAssets` so the first `[photo:slug]` hero token resolves to its
+  // signed, license-gated asset; when absent, leave it off → `hero=null` →
+  // placeholder-strip (the safe prior state). The other public-seam methods
+  // (resolveClientByBlogSlug, listPublishedPieces) remain the DR-026 deferral.
+  const resolveHeroAssets = await makeLiveResolveHeroAssets();
+  const deps: HomeDeps = resolveHeroAssets
+    ? { ...DEFAULT_DEPS, data: { ...DEFAULT_DEPS.data, resolveHeroAssets } }
+    : DEFAULT_DEPS;
+  return renderHomePage(clientSlug, deps);
 }

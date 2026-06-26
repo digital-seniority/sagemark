@@ -112,10 +112,12 @@ export function makeSupabaseImageStore(
       return data ? rowToAsset(data as Record<string, unknown>) : null;
     },
 
-    async insertAsset({ workspaceId, storageKey, contentHash, bytes, license, tags }) {
+    async insertAsset({ workspaceId, storageKey, contentHash, bytes, license, tags, slug }) {
       // client_id / model_version / prompt_hash / seed / provenance are not part
       // of the insertAsset contract (they arrive at insertGenerationRecord time
       // and are recorded in image_generations) → left null here (0035 nullable).
+      // `slug` (migration 0037, C.021.2/DR-035) IS carried so the image-resolver
+      // can join `[photo:slug]` body tokens to this row; null when absent.
       const row = {
         workspace_id: workspaceId,
         content_hash: contentHash,
@@ -125,6 +127,7 @@ export function makeSupabaseImageStore(
         content_type: contentTypeFromKey(storageKey),
         model: modelFromTags(tags),
         license: license as GeneratedAssetLicense,
+        slug: slug ?? null,
       };
       const { data, error } = await supabase
         .from("generated_images")

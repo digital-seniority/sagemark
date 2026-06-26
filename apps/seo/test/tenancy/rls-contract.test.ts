@@ -76,7 +76,14 @@ const M0035 = readFileSync(
   join(DRIZZLE_DIR, "0035_generated_images.sql"),
   "utf8",
 );
-const ALL = [M0030, M0031, M0032, M0033, M0035].join("\n");
+// 0037 — slug asset-linkage for generated images (C.021.2 / DR-035): the `slug`
+// column + (workspace_id, slug) resolver index the publish/homepage image
+// resolvers join on. Additive, idempotent, public-schema-only.
+const M0037 = readFileSync(
+  join(DRIZZLE_DIR, "0037_generated_image_slug.sql"),
+  "utf8",
+);
+const ALL = [M0030, M0031, M0032, M0033, M0035, M0037].join("\n");
 const flat = (s: string) => s.replace(/\s+/g, " ");
 const FLAT = flat(ALL);
 
@@ -98,6 +105,7 @@ test("[T1] migration files are valid UTF-8 (no BOM, no replacement char)", () =>
     "0032_release_records.sql",
     "0033_content_clients_rls.sql",
     "0035_generated_images.sql",
+    "0037_generated_image_slug.sql",
   ]) {
     const bytes = readFileSync(join(DRIZZLE_DIR, f));
     assert.ok(
@@ -198,6 +206,70 @@ test("[T1] generated_images dedup UNIQUE index on (workspace_id, content_hash)",
     !/\bstorage\./i.test(stripComments(M0035)),
     "0035 must not contain any storage.* SQL (bucket is created out-of-band)",
   );
+});
+
+test("[T1] 0037 adds generated_images.slug + (workspace_id, slug) index, additive + idempotent + public-only", () => {
+  const code = stripComments(M0037);
+  const flatCode = flat(code);
+  // The slug column the image-resolver joins `[photo:slug]` tokens on.
+  assert.match(
+    flatCode,
+    /ALTER TABLE public\.generated_images\s+ADD COLUMN IF NOT EXISTS slug text/i,
+    "0037 must ADD COLUMN IF NOT EXISTS slug text on generated_images",
+  );
+  // The resolver lookup index: (workspace_id, slug).
+  assert.match(
+    flatCode,
+    /CREATE INDEX IF NOT EXISTS generated_images_workspace_slug_idx\s+ON public\.generated_images \(workspace_id, slug\)/i,
+    "0037 must create the (workspace_id, slug) resolver index",
+  );
+  // IDEMPOTENT: every DDL statement guarded with IF NOT EXISTS.
+  assert.ok(
+    /ADD COLUMN IF NOT EXISTS/i.test(code) &&
+      /CREATE INDEX IF NOT EXISTS/i.test(code),
+    "0037 statements must be idempotent (IF NOT EXISTS)",
+  );
+  // ADDITIVE-ONLY: no destructive verbs in the live SQL (down lives in comments).
+  assert.ok(
+    !/\bDROP\b/i.test(code),
+    "0037 live SQL must not DROP anything (the down is comment-only)",
+  );
+  assert.ok(
+    !/\bALTER COLUMN\b|\bDROP COLUMN\b|\bRENAME\b/i.test(code),
+    "0037 must not alter/drop/rename any existing column",
+  );
+});
+
+test("[T1] 0037 writes ONLY the public schema + uses NO superuser construct (pooled-role-can-run)", () => {
+  const code = stripComments(M0037);
+  // Public-schema only: no other schema is written, and no storage.* DDL/DML.
+  assert.ok(
+    !/\bstorage\./i.test(code),
+    "0037 must not touch the storage schema (pooled migration role lacks it)",
+  );
+  // Every qualified object reference is public.* (the only schema this writes).
+  const schemaRefs = [...code.matchAll(/\b(\w+)\.generated_images\b/gi)];
+  for (const m of schemaRefs) {
+    assert.equal(
+      m[1].toLowerCase(),
+      "public",
+      `0037 must reference only public.generated_images, saw ${m[1]}.generated_images`,
+    );
+  }
+  // NO superuser-only / role / ownership / event-trigger constructs.
+  for (const banned of [
+    /CREATE\s+EVENT\s+TRIGGER/i,
+    /\bSET\s+ROLE\b/i,
+    /\bALTER\s+.*OWNER\s+TO\b/i,
+    /\bGRANT\b/i,
+    /\bCREATE\s+EXTENSION\b/i,
+    /SECURITY\s+DEFINER/i,
+  ]) {
+    assert.ok(
+      !banned.test(code),
+      `0037 must not use a superuser-only construct: ${banned}`,
+    );
+  }
 });
 
 test("[T1] cluster_role / funnel_stage CHECK constraints exist (D7)", () => {
@@ -358,6 +430,7 @@ const PIECE_A_DRAFT = randomUUID(); // draft, workspace A
 const PIECE_B_PUB = randomUUID(); // published, workspace B
 const AUTH_A = randomUUID();
 const GENIMG_A = randomUUID(); // a generated_images row, workspace A (0035)
+const GENIMG_B = randomUUID(); // a workspace-B row sharing slug 'front-porch' (0037 cross-tenant proof)
 
 function run(sqlText: string, opts?: { role?: "anon" }): string {
   return detected!.runner(sqlText, opts).trim();
@@ -384,6 +457,10 @@ before(() => {
   // header), so it applies cleanly under a restricted migration role on a real
   // Supabase branch and needs no storage-schema stub here.
   run(M0035);
+  // 0037 — additive slug column + (workspace_id, slug) index on generated_images.
+  // Public-schema only; the pooled migration role can run it (Tier-1 asserts this
+  // structurally; here we prove it applies cleanly on a live engine).
+  run(M0037);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
   // postgres does not. With RLS enabled + fail-closed policies, a table grant
@@ -407,9 +484,16 @@ before(() => {
       VALUES ('${AUTH_A}', '${WS_A}', '${CLIENT_A}', '${randomUUID()}',
               '{"name":"Dr. A","credentials":"MD"}'::jsonb, 'client', '${randomUUID()}');
     INSERT INTO generated_images
-        (id, workspace_id, client_id, content_hash, bucket, storage_key, bytes, content_type, model, prompt_hash, license)
+        (id, workspace_id, client_id, content_hash, bucket, storage_key, bytes, content_type, model, prompt_hash, slug, license)
       VALUES ('${GENIMG_A}', '${WS_A}', '${CLIENT_A}', 'hash-a', 'seo-generated-images',
               '${WS_A}/generated/hash-a.png', 5, 'image/png', 'bfl/flux-2-flex', 'ph-a',
+              'front-porch',
+              '{"provider":"generated","model":"bfl/flux-2-flex@flux-2-flex"}'::jsonb),
+             -- A WORKSPACE-B row that SHARES the same slug 'front-porch' — the
+             -- (workspace_id, slug) resolver must NEVER cross-serve it to WS_A.
+             ('${GENIMG_B}', '${WS_B}', '${CLIENT_B}', 'hash-b', 'seo-generated-images',
+              '${WS_B}/generated/hash-b.png', 5, 'image/png', 'bfl/flux-2-flex', 'ph-b',
+              'front-porch',
               '{"provider":"generated","model":"bfl/flux-2-flex@flux-2-flex"}'::jsonb);
     INSERT INTO image_generations
         (workspace_id, client_id, asset_id, model, cost_reported, status)
@@ -509,6 +593,50 @@ test(
       `SELECT count(*) FROM image_generations WHERE asset_id = '${GENIMG_A}';`,
     );
     assert.equal(audits, "1", "the seeded audit row must reference the asset");
+  },
+);
+
+test(
+  "[T2] the image-resolver query (workspace_id + slug) is tenancy-scoped: WS_A resolves its row, never WS_B's same-slug row (0037)",
+  { skip: TIER2_SKIP },
+  () => {
+    // This is the EXACT shape the live LiveImageResolver runs:
+    //   SELECT slug, storage_key, license FROM generated_images
+    //    WHERE workspace_id = <resolved> AND slug = ANY(<slugs>)
+    // Both WS_A and WS_B seeded a row with slug 'front-porch'. The workspace_id
+    // filter (service-role bypasses RLS — the app filter is the boundary) must
+    // return ONLY the caller's workspace row.
+    const aRows = run(
+      `SELECT storage_key FROM generated_images
+        WHERE workspace_id = '${WS_A}' AND slug = 'front-porch';`,
+    );
+    assert.equal(
+      aRows.trim(),
+      `${WS_A}/generated/hash-a.png`,
+      "WS_A must resolve exactly its own front-porch row",
+    );
+    // WS_A must NOT see WS_B's same-slug row — count is exactly 1.
+    const aCount = run(
+      `SELECT count(*) FROM generated_images
+        WHERE workspace_id = '${WS_A}' AND slug = 'front-porch';`,
+    );
+    assert.equal(aCount, "1", "WS_A must see exactly one front-porch row (not WS_B's)");
+    // WS_B resolves ITS row (proves the filter discriminates, not an empty table).
+    const bRows = run(
+      `SELECT storage_key FROM generated_images
+        WHERE workspace_id = '${WS_B}' AND slug = 'front-porch';`,
+    );
+    assert.equal(
+      bRows.trim(),
+      `${WS_B}/generated/hash-b.png`,
+      "WS_B must resolve its own front-porch row",
+    );
+    // An orphan slug resolves to ZERO rows (→ fail-closed orphan block).
+    const orphan = run(
+      `SELECT count(*) FROM generated_images
+        WHERE workspace_id = '${WS_A}' AND slug = 'no-such-slug';`,
+    );
+    assert.equal(orphan, "0", "an unknown slug must resolve to zero rows (orphan block)");
   },
 );
 
