@@ -64,6 +64,13 @@ export default defineConfig({
       // clash. The two vitest files are listed explicitly.
       "test/review/comments-route.test.ts",
       "test/review/client-surface-exposure.test.ts",
+      // DR-026 (lane client-review): the LIVE review-token + review-comment
+      // service-role adapter (live-review-data-access.ts). A Tier-1 fixture suite
+      // over an in-memory fake Supabase client — proves the fail-closed token
+      // boundary (revoked/expired/forged/cross-tenant -> null), the review-safe
+      // exposure projection (no scorecard/credits/cost/model/markdown), and the
+      // resolved-tenancy comment write. Pure vitest, no DB.
+      "test/review/live-review-data-access.test.ts",
       // PR 019 / P1.C.2 (DR-019 append-only carve-out): the request-changes ->
       // edit-loop routing + the dual sign-off (client_signoffs advisory vs the
       // credentialed_releases release) + the §11.5 active-authorization fail-closed
