@@ -72,29 +72,53 @@ export class WorkerProviderInvariantError extends Error {
 }
 
 /**
+ * Per-call resolution options.
+ *
+ * DR-013 (Gateway-only-metered gate path): `forceGateway: true` makes the call
+ * structurally Gateway-only — the direct-Anthropic BYOK branch is skipped and
+ * `ANTHROPIC_API_KEY` is never read, regardless of `context`. The
+ * faithfulness/voice gates pass this so gate spend can never escape the metered
+ * Gateway (the D4 cost ledger guarantee cannot depend on env hygiene).
+ */
+export interface ResolveGatewayModelOptions {
+  /**
+   * When `true`, always route through the Gateway — skip the direct-Anthropic
+   * branch entirely and do not even consult `ANTHROPIC_API_KEY`. DR-013.
+   */
+  forceGateway?: boolean;
+}
+
+/**
  * Resolve the AI SDK language model for `modelId` in the given `context`.
  *
  * Routing:
  *   1. **Direct-Anthropic (BYOK)** — `context: 'host'` AND `ANTHROPIC_API_KEY`
- *      set ⇒ call the Anthropic provider directly (Gateway-form ids have their
- *      `anthropic/` prefix stripped for the direct provider). HOST-ONLY.
+ *      set AND NOT `opts.forceGateway` ⇒ call the Anthropic provider directly
+ *      (Gateway-form ids have their `anthropic/` prefix stripped for the direct
+ *      provider). HOST-ONLY.
  *   2. **Vercel AI Gateway** — otherwise route through the metered Gateway
  *      (reads `AI_GATEWAY_API_KEY` / the per-run bridge JWT, or the Vercel OIDC
- *      token on deploy). This is the ONLY route a `'worker'` context can take.
+ *      token on deploy). This is the ONLY route a `'worker'` context — or any
+ *      `opts.forceGateway` call — can take.
  *
  * The `'worker'` context NEVER consults `ANTHROPIC_API_KEY` — the direct branch
  * is structurally unreachable there, so worker traffic is always metered.
+ * `opts.forceGateway` extends that same guarantee to host-context callers (the
+ * gate path, DR-013): the direct branch is skipped even with a raw key present.
  *
  * Name kept as `resolveGatewayModel` to avoid call-site churn across the port.
  */
 export async function resolveGatewayModel(
   modelId: string,
   context: ResolveContext = "worker",
+  opts?: ResolveGatewayModelOptions,
 ): Promise<LanguageModelV4> {
+  // DR-013: a forced-Gateway call (the metered gate path) skips the direct
+  // branch entirely — we do not even read ANTHROPIC_API_KEY below.
   // Worker invariant: the direct-Anthropic branch is unreachable in the worker
   // runtime. We do not even read ANTHROPIC_API_KEY here — a stray key in the
   // ambient env can never route a worker call to api.anthropic.com.
-  if (context === "host") {
+  if (context === "host" && !opts?.forceGateway) {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (anthropicKey) {
       const { createAnthropic } = await import("@ai-sdk/anthropic");

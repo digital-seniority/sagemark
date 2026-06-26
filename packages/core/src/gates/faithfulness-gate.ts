@@ -280,7 +280,10 @@ export async function runFaithfulnessGate(
   // host traffic still meters through the Gateway).
   let rawClaims: unknown[];
   try {
-    const model = await resolveGatewayModel(GATE_MODEL, "host");
+    // DR-013: Gateway-only-metered; the gate path must never reach the direct-Anthropic BYOK branch.
+    const model = await resolveGatewayModel(GATE_MODEL, "host", {
+      forceGateway: true,
+    });
     const { output } = await generateText({
       model,
       system: GATE_SYSTEM,

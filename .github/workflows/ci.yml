@@ -94,3 +94,17 @@ jobs:
           "import { assertWorkerEnvClean } from './packages/core/src/ai/worker-env-lint.ts';
           assertWorkerEnvClean(process.env);
           console.log('worker-env-lint: clean');"
+
+      # gate-path lint (DR-013). assertGatePathGatewayOnly throws — and the
+      # process exits non-zero — if a gate source resolves a model WITHOUT
+      # forceGateway, i.e. re-introduces a path that could reach the direct-
+      # Anthropic BYOK branch and escape the metered Gateway. Mirrors the
+      # worker-env-lint backstop at the gate layer (prerequisite for PR 020).
+      - name: Gate-path lint (Gateway-only-metered guard)
+        run: >-
+          node --input-type=module --eval
+          "import { readFileSync } from 'node:fs';
+          import { assertGatePathGatewayOnly, GATE_PATH_SOURCE_FILES } from './packages/core/src/ai/gate-path-lint.ts';
+          const sources = Object.fromEntries(GATE_PATH_SOURCE_FILES.map((f) => [f, readFileSync(f, 'utf8')]));
+          assertGatePathGatewayOnly(sources);
+          console.log('gate-path-lint: clean');"
