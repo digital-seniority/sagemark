@@ -35,7 +35,7 @@ import {
   type BriefSource,
 } from "@/lib/content/contract";
 import {
-  bindRequestContext,
+  authenticateBridgeRequest,
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
 } from "@/lib/content/context";
@@ -59,6 +59,10 @@ export interface BriefDeps {
   serpProvider: SerpProvider;
   fetcher: Fetcher;
   now: () => Date;
+  /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
+  jwtSecret?: string;
+  /** Bridge-JWT clock override (epoch ms) for deterministic expiry tests. */
+  bridgeNowMs?: () => number;
 }
 
 /** Production default SERP provider — DuckDuckGo HTML SERP, SSRF-guarded per fetch. */
@@ -139,8 +143,17 @@ export async function handleBrief(
   const mismatch = checkContractVersion(body.contractVersion);
   if (mismatch) return json({ error: "contract version mismatch", ...mismatch }, 409);
 
-  // 2. Bind tenancy SERVER-side (criterion 7). 401 unauth / 404 not-owned.
-  const bound = await bindRequestContext(body.clientId, deps.data, deps.resolveWorkspace);
+  // 2. Authenticate + bind tenancy SERVER-side (criterion 7). A worker call
+  //    carrying a Bearer per-run JWT is authenticated by the TOKEN (DR-018); an
+  //    operator-console call (no bearer) uses the unchanged session path. Either
+  //    way the bound (workspaceId, clientId) is the SERVER's, never the body's.
+  const bound = await authenticateBridgeRequest(
+    request,
+    body.clientId,
+    deps.data,
+    deps.resolveWorkspace,
+    { secret: deps.jwtSecret, nowMs: deps.bridgeNowMs?.() },
+  );
   if (!bound.ok) {
     return json({ error: bound.code, code: bound.code }, bound.status);
   }

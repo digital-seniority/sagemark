@@ -41,7 +41,7 @@ import {
   checkContractVersion,
 } from "@/lib/content/contract";
 import {
-  bindRequestContext,
+  authenticateBridgeRequest,
   assertTenancyMatch,
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
@@ -57,6 +57,10 @@ export interface PublishDeps {
   resolveWorkspace: () => Promise<Workspace | null>;
   /** Global publish kill switch (default reads CONTENT_PUBLISH_ENABLED). */
   publishEnabled: () => boolean;
+  /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
+  jwtSecret?: string;
+  /** Bridge-JWT clock override (epoch ms) for deterministic expiry tests. */
+  bridgeNowMs?: () => number;
 }
 
 function defaultPublishEnabled(): boolean {
@@ -133,8 +137,16 @@ export async function handlePublish(
     return json({ error: "publishing is disabled", code: "publish-disabled" }, 403);
   }
 
-  // 2. Bind tenancy SERVER-side (criterion 7).
-  const bound = await bindRequestContext(body.clientId, deps.data, deps.resolveWorkspace);
+  // 2. Authenticate + bind tenancy SERVER-side (criterion 7). A worker call
+  //    carrying a Bearer per-run JWT is authenticated by the TOKEN (DR-018); an
+  //    operator-console call (no bearer) uses the unchanged session path.
+  const bound = await authenticateBridgeRequest(
+    request,
+    body.clientId,
+    deps.data,
+    deps.resolveWorkspace,
+    { secret: deps.jwtSecret, nowMs: deps.bridgeNowMs?.() },
+  );
   if (!bound.ok) {
     return json({ error: bound.code, code: bound.code }, bound.status);
   }
