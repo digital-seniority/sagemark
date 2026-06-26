@@ -70,7 +70,13 @@ const M0033 = readFileSync(
   join(DRIZZLE_DIR, "0033_content_clients_rls.sql"),
   "utf8",
 );
-const ALL = [M0030, M0031, M0032, M0033].join("\n");
+// 0035 — ImageGen Stage-2 persistence: generated_images + image_generations
+// (RLS enabled, fail-closed, NO anon policy) + the dedup unique index.
+const M0035 = readFileSync(
+  join(DRIZZLE_DIR, "0035_generated_images.sql"),
+  "utf8",
+);
+const ALL = [M0030, M0031, M0032, M0033, M0035].join("\n");
 const flat = (s: string) => s.replace(/\s+/g, " ");
 const FLAT = flat(ALL);
 
@@ -91,6 +97,7 @@ test("[T1] migration files are valid UTF-8 (no BOM, no replacement char)", () =>
     "0031_cluster_funnel_columns.sql",
     "0032_release_records.sql",
     "0033_content_clients_rls.sql",
+    "0035_generated_images.sql",
   ]) {
     const bytes = readFileSync(join(DRIZZLE_DIR, f));
     assert.ok(
@@ -113,6 +120,9 @@ test("[T1] RLS is ENABLED on every content + release table (fail-closed)", () =>
     "byline_authorizations",
     "client_signoffs",
     "credentialed_releases",
+    // ImageGen Stage-2 (0035): both fail-closed, no anon policy.
+    "generated_images",
+    "image_generations",
   ]) {
     assert.match(
       FLAT,
@@ -136,6 +146,9 @@ test("[T1] the ONLY anon policy is published-only on content_pieces", () => {
     "byline_authorizations",
     "client_signoffs",
     "credentialed_releases",
+    // ImageGen Stage-2 (0035): private until referenced in published content.
+    "generated_images",
+    "image_generations",
   ]) {
     assert.ok(
       !new RegExp(`CREATE\\s+POLICY[^;]*ON\\s+public\\.${t}\\b`, "i").test(ALL),
@@ -162,6 +175,28 @@ test("[T1] (client_id, slug) uniqueness on content_pieces", () => {
   assert.match(
     FLAT,
     /CONSTRAINT content_pieces_client_slug_unique UNIQUE \(client_id, slug\)/i,
+  );
+});
+
+test("[T1] generated_images dedup UNIQUE index on (workspace_id, content_hash)", () => {
+  // The dedup backstop the Supabase store's findAssetByHash exploits (0035).
+  assert.match(
+    FLAT,
+    /CREATE UNIQUE INDEX IF NOT EXISTS generated_images_ws_hash_unique\s+ON public\.generated_images \(workspace_id, content_hash\)/i,
+  );
+  // image_generations.asset_id FK → generated_images (audit row references the
+  // kept asset even on dedup).
+  assert.match(
+    FLAT,
+    /asset_id\s+uuid REFERENCES public\.generated_images\(id\)/i,
+  );
+  // The PRIVATE `seo-generated-images` storage bucket is provisioned OUT-OF-BAND
+  // (storage admin), NOT in this migration — the migration role can't write the
+  // `storage` schema. So the migration must contain NO `storage.` DDL/DML; bucket
+  // coverage is verified out-of-band, not asserted here.
+  assert.ok(
+    !/\bstorage\./i.test(stripComments(M0035)),
+    "0035 must not contain any storage.* SQL (bucket is created out-of-band)",
   );
 });
 
@@ -322,6 +357,7 @@ const PIECE_A_PUB = randomUUID(); // published, workspace A
 const PIECE_A_DRAFT = randomUUID(); // draft, workspace A
 const PIECE_B_PUB = randomUUID(); // published, workspace B
 const AUTH_A = randomUUID();
+const GENIMG_A = randomUUID(); // a generated_images row, workspace A (0035)
 
 function run(sqlText: string, opts?: { role?: "anon" }): string {
   return detected!.runner(sqlText, opts).trim();
@@ -343,6 +379,11 @@ before(() => {
   run(M0031);
   run(M0032);
   run(M0033);
+  // 0035 touches ONLY the public schema (the `seo-generated-images` storage
+  // bucket is provisioned out-of-band, NOT in the migration — see the 0035
+  // header), so it applies cleanly under a restricted migration role on a real
+  // Supabase branch and needs no storage-schema stub here.
+  run(M0035);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
   // postgres does not. With RLS enabled + fail-closed policies, a table grant
@@ -365,6 +406,14 @@ before(() => {
     INSERT INTO byline_authorizations (id, workspace_id, client_id, author_id, credential, scope, authorized_by)
       VALUES ('${AUTH_A}', '${WS_A}', '${CLIENT_A}', '${randomUUID()}',
               '{"name":"Dr. A","credentials":"MD"}'::jsonb, 'client', '${randomUUID()}');
+    INSERT INTO generated_images
+        (id, workspace_id, client_id, content_hash, bucket, storage_key, bytes, content_type, model, prompt_hash, license)
+      VALUES ('${GENIMG_A}', '${WS_A}', '${CLIENT_A}', 'hash-a', 'seo-generated-images',
+              '${WS_A}/generated/hash-a.png', 5, 'image/png', 'bfl/flux-2-flex', 'ph-a',
+              '{"provider":"generated","model":"bfl/flux-2-flex@flux-2-flex"}'::jsonb);
+    INSERT INTO image_generations
+        (workspace_id, client_id, asset_id, model, cost_reported, status)
+      VALUES ('${WS_A}', '${CLIENT_A}', '${GENIMG_A}', 'bfl/flux-2-flex', 0.04, 'succeeded');
   `);
 });
 
@@ -373,6 +422,8 @@ after(() => {
   // Best-effort teardown so a re-run against the same DB is clean.
   try {
     run(`
+      DELETE FROM image_generations     WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
+      DELETE FROM generated_images      WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
       DELETE FROM credentialed_releases WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
       DELETE FROM client_signoffs       WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
       DELETE FROM byline_authorizations  WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
@@ -423,10 +474,41 @@ test(
       "byline_authorizations",
       "client_signoffs",
       "credentialed_releases",
+      // ImageGen Stage-2 (0035): generated images are private until referenced
+      // inside a published content_piece — anon must read ZERO rows from both.
+      "generated_images",
+      "image_generations",
     ]) {
       const c = run(`SELECT count(*) FROM ${t};`, { role: "anon" });
       assert.equal(c, "0", `anon must read ZERO rows from ${t}, got ${c}`);
     }
+  },
+);
+
+test(
+  "[T2] generated_images dedup UNIQUE index blocks a duplicate (workspace_id, content_hash)",
+  { skip: TIER2_SKIP },
+  () => {
+    // A second generated_images row with the same (workspace, content_hash) as
+    // the seeded GENIMG_A must be rejected by the unique dedup index (0035).
+    assert.throws(
+      () =>
+        run(
+          `INSERT INTO generated_images
+             (workspace_id, client_id, content_hash, bucket, storage_key, bytes, content_type, model, license)
+           VALUES ('${WS_A}','${CLIENT_A}','hash-a','seo-generated-images',
+                   '${WS_A}/generated/dup.png', 7, 'image/png', 'bfl/flux-2-flex',
+                   '{"provider":"generated","model":"m"}'::jsonb);`,
+        ),
+      /unique|duplicate/i,
+      "duplicate (workspace_id, content_hash) must be rejected by the dedup index",
+    );
+    // The audit row referencing GENIMG_A persisted (proves the seed + the
+    // asset_id FK link are real, not an empty table).
+    const audits = run(
+      `SELECT count(*) FROM image_generations WHERE asset_id = '${GENIMG_A}';`,
+    );
+    assert.equal(audits, "1", "the seeded audit row must reference the asset");
   },
 );
 

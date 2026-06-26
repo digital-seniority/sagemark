@@ -128,6 +128,12 @@ export {
   type InMemoryImageStore,
 } from "./store";
 
+// ── Live Supabase store (Stage 2: generated_images + image_generations) ──
+export {
+  makeSupabaseImageStore,
+  makeSupabaseSignUrl,
+} from "./store-supabase";
+
 // ── Orchestrator: generateHeroImage + [photo:] resolution (P1.R.3) ──
 export {
   generateHeroImage,
