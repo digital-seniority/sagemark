@@ -26,7 +26,7 @@ import { describe, it, expect } from "vitest";
 import { runSeoGate, type SeoGateDeps } from "@sagemark/core";
 
 import { baselineGateDeps, BASELINE_SOURCES, captureGolden, type GoldenPiece } from "../../golden/capture-baseline";
-import { CORPUS } from "../../golden/extract-fixture";
+import { CORPUS, FUNNEL_STAGES } from "../../golden/extract-fixture";
 import { repoRootFromHere } from "./_capture";
 
 // ── Tolerance band (documented) ─────────────────────────────────────────────────
@@ -109,7 +109,8 @@ describe("golden corpus presence (AC1)", () => {
     for (const p of corpus) {
       // Labels derived (AC1).
       expect(["pillar", "spoke", "faq", "checklist"]).toContain(p.clusterRole);
-      expect(["TOFU", "MOFU", "BOFU"]).toContain(p.funnelStage);
+      // funnelStage uses the SCHEMA enum, not TOFU/MOFU/BOFU (audit A.014.1).
+      expect(FUNNEL_STAGES).toContain(p.funnelStage);
       expect(p.keyword.length).toBeGreaterThan(0);
       expect(p.body.length).toBeGreaterThan(500);
       // Captured baseline present (not fabricated — provenance recorded).

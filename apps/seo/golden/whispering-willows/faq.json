@@ -2,7 +2,7 @@
   "name": "faq",
   "htmlFile": "faq.html",
   "clusterRole": "faq",
-  "funnelStage": "TOFU",
+  "funnelStage": "awareness",
   "keyword": "memory care faq",
   "isYmyl": true,
   "slug": "faq",

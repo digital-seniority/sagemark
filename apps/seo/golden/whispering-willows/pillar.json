@@ -2,7 +2,7 @@
   "name": "pillar",
   "htmlFile": "index.html",
   "clusterRole": "pillar",
-  "funnelStage": "TOFU",
+  "funnelStage": "awareness",
   "keyword": "memory care",
   "isYmyl": true,
   "slug": "index",

@@ -28,8 +28,35 @@ export const DEMO_REL_ROOT =
 /** A cluster role in the hub-and-spoke topology. */
 export type ClusterRole = "pillar" | "spoke" | "faq" | "checklist";
 
-/** Funnel stage derived from intent + sitemap priority. */
-export type FunnelStage = "TOFU" | "MOFU" | "BOFU";
+/**
+ * Funnel stage derived from intent + sitemap priority.
+ *
+ * SCHEMA-ENUM ALIGNED (audit A.014.1). These labels MUST satisfy the DB CHECK on
+ * `content_pieces.funnel_stage`
+ * (`packages/schema-flywheel/drizzle/0031_cluster_funnel_columns.sql`:
+ * `awareness|consideration|decision|retention`) and PRD §3.5 — the strategist's
+ * `ContentStrategy` cluster map (PR 014/PR 017) writes these exact values. The
+ * old marketing-funnel acronyms (TOFU/MOFU/BOFU) were a label-source bug: the
+ * golden corpus would never have round-tripped through the schema. The mapping
+ * applied at the source here is TOFU->awareness, MOFU->consideration,
+ * BOFU->decision (`retention` is a valid enum member with no golden piece). The
+ * `funnel-enum.test.ts` regresses every emitted golden label against this CHECK
+ * set so the divergence cannot silently return.
+ */
+export type FunnelStage = "awareness" | "consideration" | "decision" | "retention";
+
+/**
+ * The authoritative funnel-stage enum set — the SAME four values the DB CHECK in
+ * `0031_cluster_funnel_columns.sql` allows. Exported so the funnel-enum test (and
+ * any future consumer) asserts against ONE source of truth, never a re-typed
+ * literal list.
+ */
+export const FUNNEL_STAGES: readonly FunnelStage[] = [
+  "awareness",
+  "consideration",
+  "decision",
+  "retention",
+] as const;
 
 /**
  * One source piece: its HTML file, the golden JSON basename, and the derived
@@ -53,12 +80,15 @@ export interface CorpusPiece {
 
 /**
  * THE LABELED CORPUS MANIFEST. clusterRole/funnelStage derivation (recorded so
- * the labels are auditable, DR-022):
- *   - pillar     = index.html — the hub (sitemap priority 1.0); TOFU entry.
+ * the labels are auditable, DR-022). funnelStage uses the SCHEMA enum
+ * (awareness|consideration|decision|retention — audit A.014.1), NOT the old
+ * TOFU/MOFU/BOFU acronyms:
+ *   - pillar     = index.html — the hub (sitemap priority 1.0); awareness entry.
  *   - spoke-*    = each article-*.html + the question-style memory-care-* /
- *                  signs-its-time pages (sitemap 0.7-0.9); MOFU/BOFU by intent.
- *   - faq        = faq.html (sitemap 0.6; cross-cluster TOFU answers).
- *   - checklist  = checklist.html (sitemap 0.6; BOFU decision tool).
+ *                  signs-its-time pages (sitemap 0.7-0.9); consideration/decision
+ *                  by intent.
+ *   - faq        = faq.html (sitemap 0.6; cross-cluster awareness answers).
+ *   - checklist  = checklist.html (sitemap 0.6; decision-stage tool).
  * Every piece is YMYL (senior-care / dementia / medical-claim cluster).
  */
 export const CORPUS: readonly CorpusPiece[] = [
@@ -66,7 +96,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "index.html",
     goldenName: "pillar",
     clusterRole: "pillar",
-    funnelStage: "TOFU",
+    funnelStage: "awareness",
     keyword: "memory care",
     isYmyl: true,
   },
@@ -74,7 +104,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "article-early-signs.html",
     goldenName: "spoke-early-signs",
     clusterRole: "spoke",
-    funnelStage: "TOFU",
+    funnelStage: "awareness",
     keyword: "early signs of dementia",
     isYmyl: true,
   },
@@ -82,7 +112,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "article-cost.html",
     goldenName: "spoke-cost",
     clusterRole: "spoke",
-    funnelStage: "MOFU",
+    funnelStage: "consideration",
     keyword: "memory care cost",
     isYmyl: true,
   },
@@ -90,7 +120,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "article-choosing.html",
     goldenName: "spoke-choosing",
     clusterRole: "spoke",
-    funnelStage: "BOFU",
+    funnelStage: "decision",
     keyword: "choosing memory care",
     isYmyl: true,
   },
@@ -98,7 +128,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "article-guilt.html",
     goldenName: "spoke-guilt",
     clusterRole: "spoke",
-    funnelStage: "MOFU",
+    funnelStage: "consideration",
     keyword: "guilt moving parent to memory care",
     isYmyl: true,
   },
@@ -106,7 +136,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "memory-care-vs-assisted-living.html",
     goldenName: "spoke-memory-care-vs-assisted-living",
     clusterRole: "spoke",
-    funnelStage: "MOFU",
+    funnelStage: "consideration",
     keyword: "memory care vs assisted living",
     isYmyl: true,
   },
@@ -114,7 +144,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "memory-care-skagit-county.html",
     goldenName: "spoke-memory-care-skagit-county",
     clusterRole: "spoke",
-    funnelStage: "BOFU",
+    funnelStage: "decision",
     keyword: "memory care skagit county",
     isYmyl: true,
   },
@@ -122,7 +152,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "signs-its-time.html",
     goldenName: "spoke-signs-its-time",
     clusterRole: "spoke",
-    funnelStage: "MOFU",
+    funnelStage: "consideration",
     keyword: "when is it time for memory care",
     isYmyl: true,
   },
@@ -130,7 +160,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "faq.html",
     goldenName: "faq",
     clusterRole: "faq",
-    funnelStage: "TOFU",
+    funnelStage: "awareness",
     keyword: "memory care faq",
     isYmyl: true,
   },
@@ -138,7 +168,7 @@ export const CORPUS: readonly CorpusPiece[] = [
     htmlFile: "checklist.html",
     goldenName: "checklist",
     clusterRole: "checklist",
-    funnelStage: "BOFU",
+    funnelStage: "decision",
     keyword: "memory care tour checklist",
     isYmyl: true,
   },
