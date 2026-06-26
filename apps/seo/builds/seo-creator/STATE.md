@@ -1,6 +1,6 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (attended — **P1.C.2 #56 + P1.C.3 #58 MERGED** (Phase 1: 11/12); **0036-0039 ALL APPLIED to Supabase**; audit-005 CLEAR; **A.005.2 #61 OPEN** for review; DR-037/038/039)
+**Last updated:** 2026-06-26 (UNATTENDED Run #23 — **audit-005 fully discharged: A.005.1 #63 + A.005.2 #61 + A.005.3 #64 ALL MERGED**; DR-025 discharged; Phase 1: 11/12 (only P1.C.4); next = DR-026 live-adapter)
 **Current build phase:** Phase 1 — Pilot (**audit-005 CLEAR — no Critical; HEALTHY. Only P1.C.4 (needs SoM prompt-set) + the A.005.x correctives remain to Phase-1 close**)
 **Phase progress:** **21 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 11/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, P1.C.1 #50, **P1.C.2 #56, P1.C.3 #58**) · **only P1.C.4 (PR 021) remains** · +imagegen (#43/#45) (+6 correctives: C.020.1 #49, C.021.2 #52, C.022.3 #54, +A.005.2 #61 OPEN · +1 spike · 4 audit fixes · suite #24)
 **Runs since last audit:** **0** (audit-005 done 2026-06-26 — `audits/audit-005-2026-06-26.md`, **no Critical**; 4 High → A.005.x correctives queued + [[DR-039]] + manifest check added).
@@ -11,7 +11,7 @@
 
 ## Currently in flight
 
-_(Attended build. **OPEN PR awaiting James review:** [#61 A.005.2](https://github.com/digital-seniority/sagemark/pull/61) (audit-005 corrective — real anon-isolation Tier-2 + glob-discover gate-lint; judge 5/5·5/5; audit-finding PR → human merge). P1.C.2 #56 + P1.C.3 #58 MERGED; **all migrations 0036-0039 applied to Supabase + verified** (RLS fail-closed); pilot reviewer seed pending pilot-workspace provisioning.)_
+_(⏵ UNATTENDED Run #23 (James-directed, 5h from 2026-06-26T20:22Z). **0 open PRs.** Iteration 1 DONE: A.005.1 #63 + A.005.2 #61 + A.005.3 #64 all MERGED + auto (audit-005 discharged). **Iteration 2 NEXT: the DR-026 live `ContentDataAccess` adapter** (service-role Drizzle, mirror image-resolver.ts; read methods → write methods → wire signoff/ledger writers incl. M1's `recordCredentialedRelease` `pilot:false`; the live publish path). All migrations 0036-0039 applied. Blocked-on-non-eng (surface at window end): P1.C.4 SoM prompt-set, pilot-workspace seed, live-Sandbox Tier-2/3.)_
 
 ## Next up (post-follow-up)
 
@@ -38,10 +38,11 @@ _(Attended build. **OPEN PR awaiting James review:** [#61 A.005.2](https://githu
 
 ## Active risks (audit-002 + Run #012 — High/Med; no Critical)
 
-### audit-005 (2026-06-26) — High (→ A.005.x correctives; none block P1.C.4)
-- **[High] H1/H2 ([[DR-039]]):** #58 did not discharge [[DR-025]]'s PR-020 obligations — `gate_results` shipped as a seam projection (no table; ratified in DR-039 + spec-update A.005.3) AND `PersistedAuthorization` was NOT widened with `granted_at`/`scope` (the §11.5 YMYL release predicate can't evaluate scope) → **A.005.1** (load-bearing).
-- **[High] H3 + H4 — ADDRESSED in [#61 A.005.2](https://github.com/digital-seniority/sagemark/pull/61) (OPEN, judge 5/5·5/5, human-merge):** H3 — `token-scope.test.ts` Tier-2 now a real anon-zero-rows check (grants anon SELECT first so RLS is proven; `psqlAvailable()` probe → clean skip not vacuous-pass; runs live in CI w/ `DATABASE_URL`). H4 — `gate-path-lint` now glob-discovers all gate files (+ CI zero-discovered tripwire + new-gate test); satisfies the `gate-metering-lint-coverage-complete` manifest check.
-- **[Med] M1:** the `credentialed_releases` writer (`signoff.ts`) has zero non-test callers — tested-but-unwired; the DR-037 `pilot:false` production guarantee is fully deferred (DR-026 lane) → A.005.1 + a blocking Phase-1-exit item. **[Med] M2:** `ApprovalDebtPanel`/`CostLedgerPanel` unmounted + untested → A.005.3. **[Med] M6:** DR-036 ff-guard is config-only — promote to a Phase-5 verify assertion + agent STEP-0.5.
+### audit-005 (2026-06-26) — ALL HIGH RESOLVED (Run #23 unattended)
+- **✅ H1/H2 — RESOLVED:** A.005.1 [#63](https://github.com/digital-seniority/sagemark/pull/63) MERGED (`adab32d`) widened `PersistedAuthorization` (`granted_at`/`scope`) + scope-aware §11.5 predicate (fail-closed all degenerate inputs; read/write parity); A.005.3 [#64](https://github.com/digital-seniority/sagemark/pull/64) MERGED (`aa7bc47`) reconciled RFC/PRD to gate_results-as-projection ([[DR-039]]). **[[DR-025]] DISCHARGED** (obligation 3 done; table mandate superseded by DR-039).
+- **✅ H3/H4 — RESOLVED:** A.005.2 [#61](https://github.com/digital-seniority/sagemark/pull/61) MERGED (`463240e`) — real anon-isolation Tier-2 (now runs live + PASSES in CI, proving review_tokens/comment_threads anon-zero-rows) + `gate-path-lint` glob-discovery + `gate-metering-lint-coverage-complete` manifest check. (CI race "tuple concurrently updated" fixed: serialized node:test + dropped redundant turbo passthrough.)
+- **✅ M2 — RESOLVED:** A.005.3 mounted `CostLedgerPanel`/`ApprovalDebtPanel` (data-gated, degrade-safe) + smoke tests.
+- **Remaining (non-blocking):** **[Med] M1** — the `credentialed_releases` writer (`signoff.ts`) still has no live caller; wiring it (with `pilot:false`) is part of the **DR-026 live-adapter** lane (next). **[Med] M6** — DR-036 ff-guard config-only (STEP-0.5 applied ad-hoc in every Run #23 agent; formalize into a manifest check). **[Low]** `sse-relay.ts:56,73` comments still say "gate_results row" — stale post-DR-039 → fold into the DR-026 lane.
 
 - **DISCHARGED:** ~~A.011.1~~ (allowlist single-source — closed in P0.W.5 #26, asserted by test), ~~A.011.2~~ (RFC path reconciled), ~~A.011.9~~ (Dockerfile COPY + context).
 - **[Med] A.011.6** FSM `NOT_PUBLISH_VERDICT` vs §9.1 `VERDICT_NOT_PUBLISH` → fold into P0.S.2. **[Med] A.011.7** `evalRan` from `verdict!==null` (DR-009) → fold into P0.S.2. **[Med] A.011.5** no-console dead directives. **[Med] A.011.8** schema-flywheel vacuous test.

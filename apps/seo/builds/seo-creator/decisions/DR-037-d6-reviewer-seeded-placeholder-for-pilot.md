@@ -13,7 +13,7 @@ P1.C.2 (PR 019 — "Request changes" → edit loop + named sign-off + approval-d
 
 **Build P1.C.2 against a SEEDED PLACEHOLDER `byline_authorizations` row for the pilot** (James, 2026-06-26):
 
-- Placeholder: `name: "Pending Clinical Reviewer"`, `credential: "RN"` (placeholder), `scope: ymyl`, `status: active` — **pilot/non-production only**.
+- Placeholder: `name: "Pending Clinical Reviewer"`, `credential: "RN"` (placeholder), `scope: 'client'` (the `byline_authorizations.scope` CHECK is `client|cluster|piece`; the authoritative seed `drizzle/seed/0038_pilot_placeholder_reviewer.sql` uses `'client'` — corrected from an earlier `ymyl` typo per audit-005/A.005.1), `status: active` — **pilot/non-production only**.
 - A **real** credentialed reviewer (actual name + verifiable credential + authorization + relationship to the client) **MUST replace the placeholder before any real YMYL piece is published**. The placeholder exists to unblock engineering now without faking E-E-A-T at go-live.
 
 ## Consequences
