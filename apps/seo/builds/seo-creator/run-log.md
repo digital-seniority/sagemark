@@ -190,3 +190,12 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **★ PHASE 0 — FOUNDATIONS COMPLETE ★** — 10/10 Phase-0 PRs merged. See checkpoint for the DoD summary.
 - **Next:** phase-close audit (required) → Phase 1 (P1.U/R/W/C) under the unattended mandate.
 - **Checkpoint:** `checkpoints/run-013-2026-06-26.md`
+
+## Run #014 — 2026-06-26 (PHASE-CLOSE AUDIT — audit-003)
+
+- **Mode:** phase-close audit at the Phase 0→1 trust gate (required). 4 focused auditors. No engineering work.
+- **Result:** ✅ **CLEAR TO ENTER PHASE 1** — no Critical, no High exploitable. Phase-0 DoD PASS (10/10 PRs verified merged + ancestors of origin/preview). Security fail-closed (cross-tenant / publish-bypass / capability-denial all PASS). Coverage GREEN (~729 CI tests; RLS Tier-2 17/17 executing). Decision-log complete.
+- **Top actionable:** A.014.1 funnel-stage enum drift (golden TOFU/MOFU/BOFU vs DB CHECK — fix before PR 017); sequence Slice-1 floor (P1.R.1 render + single bounded edit) before the full canvas; A.014.5 promote the 2 drafted judge checks + the normalize-before-gate lesson into manifest.judge_criteria; F-1 bridge audience claim; F-2 operator-authZ before real auth.
+- **Phase-1 eligible NOW (3 lanes):** P1.R.1 (PR 015 SSR render — highest leverage), P1.U.1 (PR 010 canvas), P1.W.1 (PR 014 wire 3 suite skills). Non-eng blockers: D6 reviewer, imagegen keys, ≥3-engine SoM.
+- **runs_since_last_audit → 0.** Report: `audits/audit-003-2026-06-26.md`.
+- **Next:** Run #015 = first Phase-1 batch (P1.R.1 + P1.W.1).
