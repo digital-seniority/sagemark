@@ -60,8 +60,11 @@ vi.mock("../ai/resolve-gateway-model", async (importOriginal) => {
   >();
   return {
     ...actual,
-    resolveGatewayModel: (modelId: string, context?: "host" | "worker") =>
-      resolveGatewayModelMock(modelId, context),
+    resolveGatewayModel: (
+      modelId: string,
+      context?: "host" | "worker",
+      opts?: { forceGateway?: boolean },
+    ) => resolveGatewayModelMock(modelId, context, opts),
   };
 });
 
@@ -392,15 +395,41 @@ describe("runFaithfulnessGate", () => {
 
     // Routed through the metered Gateway seam (host context).
     expect(resolveGatewayModelMock).toHaveBeenCalledTimes(1);
-    const [calledModelId, calledContext] = resolveGatewayModelMock.mock.calls[0];
+    const [calledModelId, calledContext, calledOpts] =
+      resolveGatewayModelMock.mock.calls[0];
     // The gate's verifier id is the canonical VERIFIER_MODEL_ID …
     expect(calledModelId).toBe(VERIFIER_MODEL_ID);
     expect(calledModelId).toBe(GATE_MODEL);
     expect(calledContext).toBe("host");
+    // … forced Gateway-only (DR-013): the direct-Anthropic branch is unreachable.
+    expect(calledOpts).toMatchObject({ forceGateway: true });
     // … and it must NOT be the drafter (cross-model faithfulness invariant).
     expect(calledModelId).not.toBe(DRAFTER_MODEL_ID);
     expect(calledModelId).not.toBe("anthropic/claude-sonnet-4.5");
     expect(calledModelId).toBe("anthropic/claude-haiku-4-5");
+  });
+
+  // ── DR-013 negative property: the gate path forces the Gateway and never ──
+  // ── relies on a process.env provider key (locks §C17 at the gate layer).  ──
+
+  it("forces Gateway-only resolution even with ANTHROPIC_API_KEY set (no raw-provider escape)", async () => {
+    const ORIGINAL = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-leaked-into-host-env";
+    try {
+      mockGateOutput([]);
+      await runFaithfulnessGate(SAMPLE_DRAFT, { sources: SAMPLE_SOURCES });
+
+      // The gate ALWAYS passes forceGateway:true — so even with a raw key in the
+      // ambient env, resolution cannot take the direct-Anthropic BYOK branch.
+      expect(resolveGatewayModelMock).toHaveBeenCalledTimes(1);
+      const [, calledContext, calledOpts] =
+        resolveGatewayModelMock.mock.calls[0];
+      expect(calledContext).toBe("host");
+      expect(calledOpts).toEqual({ forceGateway: true });
+    } finally {
+      if (ORIGINAL === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = ORIGINAL;
+    }
   });
 
   it("passes the resolved Gateway model + canonical token/temperature budget to generateText", async () => {

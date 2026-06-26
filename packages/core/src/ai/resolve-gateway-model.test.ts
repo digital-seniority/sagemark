@@ -117,6 +117,48 @@ describe("resolveGatewayModel — host context (BYOK escape hatch)", () => {
   });
 });
 
+describe("resolveGatewayModel — forceGateway (DR-013, gate path)", () => {
+  it("host + forceGateway resolves a Gateway provider even with ANTHROPIC_API_KEY set", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-host-byok-present";
+
+    const model = (await resolveGatewayModel(VERIFIER_MODEL_ID, "host", {
+      forceGateway: true,
+    })) as unknown as { __provider: string; endpoint: string };
+
+    // The direct-Anthropic branch is UNREACHABLE when forced — proves a gate
+    // call can never escape the metered Gateway, even with a key in the env.
+    expect(model.__provider).toBe("gateway");
+    expect(model.endpoint).toBe("vercel-ai-gateway");
+    expect(model.endpoint).not.toContain("api.anthropic.com");
+    expect(createAnthropicFactory).not.toHaveBeenCalled();
+    expect(gatewayFactory).toHaveBeenCalledWith(VERIFIER_MODEL_ID);
+  });
+
+  it("forceGateway does not read ANTHROPIC_API_KEY for any model id", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-present";
+    for (const id of [DRAFTER_MODEL_ID, VERIFIER_MODEL_ID, JUDGE_MODEL_ID]) {
+      const model = (await resolveGatewayModel(id, "host", {
+        forceGateway: true,
+      })) as unknown as { __provider: string; endpoint: string };
+      expect(model.__provider).toBe("gateway");
+      expect(model.endpoint).not.toContain("api.anthropic.com");
+    }
+    expect(createAnthropicFactory).not.toHaveBeenCalled();
+  });
+
+  it("host WITHOUT forceGateway still uses the BYOK branch (non-gate callers unchanged)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-host-byok";
+    const model = (await resolveGatewayModel(DRAFTER_MODEL_ID, "host")) as unknown as {
+      __provider: string;
+    };
+    // Proof the host BYOK branch is UNCHANGED for non-forced host callers.
+    expect(model.__provider).toBe("anthropic-direct");
+    expect(createAnthropicFactory).toHaveBeenCalledWith({
+      apiKey: "sk-ant-host-byok",
+    });
+  });
+});
+
 describe("re-baselined model ids (RFC §6)", () => {
   it("drafter = sonnet-4-6, verifier = haiku-4-5, judge = opus-4-7", () => {
     expect(DRAFTER_MODEL_ID).toBe("anthropic/claude-sonnet-4-6");
