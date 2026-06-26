@@ -2,7 +2,7 @@
   "name": "spoke-choosing",
   "htmlFile": "article-choosing.html",
   "clusterRole": "spoke",
-  "funnelStage": "BOFU",
+  "funnelStage": "decision",
   "keyword": "choosing memory care",
   "isYmyl": true,
   "slug": "article-choosing",

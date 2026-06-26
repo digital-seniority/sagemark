@@ -2,7 +2,7 @@
   "name": "spoke-memory-care-vs-assisted-living",
   "htmlFile": "memory-care-vs-assisted-living.html",
   "clusterRole": "spoke",
-  "funnelStage": "MOFU",
+  "funnelStage": "consideration",
   "keyword": "memory care vs assisted living",
   "isYmyl": true,
   "slug": "memory-care-vs-assisted-living",

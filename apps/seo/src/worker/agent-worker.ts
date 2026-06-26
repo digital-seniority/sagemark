@@ -51,11 +51,22 @@ import { WORKER_ALLOWED_TOOLS } from "./capability-profile";
 import {
   loadSuite,
   SINGLE_DRAFTER_SKILL,
+  SUITE_CHAIN,
   type LoadedSuite,
+  type SuiteSkillName,
 } from "./skills/load-suite";
 
-/** The skill the worker loads — the existing `seo-blog-writer` suite entry. */
+/** The skill the worker loads for the single-drafter slice (PR 008). */
 export const WORKER_SKILL_NAME = SINGLE_DRAFTER_SKILL;
+
+/**
+ * The full self-revising chain the worker registers for an end-to-end run
+ * (PR 014): seo-strategist -> seo-assistant -> seo-blog-writer -> seo-audit, run
+ * DIRECTLY (the REAL SKILL.md files), each driving its `/content/api/*` kernel
+ * route. This is the default requested set; a caller may still request the
+ * single-drafter slice via `requestedSkills`.
+ */
+export const WORKER_CHAIN_SKILLS: readonly SuiteSkillName[] = SUITE_CHAIN;
 
 /**
  * Resolve the worker's model + bridge config from the SCRUBBED Sandbox env
@@ -220,6 +231,12 @@ export interface RunLoopOptions {
   queryImpl?: (args: { prompt: string; options: Record<string, unknown> }) => AsyncIterable<any>;
   /** Injectable suite loader for tests; defaults to the real `loadSuite` off disk. */
   loadSuiteImpl?: (args: { kernelBaseUrl: string }) => LoadedSuite;
+  /**
+   * Which suite skills to register for this run. Defaults to the full chain
+   * (`WORKER_CHAIN_SKILLS`: strategist -> assistant -> writer -> audit, PR 014).
+   * Pass `[WORKER_SKILL_NAME]` for the PR 008 single-drafter slice.
+   */
+  requestedSkills?: readonly SuiteSkillName[];
   /** Called with the resolved Agent-SDK session id (for host-side persistence). */
   onSessionId?: (sessionId: string) => void | Promise<void>;
   /** Called on terminal failure so the host can release the lease (acceptance #4). */
@@ -260,10 +277,12 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       workdir: workerEnv.workdir,
     });
 
-    // Load the REAL seo-blog-writer SKILL.md from the vendored suite (DR-022) and
-    // point its kernel host at the apps/seo /content/api contract — the skill is
-    // run DIRECTLY (not re-authored) and drives the route (acceptance #2). The
-    // loaded set is the single-drafter slice (PR 008).
+    // Load the REAL suite SKILL.md files from the vendored package (DR-022) and
+    // point their kernel host at the apps/seo /content/api contract — the skills
+    // are run DIRECTLY (not re-authored) and drive their routes (acceptance #2).
+    // The default loaded set is the FULL chain (strategist -> assistant -> writer
+    // -> audit, PR 014); a caller may request the PR 008 single-drafter slice.
+    const requested = opts.requestedSkills ?? WORKER_CHAIN_SKILLS;
     const suite: LoadedSuite =
       opts.loadSuiteImpl?.({ kernelBaseUrl: workerEnv.hostBaseUrl }) ??
       loadSuite({
@@ -271,7 +290,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // in the image, where the Dockerfile COPYs the vendored suite — A.011.9).
         // workdir is the draft FS jail, NOT the suite root, so it is NOT passed here.
         kernelBaseUrl: workerEnv.hostBaseUrl,
-        requested: [WORKER_SKILL_NAME],
+        requested,
       });
 
     let queryImpl = opts.queryImpl;

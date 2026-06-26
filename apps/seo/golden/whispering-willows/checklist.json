@@ -2,7 +2,7 @@
   "name": "checklist",
   "htmlFile": "checklist.html",
   "clusterRole": "checklist",
-  "funnelStage": "BOFU",
+  "funnelStage": "decision",
   "keyword": "memory care tour checklist",
   "isYmyl": true,
   "slug": "checklist",

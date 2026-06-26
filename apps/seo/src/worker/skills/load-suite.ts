@@ -17,10 +17,21 @@
  * this tree into the Sandbox image (audit A.011.9) so the load resolves in the VM
  * (it must not rely on `settingSources:["project"]`, which won't resolve there).
  *
- * THINNEST SLICE (PR 008). This PR registers ONLY `seo-blog-writer` (the
- * single-drafter path). The full strategist -> assistant -> audit chain is PR 014;
- * the suite root + all four sub-skills are present on disk, but the loaded set is
- * the explicit `requested` list (default: `[seo-blog-writer]`).
+ * FULL CHAIN (PR 014 / P1.W.1). PR 008 registered ONLY `seo-blog-writer` (the
+ * single-drafter path). PR 014 wires the remaining three suite skills —
+ * `seo-strategist`, `seo-assistant`, `seo-audit` — loaded + run DIRECTLY (NOT
+ * re-authored), completing the typed-handoff chain:
+ *
+ *     seo-strategist --ContentStrategy--> seo-assistant --ContentBrief-->
+ *       seo-blog-writer --ContentDraft--> seo-audit --AuditResult-->
+ *
+ * Each chain stage drives ITS kernel route (the routes ARE the toolset; no skill
+ * re-implements the kernel in markdown — the cardinal sin): strategist + assistant
+ * drive `/content/api/brief`, the writer drives `/content/api/draft`, the auditor
+ * drives `/content/api/audit` + `/content/api/publish`. The loaded set is still the
+ * explicit `requested` list; `SUITE_CHAIN` is the canonical full-chain ordering
+ * the worker requests for an end-to-end run (default remains the PR 008
+ * single-drafter `[seo-blog-writer]` for back-compat).
  *
  * PURE-ISH / ISOMORPHIC: imports only `node:fs`/`node:path` + the shared kernel
  * route enum. No Next APIs, no DB, no SDK import (the SDK consumes the loaded
@@ -30,7 +41,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 
-import { KERNEL_ROUTES } from "../../lib/content/contract";
+import { KERNEL_ROUTES, type KernelRouteName } from "../../lib/content/contract";
 
 // ── Canonical in-repo suite location (DR-022) ──────────────────────────────────
 
@@ -55,6 +66,45 @@ export const SUITE_SKILLS = [
 ] as const;
 
 export type SuiteSkillName = (typeof SUITE_SKILLS)[number];
+
+/**
+ * The canonical full self-revising chain ordering (PR 014). This is the order the
+ * typed handoff flows (`ContentStrategy -> ContentBrief -> ContentDraft ->
+ * AuditResult`) and the set the worker requests for an end-to-end run. The order
+ * is load-bearing: the strategist (Stage 0, human-gated) precedes the assistant,
+ * and the auditor is last (it owns the publish gate).
+ */
+export const SUITE_CHAIN = [
+  "seo-strategist",
+  "seo-assistant",
+  "seo-blog-writer",
+  "seo-audit",
+] as const;
+
+/**
+ * The kernel route(s) each suite skill DRIVES, plus the phrase its REAL SKILL.md
+ * uses to declare the contract. `assertSuiteIsKernelBacked` checks the loaded
+ * markdown declares BOTH `kernel-backed` AND the route phrase, so a re-authored
+ * stub (which would drop the contract language) is rejected — the structural proof
+ * for AC1/AC2 that each stage orchestrates its kernel route rather than
+ * re-implementing the kernel in markdown.
+ *
+ * The phrases are the verbatim substrings the vendored SKILL.md files carry
+ * (case-insensitive): the strategist + assistant say "brief route", the writer
+ * "draft route", the auditor "audit route" + "publish route" (it drives both).
+ */
+export const SKILL_KERNEL_CONTRACT: Record<
+  SuiteSkillName,
+  { routes: KernelRouteName[]; markdownRoutePhrases: RegExp[] }
+> = {
+  "seo-strategist": { routes: ["brief"], markdownRoutePhrases: [/brief route/i] },
+  "seo-assistant": { routes: ["brief"], markdownRoutePhrases: [/brief route/i] },
+  "seo-blog-writer": { routes: ["draft"], markdownRoutePhrases: [/draft route/i] },
+  "seo-audit": {
+    routes: ["audit", "publish"],
+    markdownRoutePhrases: [/audit route/i, /publish route/i],
+  },
+};
 
 // ── Loaded descriptor ──────────────────────────────────────────────────────────
 
@@ -206,30 +256,55 @@ export function loadSuite(opts: LoadSuiteOptions): LoadedSuite {
 }
 
 /**
- * Assert a loaded suite is kernel-backed: it points at the apps/seo
- * `/content/api/draft` route (the kernel the skill drives) and did NOT swallow
- * the route map. This is the structural proof for AC2 — the skill orchestrates
- * the kernel route, it does not re-implement scoring/persistence in markdown. A
- * non-empty return lists the violations (empty == kernel-backed).
+ * Assert a loaded suite is kernel-backed: it points at the canonical apps/seo
+ * `/content/api/*` routes (the kernel the skills drive) and did NOT swallow the
+ * route map. This is the structural proof for AC1/AC2 — EVERY loaded skill
+ * orchestrates ITS kernel route(s); none re-implements scoring/persistence in
+ * markdown. A non-empty return lists the violations (empty == kernel-backed).
+ *
+ * Generalized over the full chain (PR 014): each loaded skill's REAL SKILL.md
+ * must declare both `kernel-backed` AND the route phrase(s) for the route(s) it
+ * drives (per `SKILL_KERNEL_CONTRACT`), and the corresponding `kernelRoutes`
+ * entry must equal the canonical route. The PR 008 drafter-only invariant is the
+ * special case where only `seo-blog-writer` is loaded.
  */
 export function assertSuiteIsKernelBacked(suite: LoadedSuite): string[] {
   const violations: string[] = [];
-  if (suite.kernelRoutes.draft !== KERNEL_ROUTES.draft) {
-    violations.push("kernelRoutes.draft does not equal the canonical /content/api/draft route");
-  }
   if (!suite.kernelBaseUrl) {
     violations.push("kernelBaseUrl is empty — the skill has no host to drive");
   }
-  // The drafter skill must be loaded as the REAL SKILL.md (markdown present + the
-  // kernel-backed contract phrased in it), not a stub.
-  const drafter = suite.skills.find((s) => s.name === SINGLE_DRAFTER_SKILL);
-  if (!drafter) {
-    violations.push(`the single-drafter skill '${SINGLE_DRAFTER_SKILL}' is not loaded`);
-  } else if (!/kernel-backed/i.test(drafter.markdown) || !/draft route/i.test(drafter.markdown)) {
-    violations.push(
-      "the loaded seo-blog-writer SKILL.md does not declare the kernel-backed draft-route contract " +
-        "(it may be a re-authored copy, not the real skill)",
-    );
+
+  if (suite.skills.length === 0) {
+    violations.push("no skills are loaded — there is nothing to drive the kernel");
+  }
+
+  for (const skill of suite.skills) {
+    const contract = SKILL_KERNEL_CONTRACT[skill.name];
+    // Each route the skill drives must be wired to its canonical /content/api path.
+    for (const route of contract.routes) {
+      if (suite.kernelRoutes[route] !== KERNEL_ROUTES[route]) {
+        violations.push(
+          `kernelRoutes.${route} does not equal the canonical ${KERNEL_ROUTES[route]} route ` +
+            `(driven by '${skill.name}')`,
+        );
+      }
+    }
+    // The loaded SKILL.md must be the REAL file (declares kernel-backed + its route
+    // phrase), not a re-authored stub that dropped the contract language.
+    if (!/kernel-backed/i.test(skill.markdown)) {
+      violations.push(
+        `the loaded ${skill.name} SKILL.md does not declare 'kernel-backed' ` +
+          "(it may be a re-authored copy, not the real skill)",
+      );
+    }
+    for (const phrase of contract.markdownRoutePhrases) {
+      if (!phrase.test(skill.markdown)) {
+        violations.push(
+          `the loaded ${skill.name} SKILL.md does not declare its kernel route contract ` +
+            `(missing ${phrase} — it may be a re-authored copy that re-implements the kernel)`,
+        );
+      }
+    }
   }
   return violations;
 }

@@ -2,7 +2,7 @@
   "name": "spoke-cost",
   "htmlFile": "article-cost.html",
   "clusterRole": "spoke",
-  "funnelStage": "MOFU",
+  "funnelStage": "consideration",
   "keyword": "memory care cost",
   "isYmyl": true,
   "slug": "article-cost",

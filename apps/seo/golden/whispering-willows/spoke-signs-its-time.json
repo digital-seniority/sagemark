@@ -2,7 +2,7 @@
   "name": "spoke-signs-its-time",
   "htmlFile": "signs-its-time.html",
   "clusterRole": "spoke",
-  "funnelStage": "MOFU",
+  "funnelStage": "consideration",
   "keyword": "when is it time for memory care",
   "isYmyl": true,
   "slug": "signs-its-time",

@@ -2,7 +2,7 @@
   "name": "spoke-memory-care-skagit-county",
   "htmlFile": "memory-care-skagit-county.html",
   "clusterRole": "spoke",
-  "funnelStage": "BOFU",
+  "funnelStage": "decision",
   "keyword": "memory care skagit county",
   "isYmyl": true,
   "slug": "memory-care-skagit-county",
