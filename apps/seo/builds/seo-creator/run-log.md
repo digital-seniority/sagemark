@@ -179,3 +179,14 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - **Active risks added:** demo-prose-vs-em-dash-threshold (cross-lane, DR-024); unwired apps/seo/dist worker build (pre-existing P0.W.2 follow-up).
 - **Next:** Run #013 = P0.S.2 (PR 009) — fold A.011.6 + A.011.7.
 - **Checkpoint:** `checkpoints/run-012-2026-06-26.md`
+
+## Run #013 — 2026-06-26 — P0.S.2 (★ PHASE 0 COMPLETE ★)
+
+- **Mode:** work-doing (1 PR), auto-loop unattended (~1.5h into the 10h window).
+- **PR merged (unattended auto-merge — green, judge 5/5·5/5):**
+  - `P0.S.2` (PR 009 — voice-spec hard stop + fail-closed publish) — **[PR #28](https://github.com/digital-seniority/sagemark/pull/28)** `ea0fc0f`. Closes the YMYL byline-trust hole; canPublish reads credentialed_releases (client_signoff never satisfies); byline server-resolved; inactive auth blocks; no autopilot. Folded A.011.6 + A.011.7. SOURCE-CONSUMED build PASS.
+- **Process:** 5.0/5 · **Product:** 5.0/5.
+- **DRs:** [[DR-025]] (gate_results table deferred to PR 020; evalRan seam fail-closed until then; closes DR-009 evalRan bullet).
+- **★ PHASE 0 — FOUNDATIONS COMPLETE ★** — 10/10 Phase-0 PRs merged. See checkpoint for the DoD summary.
+- **Next:** phase-close audit (required) → Phase 1 (P1.U/R/W/C) under the unattended mandate.
+- **Checkpoint:** `checkpoints/run-013-2026-06-26.md`
