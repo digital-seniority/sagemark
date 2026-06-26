@@ -56,10 +56,10 @@ jobs:
         run: pnpm lint
 
       # `turbo run test` fans out to every workspace `test` script. @sagemark/seo's
-      # `test` runs vitest AND `node --test test/tenancy/rls-contract.test.ts`, so
-      # the node:test RLS suite is exercised here too; the explicit step below is a
-      # belt-and-suspenders guard that the RLS file always runs even if turbo
-      # caching or a future package.json edit drops it.
+      # `test` runs vitest AND `node --test … rls-contract … token-scope` (Tier-1
+      # static assertions; Tier-2 SKIPS here because turbo does NOT pass DATABASE_URL
+      # through — the live anon-isolation Tier-2 is the dedicated step below, so it
+      # runs ONCE against the live DB, not redundantly in two steps).
       - name: Test (turbo)
         run: pnpm test
 
@@ -70,9 +70,13 @@ jobs:
       # cleanly. token-scope's Tier-2 is the LOAD-BEARING anon-isolation proof
       # for P1.C.1's tokenized review tables (review_tokens + comment_threads →
       # anon reads ZERO rows); it MUST execute live here (audit-005 H3/M5).
+      # --test-concurrency=1: rls-contract + token-scope both CREATE ROLE anon +
+      # GRANT in their before-hooks; running the two files concurrently against the
+      # one live DB races the shared catalog tuple ("tuple concurrently updated").
+      # Serialize them.
       - name: RLS + token-scope contract suite (node:test)
         run: >-
-          node --test
+          node --test --test-concurrency=1
           apps/seo/test/tenancy/rls-contract.test.ts
           apps/seo/test/review/token-scope.test.ts
 
