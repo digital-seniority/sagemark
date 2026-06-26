@@ -53,7 +53,12 @@ export interface PersistedPiece {
   status: string;
 }
 
-/** The persisted scorecard projection (a `gate_results` row, the truth scorecard). */
+/**
+ * The persisted scorecard projection (the truth scorecard). Per DR-039 this is
+ * read from the persisted scorecard fields on the `content_pieces` /
+ * `content_piece_versions` row (verdict + eval_score + dimensions) — there is NO
+ * `gate_results` table; the row IS the authoritative scorecard.
+ */
 export interface PersistedScorecard {
   stageAVetoes: string[];
   score: number | null;
@@ -69,8 +74,10 @@ export interface TruthSnapshot {
 /**
  * Reads the persisted truth for a run, scoped by tenancy. The relay calls this on
  * a `last_event_id` reconnect to build the resume snapshot — it NEVER reconstructs
- * from worker memory (acceptance 5). The production impl reads `content_pieces` +
- * `gate_results` WHERE workspace_id = ? AND client_id = ? AND run_id = ? (the
+ * from worker memory (acceptance 5). The production impl reads the persisted
+ * `content_pieces` row (which carries BOTH the truth body AND the truth scorecard
+ * fields — verdict/eval_score/dimensions; there is no separate `gate_results`
+ * table per DR-039) WHERE workspace_id = ? AND client_id = ? AND run_id = ? (the
  * tenancy scope is mandatory — see `/api/run`). Tests inject a fixture.
  */
 export type TruthSnapshotReader = (scope: {
