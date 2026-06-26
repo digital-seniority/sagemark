@@ -13,9 +13,9 @@
  *   +------------------------------------------------------------------+
  *   |  Agent        |            Artifact                | Inspector    |
  *   |  (left)       |            (center)                | (right)      |
- *   |  live feed:   |   brief card · mode tabs · body    | scorecard    |
- *   |  thinking +   |   (token-delta stream / snapshot)  | (stub: PR011)|
- *   |  tool-use     |                                    |              |
+ *   |  live feed:   |   brief card · mode tabs · live    | gate         |
+ *   |  thinking +   |   markdown editor (token-delta     | scorecard    |
+ *   |  tool-use     |   stream / snapshot)               | (PR 011)     |
  *   +------------------------------------------------------------------+
  *
  * SSE WIRING (the load-bearing point). The canvas calls `useUiMessageStream({ url })`
@@ -25,12 +25,13 @@
  * phase). Every zone renders from that single projected state — never from raw
  * model prose (PRD 2 / acceptance 2).
  *
- * SCOPE (shell only). Stubbed seams clearly marked for later PRs:
- *   - INSPECTOR internals (the gate scorecard detail) — PR 011 (this renders a
- *     compact verdict summary + a marked placeholder).
- *   - Tokens streaming INTO an editor — PR 011 (the artifact shows the body
- *     read-only here).
- *   - The edit loop — PR 012. The version hub — PR 013.
+ * SCOPE. The P1.U.1 shell stubs are now FILLED (PR 011 / P1.U.2):
+ *   - INSPECTOR internals — the real `InspectorPanel` gate scorecard (Stage-A
+ *     vetoes + Stage-B bars + verdict band + piece-status; authoritative server
+ *     gate vs. zero-credit client live preview).
+ *   - Tokens streaming INTO an editor — the artifact's `MarkdownEditor` (the body
+ *     types in live from the `token-delta` stream).
+ *   Still ahead: the edit -> re-gate loop (PR 012), the version hub (PR 013).
  *
  * Colour from `currentColor` + opacity (no hardcoded palette, matching
  * VoiceSpecEditor / DraftResult). Clean ASCII / UTF-8.
@@ -42,9 +43,9 @@ import {
   type UiMessageStreamState,
   type UseUiMessageStreamOptions,
 } from "@/lib/stream/use-ui-message-stream";
-import { ScoreSignalDot } from "@/components/ScoreSignalDot";
 import { AgentPanel } from "./agent/AgentPanel";
 import { ArtifactZone } from "./artifact/ArtifactZone";
+import { InspectorPanel } from "./inspector/InspectorPanel";
 import type { ContentBrief } from "./artifact/BriefCard";
 
 export interface SeoStudioCanvasProps {
@@ -149,67 +150,8 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         data-zone="inspector"
         style={{ ...ZONE, borderLeft: "1px solid color-mix(in srgb, currentColor 12%, transparent)", overflowY: "auto" }}
       >
-        <InspectorStub state={state} />
+        <InspectorPanel state={state} keyword={brief?.primaryKeyword ?? null} />
       </section>
-    </div>
-  );
-}
-
-/**
- * InspectorStub — a clearly-marked placeholder for the PR 011 gate scorecard.
- *
- * The shell surfaces a COMPACT verdict summary (the signal dot + the latest stage's
- * score / vetoes) so the third zone is wired to the same SSE projection, but the
- * full scorecard detail (per-dimension Stage-B breakdown, the publish-gate panel)
- * is PR 011's job — marked explicitly here so a reviewer knows the seam is intended.
- */
-function InspectorStub({ state }: { state: UiMessageStreamState }) {
-  const sc = state.scorecard;
-  const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
-
-  return (
-    <div
-      data-zone-body="inspector"
-      style={{ display: "flex", flexDirection: "column", gap: 16, padding: "1rem", height: "100%" }}
-    >
-      <p style={{ textTransform: "uppercase", letterSpacing: "0.1em", ...SUBTLE }}>
-        Inspector
-      </p>
-
-      <div
-        data-testid="inspector-verdict"
-        style={{ border: "1px solid currentColor", borderRadius: 10, padding: "0.875rem 1rem" }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={SUBTLE}>Verdict</span>
-          <ScoreSignalDot verdict={sc?.verdict ?? null} score={sc?.score ?? null} />
-        </div>
-        {sc ? (
-          <dl
-            style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", marginTop: 10, fontSize: 13 }}
-          >
-            <dt style={SUBTLE}>Stage</dt>
-            <dd data-testid="inspector-stage">{sc.stage}</dd>
-            <dt style={SUBTLE}>Score</dt>
-            <dd data-testid="inspector-score">{sc.score ?? "— (vetoed)"}</dd>
-            <dt style={SUBTLE}>Stage-A vetoes</dt>
-            <dd data-testid="inspector-vetoes">{sc.vetoes.length > 0 ? sc.vetoes.join(", ") : "none"}</dd>
-          </dl>
-        ) : (
-          <p style={{ ...SUBTLE, marginTop: 10 }} data-testid="inspector-no-scorecard">
-            No gate has run yet.
-          </p>
-        )}
-      </div>
-
-      {/* PR 011 seam — the full scorecard + publish-gate detail lands here. */}
-      <div
-        data-testid="inspector-stub"
-        style={{ border: "1px dashed currentColor", borderRadius: 10, padding: "0.875rem 1rem", ...SUBTLE }}
-      >
-        The full gate scorecard (per-dimension Stage-B breakdown + the publish gate)
-        is wired in PR 011.
-      </div>
     </div>
   );
 }

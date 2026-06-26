@@ -9,12 +9,12 @@
  * `token-delta` stream (or the reconnect snapshot) — so the operator watches the
  * draft fill in live.
  *
- * SCOPE (shell, stubbed seams clearly marked):
- *   - DRAFT mode renders the accumulated markdown as plain monospace text. PR 011
- *     replaces this with the live editor that the tokens stream INTO; PR 012 adds
- *     the edit loop. This shell only DISPLAYS the body, read-only.
- *   - PREVIEW mode is a clearly-marked placeholder; PR 011/013 wire the rendered
- *     reading view + version hub.
+ * SCOPE (PR 011 fills the editor seam):
+ *   - DRAFT mode renders the live `MarkdownEditor` that the `token-delta` stream
+ *     types INTO (PR 011 / P1.U.2 — replaces the P1.U.1 read-only `<pre>`). The
+ *     editor is display-focused at this slice; the edit -> re-gate loop is PR 012.
+ *   - PREVIEW mode is a clearly-marked placeholder; the rendered reading view +
+ *     version hub land in PR 013.
  *
  * Colour from `currentColor` + opacity (no hardcoded palette). Clean ASCII / UTF-8.
  */
@@ -24,6 +24,7 @@ import { ScoreSignalDot } from "@/components/ScoreSignalDot";
 import type { GateScorecard } from "@/lib/stream/use-ui-message-stream";
 import { BriefCard, type ContentBrief } from "./BriefCard";
 import { ModeTabs, type ArtifactMode } from "./ModeTabs";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 export interface ArtifactZoneProps {
   /** The resolved content brief, or null before a run produces one. */
@@ -40,7 +41,6 @@ const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
 export function ArtifactZone({ brief, body, streaming = false, scorecard }: ArtifactZoneProps) {
   const [mode, setMode] = useState<ArtifactMode>("draft");
-  const hasBody = body.trim().length > 0;
 
   return (
     <div
@@ -63,41 +63,9 @@ export function ArtifactZone({ brief, body, streaming = false, scorecard }: Arti
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {mode === "draft" ? (
-          hasBody ? (
-            <pre
-              data-testid="artifact-body"
-              style={{
-                margin: 0,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: 13,
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-              }}
-            >
-              {body}
-              {streaming && (
-                <span
-                  data-testid="stream-caret"
-                  aria-hidden="true"
-                  style={{
-                    display: "inline-block",
-                    width: 7,
-                    height: 15,
-                    marginLeft: 1,
-                    background: "currentColor",
-                    opacity: 0.5,
-                    verticalAlign: "text-bottom",
-                    animation: "studio-pulse 1.1s ease-in-out infinite",
-                  }}
-                />
-              )}
-            </pre>
-          ) : (
-            <p data-testid="artifact-body-empty" style={{ ...SUBTLE, margin: 0 }}>
-              The draft body will appear here as the agent writes it.
-            </p>
-          )
+          // PR 011: the live editor the token-delta stream types into (was a
+          // read-only <pre> in P1.U.1). MarkdownEditor owns the empty state + caret.
+          <MarkdownEditor body={body} streaming={streaming} />
         ) : (
           // PREVIEW mode — placeholder for the rendered reading view (PR 011/013).
           <div
