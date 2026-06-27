@@ -22,15 +22,47 @@ export interface ToolUseRowProps {
   item: ToolUseItem;
 }
 
-/** The one place a stable tool-use code becomes an operator-facing phrase. */
-const TOOL_USE_LABELS: Record<ToolUseCode, string> = {
-  serpFetch: "Fetching live sources",
-  draftBody: "Drafting the body",
-  persistPiece: "Saving the draft",
-  runFaithfulnessGate: "Checking faithfulness",
-  "runGate.stageA": "Stage-A veto pass",
-  "runGate.stageB": "Stage-B scoring pass",
+/**
+ * The one place a stable tool-use code becomes operator-facing prose — phrased
+ * PLAIN (no jargon) and tense-aware so each substep reads like the agent narrating
+ * its work: a present-continuous line while it runs, a past-tense line once done.
+ * Keyed on the CODE (never raw model prose) so the injection discipline holds.
+ */
+const RUNNING_LABEL: Record<ToolUseCode, string> = {
+  serpFetch: "Reading the latest sources on this topic…",
+  draftBody: "Writing the draft…",
+  persistPiece: "Saving your draft…",
+  runFaithfulnessGate: "Checking every claim is backed by a source…",
+  "runGate.stageA": "Running the safety checks…",
+  "runGate.stageB": "Scoring the draft against the quality bar…",
 };
+const DONE_LABEL: Record<ToolUseCode, string> = {
+  serpFetch: "Read the latest sources",
+  draftBody: "Finished the draft",
+  persistPiece: "Saved your draft",
+  runFaithfulnessGate: "Every claim is backed by a source",
+  "runGate.stageA": "Passed the safety checks",
+  "runGate.stageB": "Scored the draft",
+};
+const ERROR_LABEL: Record<ToolUseCode, string> = {
+  serpFetch: "Couldn't reach the sources",
+  draftBody: "Hit a snag while drafting",
+  persistPiece: "Couldn't save the draft",
+  runFaithfulnessGate: "The faithfulness check needs attention",
+  "runGate.stageA": "A safety check flagged the draft",
+  "runGate.stageB": "Scoring didn't finish",
+};
+
+/** The plain phrase for a (code, status) — the readable substep narration. */
+function phraseFor(item: ToolUseItem): string {
+  const map =
+    item.status === "running"
+      ? RUNNING_LABEL
+      : item.status === "error"
+        ? ERROR_LABEL
+        : DONE_LABEL;
+  return map[item.code] ?? item.code;
+}
 
 /** A glyph per lifecycle status (spinner -> check / cross). Text, not colour. */
 const STATUS_GLYPH: Record<ToolUseItem["status"], string> = {
@@ -40,7 +72,7 @@ const STATUS_GLYPH: Record<ToolUseItem["status"], string> = {
 };
 
 export function ToolUseRow({ item }: ToolUseRowProps) {
-  const phrase = TOOL_USE_LABELS[item.code] ?? item.code;
+  const phrase = phraseFor(item);
   const glyph = STATUS_GLYPH[item.status];
   const running = item.status === "running";
 
@@ -49,6 +81,7 @@ export function ToolUseRow({ item }: ToolUseRowProps) {
       data-feed-kind="tool-use"
       data-tool-code={item.code}
       data-status={item.status}
+      data-anim="fade-up"
       style={{
         display: "flex",
         alignItems: "center",
@@ -56,6 +89,7 @@ export function ToolUseRow({ item }: ToolUseRowProps) {
         fontSize: 13,
         lineHeight: 1.5,
         opacity: item.status === "error" ? 0.85 : 0.9,
+        animation: "studio-fade-up 0.35s ease both",
       }}
     >
       <span

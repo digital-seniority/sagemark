@@ -21,6 +21,7 @@ export function ThinkingDelta({ item }: ThinkingDeltaProps) {
   return (
     <p
       data-feed-kind="thinking"
+      data-anim="fade-up"
       style={{
         margin: 0,
         fontStyle: "italic",
@@ -29,6 +30,7 @@ export function ThinkingDelta({ item }: ThinkingDeltaProps) {
         opacity: 0.55,
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
+        animation: "studio-fade-up 0.35s ease both",
       }}
     >
       {item.text}
