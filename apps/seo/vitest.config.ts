@@ -58,6 +58,12 @@ export default defineConfig({
       // smoke test (the `.tsx` glob picks up the component render suite).
       "test/ui/**/*.test.ts",
       "test/ui/**/*.test.tsx",
+      // Slice 5 / P-I (lane studio-ui): the home + canvas SERVER-SIDE resolution
+      // units (operator -> workspace -> client -> conversation/turns/brief) and the
+      // workspace->client service-role read core. Pure vitest with injected fakes
+      // (no RSC render, no live Supabase). The start-button interaction suite is a
+      // jsdom `.dom.test.tsx` under test/ui (already globbed above).
+      "test/studio/**/*.test.ts",
       // PR 012 / P1.U.3 (DR-019 append-only carve-out): the bounded-edit guards
       // (stale-edit 409 / rate-limit 429 / ownership 403) + the bounded-diff +
       // the full-gate-re-run-catches-a-faithfulness-break suite. An ActivityFeed
