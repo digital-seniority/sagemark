@@ -49,3 +49,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# compiled worker runtime (apps/seo build:worker output; baked into the Sandbox image, never committed)
+apps/seo/dist/
