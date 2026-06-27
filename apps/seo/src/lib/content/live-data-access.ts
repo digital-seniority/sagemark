@@ -12,10 +12,14 @@
  *
  * SCOPE (this PR — DR-026, READ ONLY). Implements the seam's READ methods only.
  * It carries NO write methods (insert/update/transition/nameVersion/setActive/
- * signoff/release writes are a separate write-adapter PR) and is NOT wired into
- * any route — it is built + injectable behind `makeLiveContentReadAccess()` and
- * `makeLivePublicContentReadAccess()`, activated later by a separate
- * human-reviewed wiring PR. Mirrors the image-resolver wiring discipline exactly.
+ * signoff/release writes are a separate write-adapter PR). It is built +
+ * injectable behind `makeLiveContentReadAccess()` and
+ * `makeLivePublicContentReadAccess()` and is now WIRED INTO ROUTES (creds-gated;
+ * INERT until SUPABASE_* set) — PR #74 composed it behind `resolveContentDataAccess()`
+ * / `resolvePublicContentDataAccess()`, which the content-kernel routes resolve;
+ * with no service-role creds the factories return null and the seam stays on its
+ * fail-closed `NOT_WIRED_*` default (unchanged behavior). Mirrors the
+ * image-resolver wiring discipline exactly.
  *
  * SECURITY — SERVICE ROLE BYPASSES RLS (load-bearing). The client is the Supabase
  * SERVICE ROLE (host-side, `server-only`), so RLS is NOT the tenancy boundary

@@ -44,10 +44,12 @@
  * null (the page 404s). An insert that does not return its new id throws (never
  * fabricates an id).
  *
- * INERT: `makeLiveReviewTokenAccess()` + `makeLiveReviewCommentAccess()` are built
- * + injectable but NOT wired into the `/review/[token]` route or the comments
- * route in this PR. They return null when the host service-role creds are absent,
- * so the seams stay on their `NOT_WIRED_REVIEW_*` defaults (unchanged behavior).
+ * WIRED INTO ROUTES (creds-gated; INERT until SUPABASE_* set):
+ * `makeLiveReviewTokenAccess()` + `makeLiveReviewCommentAccess()` are built +
+ * injectable and now composed behind `resolveReviewAccess()` (PR #74), which the
+ * `/review/[token]` route and the comments route resolve. They return null when
+ * the host service-role creds are absent, so the seams stay on their
+ * `NOT_WIRED_REVIEW_*` defaults (unchanged behavior until creds are present).
  *
  * Clean ASCII / UTF-8. No `console.*`. `@supabase/supabase-js` is imported
  * dynamically so importing this module is network-free + cred-free.

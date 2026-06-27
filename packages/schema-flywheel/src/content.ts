@@ -646,8 +646,12 @@ export const commentThreads = pgTable(
 //
 // `shareOfModel` — the north-star AI-answer-engine citation-tracking table. One
 // row per (client_id, engine, query) citation check; `cited`/`position` roll up
-// to a per-hub citation rate. Engines: ChatGPT · Claude · Gemini (DR-038);
-// `sourceChannel` defaults to 'direct' (Gateway direct-query, DR-038).
+// to a per-hub citation rate. Engines: ChatGPT · Claude · Gemini (DR-038).
+// `sourceChannel` is free-text carrying the HYBRID 3-channel model (DR-038
+// addendum): 'direct-citation' (a REAL cited source) | 'direct-proxy' (a
+// model-API answer = a MENTION proxy, NEVER summed as a citation) | 'vendor'
+// (GEO-tracker, deferred). The .default("direct") below is a legacy sentinel;
+// the live store writes the hybrid labels.
 //
 // Both RLS-enabled fail-closed with NO anon policy (the 0032/0033/0035/0036
 // pattern, DR-023): cost + share-of-model are billing / competitive-intelligence
@@ -738,7 +742,9 @@ export const shareOfModel = pgTable(
     rawResponse: text("raw_response"),
     parserConf: numeric("parser_conf", { precision: 4, scale: 3 }),
     auditSampled: boolean("audit_sampled").default(false).notNull(),
-    // Gateway direct-query default (DR-038).
+    // Hybrid 3-channel label (DR-038 addendum): direct-citation | direct-proxy
+    // (mention, NOT a citation) | vendor. .default("direct") = legacy sentinel;
+    // the live store writes the hybrid labels.
     sourceChannel: text("source_channel").default("direct").notNull(),
     locale: text("locale"),
     deviceProfile: text("device_profile"),
