@@ -329,3 +329,12 @@ Entries are oldest-first (Run #001 at the top). When the log exceeds ~50 runs, t
 - User provisioned the WW pilot client (`client_id=e84acf0f…`, `workspace_id=81815c0a…` — user-provided tenancy, not agent-invented). Authorized the ingest.
 - Ran a representative slice (10 prompts × 3 engines) through the live path → **30 real labeled `share_of_model` rows persisted** + verified read-only. Rollup: **claude/`direct-citation` 6/10** (the real SoM signal — cites WW for discovery + brand queries); chatgpt/gemini `direct-proxy` 3/10 (brand-named echo only, kept separate, never summed as a citation).
 - **DoD-COMPLETE:** real rows (not mocks) from the live adapter, channel-labeled per DR-038. Evidence in `som-live-smoke-evidence.md` (DoD-close section). The weekly cron runs the full 28-prompt bank on the same path. Deferred upgrade: GEO-tracker vendor for real ChatGPT/AIO consumer-engine citations.
+
+## Run #24 — Build-completion AUDIT (audit-006) — 2026-06-27
+James-directed "audit + harden" unattended block (v1 build complete; no eligible feature work — Phase 2/GA out of scope). 5 parallel auditors (architecture, convention, spec-reconciler, test-quality, state-historian).
+- **NO CRITICAL · no anchor violations · no hollow tests · healthy judge calibration · go-live-ready on integrity.** audit-005 Highs confirmed resolved.
+- **1 HIGH (go-live functional blocker):** H1 — the credentialed-release writer (`recordCredentialedRelease`/`isPilot`) has zero non-test callers → after the env flip no route can record a YMYL release → nothing reaches `published`. = audit-005 M1 re-confirmed. → **A.006.1** (build, HOLD for human; production-critical/DR-037).
+- **MEDIUMs:** SoM metering call-site outside `gate-path-lint` (A.006.2); cron routes missing runtime/dynamic/maxDuration (A.006.3); `defaultPublishEnabled` diverges (fold A.006.1); SoM hybrid-channel spec drift + adapter/STATE "not wired" drift (A.006.4).
+- **Decision-log gaps closed:** DR-040 (activation gate model), DR-041 (live SoM ingest/DoD-close method). **Manifest check added:** `live-side-effect-idempotency`.
+- STATE reconciled (#67/#69 marked MERGED; #73 noted; "not wired"→"wired creds-gated"); 4 doc/state PR_MERGED events backfilled (#73/#75/#76/#77). go-live-checklist updated with the H1 blocker + freshness-inert note.
+- **Next:** Run #25 harden — build A.006.1–A.006.4 (all A.006.x HELD FOR HUMAN MERGE), judge, open PRs. Then terminate honestly (eligible hardening depleted; go-live + Phase 2 are human/out-of-scope).
