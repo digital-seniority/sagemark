@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
+    "build:worker": "tsc -p tsconfig.worker.json",
     "start": "next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -15,6 +16,7 @@
     "@sagemark/core": "workspace:*",
     "@sagemark/imagegen": "workspace:*",
     "@sagemark/schema-flywheel": "workspace:*",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.45.0",
     "@vercel/sandbox": "^2.2.1",
     "next": "16.2.6",
@@ -25,10 +27,10 @@
   "devDependencies": {
     "@sagemark/config": "workspace:*",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

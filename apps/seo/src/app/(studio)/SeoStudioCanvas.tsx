@@ -37,33 +37,76 @@
  * VoiceSpecEditor / DraftResult). Clean ASCII / UTF-8.
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useUiMessageStream,
   type UiMessageStreamState,
   type UseUiMessageStreamOptions,
 } from "@/lib/stream/use-ui-message-stream";
+import {
+  useTurnStream,
+  snapshotFromPersisted,
+  type FetchLike,
+  type PersistedDraft,
+} from "@/lib/stream/post-turn-stream";
 import { AgentPanel } from "./agent/AgentPanel";
 import { ArtifactZone } from "./artifact/ArtifactZone";
 import { InspectorPanel } from "./inspector/InspectorPanel";
+import { InspectorRail } from "./inspector/InspectorRail";
 import type { ContentBrief } from "./artifact/BriefCard";
+import type { TranscriptTurn } from "./agent/ConversationTranscript";
+
+/** localStorage key for the operator's collapsed/expanded Inspector preference. */
+const INSPECTOR_COLLAPSED_KEY = "seo.inspectorCollapsed";
+/** The narrow rail width (px) the inspector column shrinks to when collapsed. */
+const INSPECTOR_RAIL_WIDTH = "48px";
+/** The docked-open inspector column track (matches the agent column). */
+const INSPECTOR_OPEN_TRACK = "minmax(260px, 320px)";
 
 export interface SeoStudioCanvasProps {
   /**
    * The SSE endpoint for the active run (the `/api/run` relay). Null/undefined when
    * the canvas mounts before a run is dispatched — the canvas renders idle.
+   *
+   * LEGACY / one-shot GET path: when a `conversationId` + `clientId` are provided the
+   * canvas drives the run via the chat composer (POST `/api/run`) instead, and this
+   * EventSource URL is ignored.
    */
   streamUrl?: string | null;
   /** The resolved content brief for the run (server-passed), or null. */
   brief?: ContentBrief | null;
+  /**
+   * The CHAT-DRIVEN front door (studio-ui). When BOTH are present the composer owns
+   * the run: it POSTs `/api/run` with `{ conversationId, clientId, prompt }` and the
+   * canvas folds the streamed taxonomy into its projected state (the POST-fetch-stream
+   * sibling of the EventSource path). Tenancy is the SERVER's: only these two ids +
+   * the prompt are sent; the workspace + run-id are bound server-side.
+   */
+  conversationId?: string | null;
+  clientId?: string | null;
+  /** Server-passed prior turns for the transcript (omitted => transcript fetches on mount). */
+  initialTranscript?: TranscriptTurn[];
+  /**
+   * The ON-DONE reconcile read (chat path). After a turn completes cleanly the canvas
+   * calls this to read the conversation's PERSISTED current draft (body + scorecard) —
+   * the persisted row is the truth, not the stream accumulation — and folds it back in
+   * as a synthetic `snapshot` so the next turn's baseline is correct. Omitted => the
+   * canvas only refreshes the transcript (no body re-fold). Injectable for tests.
+   */
+  reconcileDraft?: (info: {
+    conversationId: string;
+    clientId: string;
+  }) => Promise<PersistedDraft | null>;
   /**
    * Test seam: inject a pre-projected stream state to render the canvas
    * deterministically with NO live EventSource (the SSR render smoke test uses
    * this). When provided it overrides the live hook's state.
    */
   injectedState?: UiMessageStreamState;
-  /** Test seam: inject an EventSource factory forwarded to the hook. */
+  /** Test seam: inject an EventSource factory forwarded to the legacy GET hook. */
   eventSourceFactory?: UseUiMessageStreamOptions["eventSourceFactory"];
+  /** Test seam: inject the fetch used by the composer POST + transcript reads. */
+  fetchImpl?: FetchLike;
 }
 
 const ZONE: React.CSSProperties = {
@@ -74,10 +117,137 @@ const ZONE: React.CSSProperties = {
 };
 
 export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
-  const { streamUrl, brief = null, injectedState, eventSourceFactory } = props;
+  const {
+    streamUrl,
+    brief = null,
+    conversationId = null,
+    clientId = null,
+    initialTranscript,
+    reconcileDraft,
+    injectedState,
+    eventSourceFactory,
+    fetchImpl,
+  } = props;
 
+  // CHAT-DRIVEN when both ids are present (and no explicit injected state overrides).
+  const chatActive = Boolean(conversationId && clientId) && injectedState == null;
+
+  // The transcript the agent zone renders. The canvas re-reads it on each clean turn
+  // completion (the persisted log is the truth); until then the server-passed
+  // `initialTranscript` is shown. `refreshed` is null until the first on-done refresh,
+  // so we never mirror the prop in state (no setState-in-effect).
+  const [refreshed, setRefreshed] = useState<TranscriptTurn[] | null>(null);
+  const transcript = refreshed ?? initialTranscript;
+
+  // Refs that let the (memoized) reconcile callback read the LATEST projection +
+  // dispatch without re-creating itself each render (avoids a stale closure on the
+  // `turn` binding declared below). `dispatch` from useReducer is already stable, but
+  // `lastSeq` changes every delta — the ref keeps it fresh.
+  const lastSeqRef = useRef<number | null>(null);
+  const dispatchRef = useRef<ReturnType<typeof useTurnStream>["dispatch"] | null>(null);
+
+  // The ON-DONE reconcile: re-read the persisted transcript + draft, fold the draft
+  // back as a synthetic snapshot so the next turn's baseline is the persisted truth.
+  const onTurnComplete = useCallback(
+    async (info: { conversationId: string; clientId: string }) => {
+      // 1. Refresh the persisted transcript (the recorded agent turn now appears with
+      //    its verdict + version) — the conversation/turn log is the truth.
+      const doFetch =
+        (fetchImpl as unknown as typeof fetch | undefined) ??
+        (typeof fetch !== "undefined" ? fetch : null);
+      if (doFetch) {
+        try {
+          const res = await doFetch(
+            `/api/conversations/${encodeURIComponent(info.conversationId)}?clientId=${encodeURIComponent(info.clientId)}`,
+            { headers: { accept: "application/json" } },
+          );
+          if (res.ok) {
+            const body = (await res.json()) as { turns?: TranscriptTurn[] };
+            if (Array.isArray(body.turns)) setRefreshed(body.turns);
+          }
+        } catch {
+          // A failed transcript refresh leaves the prior transcript in place.
+        }
+      }
+      // 2. Reconcile the artifact body + scorecard to the PERSISTED draft (the row is
+      //    truth, not the stream accumulation). Optional — only when a reader is wired.
+      if (reconcileDraft) {
+        try {
+          const draft = await reconcileDraft(info);
+          if (draft) {
+            dispatchRef.current?.(
+              snapshotFromPersisted(info.conversationId, lastSeqRef.current, draft),
+            );
+          }
+        } catch {
+          // A failed draft reconcile leaves the stream-accumulated body in place.
+        }
+      }
+    },
+    [fetchImpl, reconcileDraft],
+  );
+
+  // The POST-fetch projected state (chat path). Called unconditionally (rules of
+  // hooks); inert when chat is not active (no `sendTurn` is ever invoked).
+  const turn = useTurnStream({
+    conversationId: conversationId ?? "",
+    clientId: clientId ?? "",
+    fetchImpl,
+    onTurnComplete,
+  });
+  // Keep the reconcile-callback refs pointed at the latest projection + dispatch
+  // (written in an effect, never during render — `dispatch` is stable, `lastSeq`
+  // advances per delta; the reconcile reads them at on-done time).
+  useEffect(() => {
+    lastSeqRef.current = turn.state.lastSeq;
+    dispatchRef.current = turn.dispatch;
+  }, [turn.state.lastSeq, turn.dispatch]);
+
+  // The legacy EventSource (GET) projected state — back-compat for the one-shot path.
   const live = useUiMessageStream({ url: streamUrl, eventSourceFactory });
-  const state = injectedState ?? live;
+
+  // Precedence: an injected test state wins; else the chat path; else the legacy GET.
+  const state = injectedState ?? (chatActive ? turn.state : live);
+
+  // Collapsible Inspector (agent-ui). DEFAULT FALSE — docked open while drafting.
+  // The operator's choice persists to localStorage; we read it on mount in an
+  // effect (NOT during render) so the SSR/first-paint markup is deterministic and
+  // touching `localStorage` is guarded to the browser.
+  //
+  // NOTE: collapsing the Inspector is PURELY VISUAL. The publish gate is always
+  // enforced server-side (`@sagemark/core` seo-gate via `/api/publish`); hiding
+  // the scorecard never disables or bypasses the gate.
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return; // SSR guard.
+    // SSR-safe hydration of a browser-only preference: the server (and the first
+    // client render) use the docked-open default, then this mount effect syncs the
+    // persisted choice in from localStorage. This IS the legitimate "synchronize
+    // React state from an external system" case; we update only when the stored
+    // value differs (so React bails out when it already matches), but the lint rule
+    // flags any setState in an effect body, so we disable it narrowly here.
+    try {
+      const stored = window.localStorage.getItem(INSPECTOR_COLLAPSED_KEY);
+      if (stored !== null) {
+        const next = stored === "true";
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe localStorage hydration (see comment above)
+        setInspectorCollapsed((prev) => (prev === next ? prev : next));
+      }
+    } catch {
+      // Private mode / disabled storage — fall back to the docked-open default.
+    }
+  }, []);
+
+  function setCollapsed(next: boolean) {
+    setInspectorCollapsed(next);
+    if (typeof window === "undefined") return; // SSR guard.
+    try {
+      window.localStorage.setItem(INSPECTOR_COLLAPSED_KEY, String(next));
+    } catch {
+      // Persistence is best-effort; the in-memory state still updates.
+    }
+  }
 
   // Per-zone programmatic focus targets (Cmd/Ctrl + 1/2/3), ported from videogen.
   const agentRef = useRef<HTMLElement>(null);
@@ -103,9 +273,14 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   return (
     <div
       data-testid="seo-studio-canvas"
+      data-inspector-collapsed={inspectorCollapsed}
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(260px, 320px) 1fr minmax(260px, 320px)",
+        // When collapsed the inspector track shrinks to a narrow rail so the
+        // center artifact (`1fr`) widens for reading. Purely a layout change.
+        gridTemplateColumns: `${INSPECTOR_OPEN_TRACK} 1fr ${
+          inspectorCollapsed ? INSPECTOR_RAIL_WIDTH : INSPECTOR_OPEN_TRACK
+        }`,
         height: "100dvh",
         width: "100%",
         background: "var(--background)",
@@ -121,7 +296,23 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         data-zone="agent"
         style={{ ...ZONE, borderRight: "1px solid color-mix(in srgb, currentColor 12%, transparent)", overflowY: "auto" }}
       >
-        <AgentPanel phase={state.phase} feed={state.feed} error={state.error} />
+        <AgentPanel
+          phase={state.phase}
+          feed={state.feed}
+          error={state.error}
+          chat={
+            chatActive && conversationId && clientId
+              ? {
+                  conversationId,
+                  clientId,
+                  initialTranscript: transcript,
+                  onSend: turn.sendTurn,
+                  inFlight: turn.inFlight,
+                  fetchImpl: fetchImpl as unknown as typeof fetch | undefined,
+                }
+              : null
+          }
+        />
       </section>
 
       <section
@@ -141,6 +332,14 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         />
       </section>
 
+      {/*
+        The Inspector zone keeps its `data-zone="inspector"` + ARIA region + the
+        Cmd/Ctrl+3 focus jump WHETHER COLLAPSED OR EXPANDED (the ref lives on this
+        section, so the shortcut still focuses the region in either state). When
+        collapsed it renders the narrow `InspectorRail`; expanded, the full panel
+        with a collapse control. Collapsing is purely visual — the gate is always
+        enforced server-side.
+      */}
       <section
         ref={inspectorRef}
         tabIndex={-1}
@@ -148,9 +347,22 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         aria-label="Inspector"
         aria-keyshortcuts="Control+3 Meta+3"
         data-zone="inspector"
-        style={{ ...ZONE, borderLeft: "1px solid color-mix(in srgb, currentColor 12%, transparent)", overflowY: "auto" }}
+        data-collapsed={inspectorCollapsed}
+        style={{
+          ...ZONE,
+          borderLeft: "1px solid color-mix(in srgb, currentColor 12%, transparent)",
+          overflowY: inspectorCollapsed ? "hidden" : "auto",
+        }}
       >
-        <InspectorPanel state={state} keyword={brief?.primaryKeyword ?? null} />
+        {inspectorCollapsed ? (
+          <InspectorRail scorecard={state.scorecard} onExpand={() => setCollapsed(false)} />
+        ) : (
+          <InspectorPanel
+            state={state}
+            keyword={brief?.primaryKeyword ?? null}
+            onCollapse={() => setCollapsed(true)}
+          />
+        )}
       </section>
     </div>
   );

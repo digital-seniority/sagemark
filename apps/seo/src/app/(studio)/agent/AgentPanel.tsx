@@ -1,20 +1,24 @@
 "use client";
 
 /**
- * AgentPanel — the LEFT zone of the three-zone studio canvas (PR 010 / P1.U.1).
+ * AgentPanel — the LEFT zone of the three-zone studio canvas. RECOMPOSED for the
+ * chat-first front door (studio-ui): the rail is now a full conversational surface.
  *
- * Adapted from videogen's left-rail `AgentPanel` (DR-001): we keep the rail shape
- * (title + a run affordance + a live feed) but DROP every video coupling (scene
- * selection, ChatEdit, version/render activity polling) and re-point the feed at
- * the SEO run's SSE stream. The body is:
- *   - a header (run phase badge),
- *   - the live `AgentMessageStream` (thinking + tool-use rows),
- *   - a terminal-error row when the stream ends in error (acceptance 4 made
- *     visible: a wedged/failed run surfaces an explicit row, never a dead spinner).
+ * The body, top-to-bottom:
+ *   1. a HEADER (run phase badge),
+ *   2. the CONVERSATION TRANSCRIPT (prior turns — user bubbles + agent turns with a
+ *      verdict chip + version badge),
+ *   3. the live `AgentMessageStream` (the IN-FLIGHT turn's thinking + tool-use rows),
+ *      reused VERBATIM — the SSE fold lives in the stream hooks, this only renders,
+ *   4. a terminal-ERROR row when the stream ends in error (acceptance 4 made visible:
+ *      a wedged/failed run surfaces an explicit row, never a dead spinner),
+ *   5. the `ChatComposer` (the textarea + send that dispatches the next turn).
  *
- * It is a thin presentational wrapper over the hook's already-projected state — the
- * SSE fold lives in `use-ui-message-stream`. Body `token-delta`s do NOT render here
- * (they land in the artifact zone); the edit loop is PR 012.
+ * BACK-COMPAT. The chat surface (transcript + composer) renders ONLY when the canvas
+ * passes a `chat` handle (`conversationId` + `clientId` + the lifted `onSend`/`inFlight`).
+ * The SSR render-smoke + injected-state paths (`canvas-render.test.tsx`) pass no chat
+ * handle, so the panel renders exactly as before (header + feed + error row) — the
+ * shell shape is preserved.
  *
  * Colour from `currentColor` + opacity (no hardcoded palette). Clean ASCII / UTF-8.
  */
@@ -24,6 +28,25 @@ import type {
   StreamPhase,
 } from "@/lib/stream/use-ui-message-stream";
 import { AgentMessageStream } from "./AgentMessageStream";
+import {
+  ConversationTranscript,
+  type TranscriptTurn,
+} from "./ConversationTranscript";
+import { ChatComposer } from "./ChatComposer";
+
+/** The chat handle the canvas lifts down so the composer drives the run. */
+export interface AgentChatHandle {
+  conversationId: string;
+  clientId: string;
+  /** Server-passed prior turns; omitted => the transcript fetches on mount. */
+  initialTranscript?: TranscriptTurn[];
+  /** Dispatch one turn (the lifted `useTurnStream.sendTurn`). */
+  onSend: (prompt: string) => void | Promise<void>;
+  /** True while a turn streams (disables the composer — single-flight). */
+  inFlight: boolean;
+  /** Injectable fetch forwarded to the transcript's mount load (tests). */
+  fetchImpl?: typeof fetch;
+}
 
 export interface AgentPanelProps {
   /** The run's lifecycle phase (idle | streaming | done | error). */
@@ -32,6 +55,11 @@ export interface AgentPanelProps {
   feed: AgentFeedItem[];
   /** The terminal error (code + message) when `phase === "error"`, else null. */
   error?: { code: string; message: string } | null;
+  /**
+   * The chat surface handle. PRESENT => render the transcript + composer (the
+   * chat-driven canvas). ABSENT => the feed-only shell (SSR smoke / injected state).
+   */
+  chat?: AgentChatHandle | null;
 }
 
 const PHASE_LABEL: Record<StreamPhase, string> = {
@@ -43,7 +71,7 @@ const PHASE_LABEL: Record<StreamPhase, string> = {
 
 const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
-export function AgentPanel({ phase, feed, error }: AgentPanelProps) {
+export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps) {
   return (
     <div
       data-zone-body="agent"
@@ -70,7 +98,17 @@ export function AgentPanel({ phase, feed, error }: AgentPanelProps) {
         </span>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+      {/* The scrollable thread: prior turns (transcript) then the live turn (feed). */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        {chat && (
+          <ConversationTranscript
+            conversationId={chat.conversationId}
+            clientId={chat.clientId}
+            initialTranscript={chat.initialTranscript}
+            fetchImpl={chat.fetchImpl}
+          />
+        )}
+        {/* The IN-FLIGHT live turn — reused verbatim (thinking + tool-use rows). */}
         <AgentMessageStream feed={feed} />
       </div>
 
@@ -90,6 +128,9 @@ export function AgentPanel({ phase, feed, error }: AgentPanelProps) {
           <span style={{ ...SUBTLE, display: "block", marginTop: 2 }}>{error.message}</span>
         </div>
       )}
+
+      {/* The composer — the mouth. Only on the chat-driven canvas. */}
+      {chat && <ChatComposer onSend={chat.onSend} inFlight={chat.inFlight} />}
     </div>
   );
 }
