@@ -25,6 +25,10 @@ export default defineConfig({
       "test/publish/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
+      // Slice 5 / P-E (lane worker-runtime): the pure turn-prompt composer that
+      // builds the per-turn WORKER_PROMPT brief (first-turn generate vs revision,
+      // transcript size-cap, injection-hygiene fencing). Pure fn, no infra.
+      "test/conversation/**/*.test.ts",
       // worker-runtime: the LIVE /api/run worker dispatcher (provisions the per-run
       // Sandbox, starts the worker, relays its `::worker-*::` marker stream as coded
       // SSE). Tier-1, injected fake launchSandbox + scripted worker logs (no live VM).
