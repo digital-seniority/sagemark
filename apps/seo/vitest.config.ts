@@ -76,6 +76,13 @@ export default defineConfig({
       // credentialed_releases release) + the §11.5 active-authorization fail-closed
       // write + DR-037 placeholder go-live guard + the approval-debt KPI.
       "test/review/route-to-edit.test.ts",
+      // audit-006 H1 (lane client-review): the credentialed-reviewer release route
+      // (POST /api/review/release) — the previously-uncallable writer of
+      // credentialed_releases. Proves the release IS persisted on a credentialed
+      // reviewer's authorization, the DR-037 placeholder-in-production refusal, the
+      // §11.5 inactive-authorization refusal, and that a CLIENT sign-off never
+      // creates a credentialed release. Pure vitest, no DB.
+      "test/review/release-route.test.ts",
       // PR 020 / P1.C.3 (worker-runtime): the SEO cost-ledger conditional-UPDATE
       // reservation / over-cap-rejection concurrency proof + per-run
       // reconciliation + sourcing-block rate + share-of-model rollup, plus the
