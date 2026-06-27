@@ -52,9 +52,17 @@ export interface InspectorPanelProps {
    * than throwing. See ApprovalDebtPanel.
    */
   approvalDebt?: ApprovalDebtPanelProps;
+  /**
+   * Optional collapse affordance (agent-ui). When provided, the panel header
+   * renders a real `<button>` (chevron / "hide") that collapses the Inspector to
+   * its narrow rail so the center artifact gets a wider reading view. Omitted ⇒ no
+   * collapse control (the panel renders exactly as before). Collapsing is PURELY
+   * VISUAL — the publish gate is always enforced server-side regardless.
+   */
+  onCollapse?: () => void;
 }
 
-export function InspectorPanel({ state, keyword, ledger, approvalDebt }: InspectorPanelProps) {
+export function InspectorPanel({ state, keyword, ledger, approvalDebt, onCollapse }: InspectorPanelProps) {
   // Zero-credit live preview: recomputed in a useMemo over the editor body, NOT a
   // gate/model call. The authoritative verdict still comes from state.scorecard.
   const client = useClientScorers(state.body, keyword);
@@ -65,9 +73,38 @@ export function InspectorPanel({ state, keyword, ledger, approvalDebt }: Inspect
       data-testid="inspector-panel"
       style={{ display: "flex", flexDirection: "column", gap: 16, padding: "1rem", height: "100%" }}
     >
-      <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <p style={{ textTransform: "uppercase", letterSpacing: "0.1em", ...SUBTLE }}>Inspector</p>
-        <span style={{ ...SUBTLE, fontSize: 11 }}>gate scorecard</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ ...SUBTLE, fontSize: 11 }}>gate scorecard</span>
+          {onCollapse ? (
+            <button
+              type="button"
+              data-testid="inspector-collapse"
+              aria-expanded={true}
+              aria-label="Collapse inspector (gate scorecard)"
+              onClick={onCollapse}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                background: "transparent",
+                color: "inherit",
+                border: "1px solid color-mix(in srgb, currentColor 18%, transparent)",
+                cursor: "pointer",
+                font: "inherit",
+                fontSize: 14,
+                lineHeight: 1,
+              }}
+            >
+              {/* Chevron points right — "hide the panel toward the edge". */}
+              <span aria-hidden="true">&#x203A;</span>
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <GateScorecard phase={state.phase} scorecard={state.scorecard} client={client} />
