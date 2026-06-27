@@ -161,6 +161,7 @@ function mapConversation(row: Record<string, unknown>): ConversationRow | null {
     workspaceId,
     clientId,
     pieceId: asStringOrNull(row.piece_id),
+    projectId: asStringOrNull(row.project_id),
     title: asStringOrNull(row.title),
     status,
     createdAt,
@@ -227,6 +228,8 @@ export class LiveConversationDataAccess implements ConversationDataAccess {
         workspace_id: input.workspaceId, // BOUND tenancy — never request input.
         client_id: input.clientId, // BOUND tenancy — never request input.
         title: input.title ?? null,
+        // The thread's project (Slice 5), or null when not started in a project.
+        project_id: input.projectId ?? null,
         // status / piece_id intentionally OMITTED — the DB defaults ('active',
         // null) apply. A conversation is never born linked or archived.
       })
@@ -259,7 +262,7 @@ export class LiveConversationDataAccess implements ConversationDataAccess {
     const { data, error } = await this.supabase
       .from("conversations")
       .select(
-        "id, workspace_id, client_id, piece_id, title, status, created_at, updated_at",
+        "id, workspace_id, client_id, piece_id, project_id, title, status, created_at, updated_at",
       )
       .eq("id", conversationId)
       .eq("workspace_id", workspaceId) // BOUND tenancy.
@@ -285,7 +288,7 @@ export class LiveConversationDataAccess implements ConversationDataAccess {
     const { data, error } = await this.supabase
       .from("conversations")
       .select(
-        "id, workspace_id, client_id, piece_id, title, status, created_at, updated_at",
+        "id, workspace_id, client_id, piece_id, project_id, title, status, created_at, updated_at",
       )
       .eq("workspace_id", workspaceId) // BOUND tenancy.
       .eq("client_id", clientId) // BOUND tenancy.

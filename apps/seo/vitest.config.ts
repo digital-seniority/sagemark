@@ -130,6 +130,8 @@ export default defineConfig({
       // CMS fragment / markdown / meta builders + the dependency-free store-only
       // ZIP writer. Pure, client-safe, no infra.
       "test/export/**/*.test.ts",
+      // Slice 5 (studio UX overhaul): the Projects cross-article context builder.
+      "test/projects/**/*.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server

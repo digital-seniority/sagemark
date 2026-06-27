@@ -58,6 +58,13 @@ export interface ComposeTurnPromptInput {
   currentDraft?: TurnPromptDraft | null;
   /** Optional brand/voice context carried into the brief. */
   voiceContextNote?: string | null;
+  /**
+   * Optional cross-article PROJECT context (Slice 5): when the conversation belongs
+   * to a project, the prior-work summary (operator brief + facts about the articles
+   * already in the project) so the worker keeps continuity and avoids re-covering
+   * ground. Built by `build-project-context.ts`; carried here as fenced DATA.
+   */
+  projectContextNote?: string | null;
 }
 
 /** Tunable size-discipline knobs (sane defaults). */
@@ -181,6 +188,11 @@ export function composeTurnPrompt(
 
   const voiceBlock = voice ? `\n\n${dataBlock("BRAND/VOICE CONTEXT (data):", voice)}` : "";
 
+  const project = input.projectContextNote ? tidy(input.projectContextNote) : "";
+  const projectBlock = project
+    ? `\n\n${dataBlock("PROJECT CONTEXT (data):", project)}`
+    : "";
+
   let brief: string;
 
   if (!draft) {
@@ -206,6 +218,7 @@ export function composeTurnPrompt(
       "",
       dataBlock("USER REQUEST (data):", newMessage),
       voiceBlock ? voiceBlock.trimStart() : "",
+      projectBlock ? projectBlock.trimStart() : "",
     ]
       .filter((line) => line !== "")
       .join("\n");
@@ -245,6 +258,7 @@ export function composeTurnPrompt(
       "Re-persist the revised draft via the host `persistPiece` tool. Keep",
       "faithfulness to the source material; do not publish.",
       voiceBlock ? voiceBlock.trimStart() : "",
+      projectBlock ? projectBlock.trimStart() : "",
     ]
       .filter((line) => line !== "")
       .join("\n");
