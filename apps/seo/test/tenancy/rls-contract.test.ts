@@ -83,7 +83,24 @@ const M0037 = readFileSync(
   join(DRIZZLE_DIR, "0037_generated_image_slug.sql"),
   "utf8",
 );
-const ALL = [M0030, M0031, M0032, M0033, M0035, M0037].join("\n");
+// 0034 — worker_sessions (host-side run state, RLS fail-closed, NO anon policy).
+// Read here because conversation_turns.run_id FKs to worker_sessions.run_id, so
+// Tier-2 must apply it before 0040.
+const M0034 = readFileSync(
+  join(DRIZZLE_DIR, "0034_worker_sessions.sql"),
+  "utf8",
+);
+// 0040 — chat-first front-door run-session model: conversations +
+// conversation_turns (both RLS enabled, fail-closed, NO anon policy).
+const M0040 = readFileSync(join(DRIZZLE_DIR, "0040_conversations.sql"), "utf8");
+// 0041 — operator identity + workspace membership: operators + workspaces +
+// workspace_members (all three RLS enabled, fail-closed, NO anon policy — the
+// tenancy root, the 0033 content_clients posture).
+const M0041 = readFileSync(
+  join(DRIZZLE_DIR, "0041_operators_workspaces.sql"),
+  "utf8",
+);
+const ALL = [M0030, M0031, M0032, M0033, M0035, M0037, M0040, M0041].join("\n");
 const flat = (s: string) => s.replace(/\s+/g, " ");
 const FLAT = flat(ALL);
 
@@ -131,6 +148,14 @@ test("[T1] RLS is ENABLED on every content + release table (fail-closed)", () =>
     // ImageGen Stage-2 (0035): both fail-closed, no anon policy.
     "generated_images",
     "image_generations",
+    // Chat-first front door (0040): conversations + their turns, fail-closed.
+    "conversations",
+    "conversation_turns",
+    // Operator/workspace tenancy root (0041): all three fail-closed (the 0033
+    // content_clients posture — anon must never reach the tenancy map).
+    "operators",
+    "workspaces",
+    "workspace_members",
   ]) {
     assert.match(
       FLAT,
@@ -157,6 +182,12 @@ test("[T1] the ONLY anon policy is published-only on content_pieces", () => {
     // ImageGen Stage-2 (0035): private until referenced in published content.
     "generated_images",
     "image_generations",
+    // Chat-first front door (0040) + tenancy root (0041): NO anon policy.
+    "conversations",
+    "conversation_turns",
+    "operators",
+    "workspaces",
+    "workspace_members",
   ]) {
     assert.ok(
       !new RegExp(`CREATE\\s+POLICY[^;]*ON\\s+public\\.${t}\\b`, "i").test(ALL),
@@ -376,6 +407,155 @@ test("[T1] byline_authorizations is the FK target with scope CHECK + nullable ex
   );
 });
 
+// --- Chat-first front door (0040) + tenancy root (0041) structural shape ----
+
+test("[T1] conversations FK-scopes to content_clients (RESTRICT) + content_pieces (SET NULL, nullable piece_id) + status CHECK", () => {
+  const m = ALL_CODE.match(
+    /CREATE TABLE IF NOT EXISTS public\.conversations \(([\s\S]*?)\n\);/i,
+  );
+  assert.ok(m, "conversations table must exist");
+  const body = flat(m![1]);
+  // client_id is a hard FK ON DELETE RESTRICT (a client with threads can't vanish).
+  assert.match(
+    body,
+    /client_id\s+uuid NOT NULL REFERENCES public\.content_clients\(id\) ON DELETE RESTRICT/i,
+  );
+  // piece_id is NULLABLE (no NOT NULL) and ON DELETE SET NULL (delete keeps thread).
+  assert.match(
+    body,
+    /piece_id\s+uuid REFERENCES public\.content_pieces\(id\) ON DELETE SET NULL/i,
+  );
+  assert.ok(
+    !/piece_id\s+uuid NOT NULL/i.test(body),
+    "conversations.piece_id must be nullable",
+  );
+  assert.match(
+    body,
+    /status\s+text NOT NULL DEFAULT 'active'[\s\S]*CHECK \(status IN \('active','archived'\)\)/i,
+  );
+});
+
+test("[T1] conversation_turns: cascade to conversations, run_id SET NULL FK -> worker_sessions, role CHECK, UNIQUE(conversation_id, seq)", () => {
+  const m = ALL_CODE.match(
+    /CREATE TABLE IF NOT EXISTS public\.conversation_turns \(([\s\S]*?)\n\);/i,
+  );
+  assert.ok(m, "conversation_turns table must exist");
+  const body = flat(m![1]);
+  assert.match(
+    body,
+    /conversation_id\s+uuid NOT NULL REFERENCES public\.conversations\(id\) ON DELETE CASCADE/i,
+  );
+  // run_id is text (matches worker_sessions.run_id text PK), nullable, SET NULL.
+  assert.match(
+    body,
+    /run_id\s+text REFERENCES public\.worker_sessions\(run_id\) ON DELETE SET NULL/i,
+  );
+  assert.ok(
+    !/run_id\s+text NOT NULL/i.test(body),
+    "conversation_turns.run_id must be nullable",
+  );
+  assert.match(body, /role\s+text NOT NULL CHECK \(role IN \('user','agent'\)\)/i);
+  assert.match(
+    body,
+    /CONSTRAINT conversation_turns_conversation_seq_unique UNIQUE \(conversation_id, seq\)/i,
+  );
+});
+
+test("[T1] operators is a SOFT auth reference (uuid PK, NO cross-schema auth.* FK)", () => {
+  const m = ALL_CODE.match(
+    /CREATE TABLE IF NOT EXISTS public\.operators \(([\s\S]*?)\n\);/i,
+  );
+  assert.ok(m, "operators table must exist");
+  const body = flat(m![1]);
+  assert.match(body, /id\s+uuid PRIMARY KEY/i);
+  // SOFT reference: the operators table must NOT hard-FK into the auth schema.
+  assert.ok(
+    !/\bauth\./i.test(body),
+    "operators must NOT reference the auth schema (soft reference only)",
+  );
+});
+
+test("[T1] workspaces.owner_type CHECK (user|team); workspace_members composite PK + cascade FKs to workspaces/operators", () => {
+  const ws = ALL_CODE.match(
+    /CREATE TABLE IF NOT EXISTS public\.workspaces \(([\s\S]*?)\n\);/i,
+  );
+  assert.ok(ws, "workspaces table must exist");
+  assert.match(
+    flat(ws![1]),
+    /owner_type\s+text NOT NULL CHECK \(owner_type IN \('user','team'\)\)/i,
+  );
+  const wm = ALL_CODE.match(
+    /CREATE TABLE IF NOT EXISTS public\.workspace_members \(([\s\S]*?)\n\);/i,
+  );
+  assert.ok(wm, "workspace_members table must exist");
+  const body = flat(wm![1]);
+  assert.match(
+    body,
+    /workspace_id\s+uuid NOT NULL REFERENCES public\.workspaces\(id\) ON DELETE CASCADE/i,
+  );
+  assert.match(
+    body,
+    /operator_id\s+uuid NOT NULL REFERENCES public\.operators\(id\) ON DELETE CASCADE/i,
+  );
+  assert.match(body, /PRIMARY KEY \(workspace_id, operator_id\)/i);
+  // workspace_members must precede nothing here, but operators + workspaces (the
+  // FK targets) must be declared before workspace_members in 0041.
+  const M0041_CODE = stripComments(M0041);
+  assert.ok(
+    M0041_CODE.indexOf("CREATE TABLE IF NOT EXISTS public.operators") <
+      M0041_CODE.indexOf("CREATE TABLE IF NOT EXISTS public.workspace_members") &&
+      M0041_CODE.indexOf("CREATE TABLE IF NOT EXISTS public.workspaces") <
+        M0041_CODE.indexOf("CREATE TABLE IF NOT EXISTS public.workspace_members"),
+    "operators + workspaces must be declared before workspace_members",
+  );
+});
+
+test("[T1] 0040 + 0041 are additive, idempotent, public-schema-only (pooled-role-can-run)", () => {
+  for (const [name, code] of [
+    ["0040", stripComments(M0040)],
+    ["0041", stripComments(M0041)],
+  ] as const) {
+    // Idempotent table creates.
+    assert.ok(
+      /CREATE TABLE IF NOT EXISTS/i.test(code),
+      `${name} tables must be IF NOT EXISTS`,
+    );
+    // ADDITIVE-ONLY: no destructive verbs in the live SQL (down is comment-only).
+    assert.ok(!/\bDROP\b/i.test(code), `${name} live SQL must not DROP anything`);
+    assert.ok(
+      !/\bALTER COLUMN\b|\bDROP COLUMN\b|\bRENAME\b/i.test(code),
+      `${name} must not alter/drop/rename any existing column`,
+    );
+    // The only ALTER TABLE permitted is ENABLE ROW LEVEL SECURITY.
+    for (const alter of code.matchAll(/ALTER TABLE[^;]*;/gi)) {
+      assert.match(
+        flat(alter[0]),
+        /ALTER TABLE public\.\w+ ENABLE ROW LEVEL SECURITY/i,
+        `${name} ALTER TABLE must only ENABLE ROW LEVEL SECURITY: ${alter[0]}`,
+      );
+    }
+    // Public-schema only; no auth.* or storage.* cross-schema writes.
+    assert.ok(
+      !/\bauth\.|\bstorage\./i.test(code),
+      `${name} must touch only the public schema (no auth.*/storage.*)`,
+    );
+    // NO superuser-only / role / ownership / event-trigger constructs.
+    for (const banned of [
+      /CREATE\s+EVENT\s+TRIGGER/i,
+      /\bSET\s+ROLE\b/i,
+      /\bALTER\s+.*OWNER\s+TO\b/i,
+      /\bGRANT\b/i,
+      /\bCREATE\s+EXTENSION\b/i,
+      /SECURITY\s+DEFINER/i,
+    ]) {
+      assert.ok(
+        !banned.test(code),
+        `${name} must not use a superuser-only construct: ${banned}`,
+      );
+    }
+  }
+});
+
 // ===========================================================================
 // TIER 2 — live Postgres behavioral assertions (anon, cross-tenant, FK, CHECK).
 // Engine auto-detect: DATABASE_URL (Supabase branch / CI) OR a docker pg
@@ -443,6 +623,10 @@ const PIECE_B_PUB = randomUUID(); // published, workspace B
 const AUTH_A = randomUUID();
 const GENIMG_A = randomUUID(); // a generated_images row, workspace A (0035)
 const GENIMG_B = randomUUID(); // a workspace-B row sharing slug 'front-porch' (0037 cross-tenant proof)
+const CONV_A = randomUUID(); // a conversation, workspace A (0040)
+const RUN_A = `run-${randomUUID()}`; // a worker_sessions.run_id (text PK, 0034) the turn FKs to
+const OPERATOR_A = randomUUID(); // an operators row (0041)
+const WORKSPACE_ROW_A = randomUUID(); // a workspaces row (0041)
 
 function run(sqlText: string, opts?: { role?: "anon" }): string {
   return detected!.runner(sqlText, opts).trim();
@@ -473,6 +657,13 @@ before(() => {
   // Public-schema only; the pooled migration role can run it (Tier-1 asserts this
   // structurally; here we prove it applies cleanly on a live engine).
   run(M0037);
+  // 0034 — worker_sessions (host run-state). Applied before 0040 because
+  // conversation_turns.run_id FKs to worker_sessions.run_id.
+  run(M0034);
+  // 0040 — conversations + conversation_turns (chat-first front door).
+  run(M0040);
+  // 0041 — operators + workspaces + workspace_members (tenancy root).
+  run(M0041);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
   // postgres does not. With RLS enabled + fail-closed policies, a table grant
@@ -510,6 +701,22 @@ before(() => {
     INSERT INTO image_generations
         (workspace_id, client_id, asset_id, model, cost_reported, status)
       VALUES ('${WS_A}', '${CLIENT_A}', '${GENIMG_A}', 'bfl/flux-2-flex', 0.04, 'succeeded');
+    -- 0034/0040/0041 fixtures (workspace A). A worker_sessions row so the
+    -- conversation_turns.run_id FK has a live target; a conversation + one agent
+    -- turn; an operator + workspace + membership (the tenancy root).
+    INSERT INTO worker_sessions (run_id, workspace_id, client_id)
+      VALUES ('${RUN_A}', '${WS_A}', '${CLIENT_A}');
+    INSERT INTO conversations (id, workspace_id, client_id, piece_id, title)
+      VALUES ('${CONV_A}', '${WS_A}', '${CLIENT_A}', '${PIECE_A_PUB}', 'Thread A');
+    INSERT INTO conversation_turns
+        (conversation_id, workspace_id, client_id, seq, role, content, run_id, piece_version, verdict)
+      VALUES ('${CONV_A}', '${WS_A}', '${CLIENT_A}', 1, 'agent', 'drafted', '${RUN_A}', 1, 'PUBLISH');
+    INSERT INTO operators (id, email)
+      VALUES ('${OPERATOR_A}', 'op-a@example.com');
+    INSERT INTO workspaces (id, owner_type, owner_id, name)
+      VALUES ('${WORKSPACE_ROW_A}', 'user', '${OPERATOR_A}', 'Workspace A');
+    INSERT INTO workspace_members (workspace_id, operator_id, role)
+      VALUES ('${WORKSPACE_ROW_A}', '${OPERATOR_A}', 'owner');
   `);
 });
 
@@ -518,6 +725,12 @@ after(() => {
   // Best-effort teardown so a re-run against the same DB is clean.
   try {
     run(`
+      DELETE FROM workspace_members     WHERE workspace_id = '${WORKSPACE_ROW_A}';
+      DELETE FROM workspaces            WHERE id = '${WORKSPACE_ROW_A}';
+      DELETE FROM operators             WHERE id = '${OPERATOR_A}';
+      DELETE FROM conversation_turns    WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
+      DELETE FROM conversations         WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
+      DELETE FROM worker_sessions       WHERE run_id = '${RUN_A}';
       DELETE FROM image_generations     WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
       DELETE FROM generated_images      WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
       DELETE FROM credentialed_releases WHERE client_id IN ('${CLIENT_A}','${CLIENT_B}');
@@ -574,9 +787,33 @@ test(
       // inside a published content_piece — anon must read ZERO rows from both.
       "generated_images",
       "image_generations",
+      // Chat-first front door (0040): a conversation + its turns are private
+      // operator/run state — anon must read ZERO rows from both.
+      "conversations",
+      "conversation_turns",
+      // Operator/workspace tenancy root (0041): identity, ownership, membership
+      // are exactly what anon must never see (the content_clients posture).
+      "operators",
+      "workspaces",
+      "workspace_members",
     ]) {
       const c = run(`SELECT count(*) FROM ${t};`, { role: "anon" });
       assert.equal(c, "0", `anon must read ZERO rows from ${t}, got ${c}`);
+    }
+    // Sanity: the owner/service-role DOES see the seeded rows (proves the zero
+    // above is RLS fail-closed, not an empty table). One row seeded in each.
+    for (const t of [
+      "conversations",
+      "conversation_turns",
+      "operators",
+      "workspaces",
+      "workspace_members",
+    ]) {
+      const c = run(`SELECT count(*) FROM ${t};`);
+      assert.ok(
+        Number(c) >= 1,
+        `owner must see the seeded ${t} row (got ${c}) — proves anon-zero is RLS, not emptiness`,
+      );
     }
   },
 );

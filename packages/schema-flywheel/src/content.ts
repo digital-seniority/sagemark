@@ -39,6 +39,7 @@ import {
   jsonb,
   uniqueIndex,
   check,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -756,6 +757,162 @@ export const shareOfModel = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Chat-first front-door run-session model (Slice 5, migration 0040).
+//
+// `conversations` — one chat thread an operator opens against a content client,
+// bound to a workspace + client (the tenancy keys every operator query carries).
+// `pieceId` is NULLABLE — a conversation exists BEFORE any draft and is linked to
+// its content_piece only once the first draft lands (ON DELETE set null so a
+// deleted piece keeps the thread). `conversationTurns` — the ordered per-turn log
+// within a conversation (`seq` 1..N, UNIQUE per conversation); an agent turn that
+// spawned a worker run carries `runId` (→ worker_sessions.run_id, the text
+// natural key, ON DELETE set null) + the resulting `pieceVersion` + `verdict`
+// snapshot. Both RLS-enabled fail-closed with NO anon policy (the
+// 0032/0033/0034/0039 pattern, DR-023): a conversation + its turns are private
+// operator/run state, NEVER public — the service-role seam is the only access path.
+// ---------------------------------------------------------------------------
+
+export const CONVERSATION_STATUSES = ["active", "archived"] as const;
+export const CONVERSATION_TURN_ROLES = ["user", "agent"] as const;
+export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
+export type ConversationTurnRole = (typeof CONVERSATION_TURN_ROLES)[number];
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    // Nullable: null until the first draft; deleting the piece keeps the thread.
+    pieceId: uuid("piece_id").references(() => contentPieces.id, {
+      onDelete: "set null",
+    }),
+    title: text("title"),
+    status: text("status").default("active").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("conversations_workspace_client_idx").on(t.workspaceId, t.clientId),
+    index("conversations_client_piece_idx").on(t.clientId, t.pieceId),
+    check(
+      "conversations_status_check",
+      sql`${t.status} IN ('active','archived')`,
+    ),
+  ],
+);
+
+export const conversationTurns = pgTable(
+  "conversation_turns",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    // Denormalized tenancy (same pattern as content_piece_versions) — no join.
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id").notNull(),
+    seq: integer("seq").notNull(),
+    role: text("role").notNull(),
+    content: text("content").default("").notNull(),
+    // Nullable: only an agent turn that spawned a worker run carries a run_id.
+    // → worker_sessions.run_id (the text natural key), ON DELETE set null.
+    runId: text("run_id").references(() => workerSessions.runId, {
+      onDelete: "set null",
+    }),
+    // Nullable: the content_piece version this turn produced, if any.
+    pieceVersion: integer("piece_version"),
+    // Nullable: the eval verdict snapshot for this turn.
+    verdict: contentVerdictEnum("verdict"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    uniqueIndex("conversation_turns_conversation_seq_unique").on(
+      t.conversationId,
+      t.seq,
+    ),
+    index("conversation_turns_conversation_seq_idx").on(
+      t.conversationId,
+      t.seq,
+    ),
+    index("conversation_turns_tenant_idx").on(t.workspaceId, t.clientId),
+    check("conversation_turns_role_check", sql`${t.role} IN ('user','agent')`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Operator identity + workspace membership (Slice 5, migration 0041).
+//
+// `operators` — operator identity; `id` IS the Supabase auth.users subject id,
+// held as a SOFT reference (NOT a hard cross-schema FK to auth.users). `email` is
+// a denormalized convenience copy. `workspaces` — a workspace owned by a user or
+// team; `ownerType` is user | team; `ownerId` is the owning operator/team id
+// (soft, no FK). This is the entity every `workspace_id` column across the schema
+// points at. `workspaceMembers` — the operator↔workspace join, composite PK
+// (workspace_id, operator_id), both FKs ON DELETE cascade. All three RLS-enabled
+// fail-closed with NO anon policy (the 0033 content_clients tenancy-root pattern,
+// DR-023): operator identity, workspace ownership, and membership are the tenancy
+// ROOT — anon must NEVER see a row; the service-role seam is the only access path.
+// ---------------------------------------------------------------------------
+
+export const WORKSPACE_OWNER_TYPES = ["user", "team"] as const;
+export type WorkspaceOwnerType = (typeof WORKSPACE_OWNER_TYPES)[number];
+
+export const operators = pgTable("operators", {
+  // The Supabase auth.users subject id (soft reference, NOT a cross-schema FK).
+  id: uuid("id").primaryKey(),
+  email: text("email"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerType: text("owner_type").notNull(),
+    // The owning operator/team id (soft reference: a team is not yet a table).
+    ownerId: uuid("owner_id"),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    check(
+      "workspaces_owner_type_check",
+      sql`${t.ownerType} IN ('user','team')`,
+    ),
+  ],
+);
+
+export const workspaceMembers = pgTable(
+  "workspace_members",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    operatorId: uuid("operator_id")
+      .notNull()
+      .references(() => operators.id, { onDelete: "cascade" }),
+    role: text("role").default("member").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workspaceId, t.operatorId] }),
+    index("workspace_members_operator_idx").on(t.operatorId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Relations.
 // ---------------------------------------------------------------------------
 
@@ -765,6 +922,7 @@ export const contentClientsRelations = relations(
     pieces: many(contentPieces),
     voiceSpecs: many(voiceSpecs),
     bylineAuthorizations: many(bylineAuthorizations),
+    conversations: many(conversations),
   }),
 );
 
@@ -779,6 +937,7 @@ export const contentPiecesRelations = relations(
     reviewComments: many(reviewComments),
     clientSignoffs: many(clientSignoffs),
     credentialedReleases: many(credentialedReleases),
+    conversations: many(conversations),
   }),
 );
 
@@ -846,6 +1005,57 @@ export const credentialedReleasesRelations = relations(
   }),
 );
 
+export const conversationsRelations = relations(
+  conversations,
+  ({ one, many }) => ({
+    client: one(contentClients, {
+      fields: [conversations.clientId],
+      references: [contentClients.id],
+    }),
+    piece: one(contentPieces, {
+      fields: [conversations.pieceId],
+      references: [contentPieces.id],
+    }),
+    turns: many(conversationTurns),
+  }),
+);
+
+export const conversationTurnsRelations = relations(
+  conversationTurns,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationTurns.conversationId],
+      references: [conversations.id],
+    }),
+    workerSession: one(workerSessions, {
+      fields: [conversationTurns.runId],
+      references: [workerSessions.runId],
+    }),
+  }),
+);
+
+export const operatorsRelations = relations(operators, ({ many }) => ({
+  memberships: many(workspaceMembers),
+}));
+
+export const workspacesRelations = relations(workspaces, ({ many }) => ({
+  members: many(workspaceMembers),
+}));
+
+export const workspaceMembersRelations = relations(
+  workspaceMembers,
+  ({ one }) => ({
+    workspace: one(workspaces, {
+      fields: [workspaceMembers.workspaceId],
+      references: [workspaces.id],
+    }),
+    operator: one(operators, {
+      fields: [workspaceMembers.operatorId],
+      references: [operators.id],
+    }),
+  }),
+);
+
 // ---------------------------------------------------------------------------
 // Inferred types.
 // ---------------------------------------------------------------------------
@@ -884,3 +1094,13 @@ export type SeoCostRunBudgetRow = typeof seoCostRunBudget.$inferSelect;
 export type NewSeoCostRunBudgetRow = typeof seoCostRunBudget.$inferInsert;
 export type ShareOfModelRow = typeof shareOfModel.$inferSelect;
 export type NewShareOfModelRow = typeof shareOfModel.$inferInsert;
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+export type ConversationTurn = typeof conversationTurns.$inferSelect;
+export type NewConversationTurn = typeof conversationTurns.$inferInsert;
+export type Operator = typeof operators.$inferSelect;
+export type NewOperator = typeof operators.$inferInsert;
+export type Workspace = typeof workspaces.$inferSelect;
+export type NewWorkspace = typeof workspaces.$inferInsert;
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+export type NewWorkspaceMember = typeof workspaceMembers.$inferInsert;
