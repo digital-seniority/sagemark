@@ -338,3 +338,11 @@ James-directed "audit + harden" unattended block (v1 build complete; no eligible
 - **Decision-log gaps closed:** DR-040 (activation gate model), DR-041 (live SoM ingest/DoD-close method). **Manifest check added:** `live-side-effect-idempotency`.
 - STATE reconciled (#67/#69 marked MERGED; #73 noted; "not wired"→"wired creds-gated"); 4 doc/state PR_MERGED events backfilled (#73/#75/#76/#77). go-live-checklist updated with the H1 blocker + freshness-inert note.
 - **Next:** Run #25 harden — build A.006.1–A.006.4 (all A.006.x HELD FOR HUMAN MERGE), judge, open PRs. Then terminate honestly (eligible hardening depleted; go-live + Phase 2 are human/out-of-scope).
+
+## Run #25 — HARDEN (audit-006 correctives) — 2026-06-27
+4 worktree-isolated floodgate agents → 3 lane-sharded judges, all APPROVED first pass (0 re-judge, 0 BLOCKED):
+- **A.006.1 [#79]** (HIGH go-live blocker) — NEW `POST /api/review/release` wires `recordCredentialedRelease` (was uncallable) w/ `pilot:isPilot()` + folds M3 (publishEnabled single-source). Judge 5/5·5/5; `pnpm --filter @sagemark/seo build` green; 656 seo tests. **REQUIRES_HUMAN_MERGE** (prod-critical/DR-037).
+- **A.006.2 [#80]** — `gate-path-lint` covers `packages/core/src/ai/` metered call sites (som-direct-runner forceGateway); real negative-case proof. Judge 5/5·4/5. REQUIRES_HUMAN_MERGE.
+- **A.006.3 [#81]** — cron route `runtime`/`dynamic`/`maxDuration`. Judge 5/5·5/5. REQUIRES_HUMAN_MERGE.
+- **A.006.4 [#82]** — SoM hybrid-channel spec/doc reconciliation (comment/markdown only; DEFAULT untouched). Judge 5/5·5/5. REQUIRES_HUMAN_MERGE.
+- **All A.006.x held for human merge** (audit findings never auto-merge). **Loop terminated honestly** — no further dependency-eligible engineering (v1 complete; remainder human-gated/out-of-scope). 10h budget, stopped at iteration 2, no filler.

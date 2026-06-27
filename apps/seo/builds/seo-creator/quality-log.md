@@ -45,3 +45,4 @@ These can diverge. Watch for declining slopes across 3+ rows — that's the Laye
 | P1.C.4-scaffolding | 2026-06-26 | 1 merged (#71 query-bank) + 1 open (#72 scaffolding) | 5.0 | 5.0 | (none — spike done; scaffolding inert+honest-labeling judge 5/5; DoD correctly left open, not faked with mocks) | activation (human): channel creds + SOM_LIVE + wiring PR → real rows close P1.C.4 DoD | run-log Attended SoM unblock |
 | activation-staged | 2026-06-26 | 4 merged (#67/#69/#72/#74) | 5.0 | 5.0 | (none — activation wiring inert-by-default + mutation-tested; DR-037/publish gates unweakened) | go-live = env flip + real reviewer + pilot workspace (go-live-checklist.md); P1.C.4 DoD on real rows | run-log Attended ACTIVATION staged |
 | audit-006 | audit | audit | build-completion: NO CRITICAL, go-live-ready | H1 credentialed-release writer unwired (A.006.1) |
+| 025 (harden) | 5.0 | 4.75 | 0% | 0% (4/4 APPROVED first pass) — audit-006 correctives A.006.1-4, held for human |
