@@ -1,29 +1,98 @@
 /**
- * Studio canvas route (PR 010 / P1.U.1) — mounts the three-zone agent canvas.
+ * Studio canvas route (Slice 5 / P-I, lane studio-ui) — mounts the three-zone agent
+ * canvas CHAT-FIRST (not idle).
  *
- * A Server Component that resolves the operator (`requireOperator`, the studio
- * auth chokepoint) then renders the CLIENT `SeoStudioCanvas`. The canvas opens its
- * own SSE subscription to `/api/run` (PR 007) once a run is dispatched; this route
- * is the static shell the client canvas hydrates into.
+ * THE CHAT-FIRST MOUNT. A Server Component that resolves the operator's workspace
+ * (the DR-003 auth chokepoint) -> the workspace's client -> the ONE conversation the
+ * URL names, then renders the CLIENT `SeoStudioCanvas` WIRED for chat: it passes
+ * `conversationId` + `clientId` + the persisted `initialTranscript` + the linked
+ * piece `brief`, so the canvas's composer owns the run (POST /api/run with
+ * `{ conversationId, clientId, prompt }`) and folds the streamed taxonomy into the
+ * three zones. `streamUrl={null}` — there is no live run until the operator sends a
+ * turn (this is the correct chat-first first-paint state, NOT the old idle shell).
  *
- * SCOPE: this is the SHELL mount. The run-dispatch trigger (POST /api/run to obtain
- * `streamUrl`), the brief resolution from a persisted content_piece, and the
- * editor/version internals are later PRs — this route renders the canvas idle with
- * no live run, which is the correct first-paint state.
+ * TENANCY (fail-closed). `workspaceId` + `clientId` are the SERVER's resolution
+ * (operator -> workspace -> client); the URL supplies ONLY `?conversation=<id>`,
+ * which is loaded SCOPED by the bound `(id, workspaceId, clientId)`. A conversation
+ * that is NOT owned by the bound workspace/client resolves to null and the page
+ * REDIRECTS to `/` (no cross-tenant transcript leak, no existence oracle). A missing
+ * `?conversation` (or no workspace/client) also redirects home — the canvas is never
+ * mounted without an owned thread.
  *
- * ROLLBACK: delete this route file; the studio home + the PR 009 DraftResult
- * operator view are untouched.
+ * The conversation/content seams are live-resolved behind the service-role creds gate
+ * (DR-026 pattern). The resolution logic is in `studio-resolve.ts` (unit-tested with
+ * fakes); this file is the thin Server-Component shell + the redirect + the mount.
  *
- * Colour from globals.css tokens (no hardcoded palette). Clean ASCII / UTF-8.
+ * Next 16: async `searchParams` (a Promise — awaited). ROLLBACK: revert this file to
+ * the idle `<SeoStudioCanvas streamUrl={null} brief={null}/>` shell; the home page +
+ * routes are untouched. Colour from globals.css tokens (no hardcoded palette). Clean
+ * ASCII / UTF-8.
  */
 
-import { requireOperator } from "@/lib/auth";
-import { SeoStudioCanvas } from "../SeoStudioCanvas";
+import { redirect } from "next/navigation";
 
-export default async function StudioCanvasPage() {
+import { requireOperator, getCurrentWorkspace } from "@/lib/auth";
+import { resolveWorkspaceClient } from "@/lib/content/resolve-workspace-client";
+import { resolveConversationDataAccess } from "@/lib/conversation/resolve-conversation-access";
+import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
+import { SeoStudioCanvas } from "../SeoStudioCanvas";
+import { resolveCanvas } from "../studio-resolve";
+
+/** A live, per-operator read — never cached. */
+export const dynamic = "force-dynamic";
+
+/** Read the single `conversation` search param (Next 16: a string | string[] | undefined). */
+function readConversationId(
+  searchParams: Record<string, string | string[] | undefined>,
+): string | null {
+  const raw = searchParams.conversation;
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  return null;
+}
+
+export default async function StudioCanvasPage({
+  searchParams,
+}: {
+  // Next 16: `searchParams` is a Promise resolved at request time.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // THE GATE: redirects to /sign-in when unauthenticated (control never returns).
   await requireOperator();
 
-  // The shell mounts idle: no `streamUrl` until a run is dispatched (later PR), and
-  // no brief until a content_piece is resolved. The canvas renders its idle state.
-  return <SeoStudioCanvas streamUrl={null} brief={null} />;
+  const sp = await searchParams;
+  const conversationId = readConversationId(sp);
+
+  // Live-resolve the seams behind the creds gate (NOT_WIRED defaults with no creds;
+  // resolveWorkspaceClient returns null -> resolveCanvas redirects home).
+  const [conversations, content] = await Promise.all([
+    resolveConversationDataAccess(),
+    resolveContentDataAccess(),
+  ]);
+
+  const state = await resolveCanvas(conversationId, {
+    resolveWorkspace: getCurrentWorkspace,
+    resolveClient: resolveWorkspaceClient,
+    conversations,
+    content,
+  });
+
+  // Fail-closed: no owned conversation (absent / blank / not-owned / no workspace or
+  // client) -> back to the home list. The canvas is NEVER mounted without an owned
+  // thread.
+  if (state.kind === "redirect-home") {
+    redirect("/");
+  }
+
+  // CHAT-FIRST mount: conversationId + clientId make the canvas chat-driven (the
+  // composer POSTs /api/run). `streamUrl={null}` — no live run until the first turn.
+  return (
+    <SeoStudioCanvas
+      conversationId={state.conversationId}
+      clientId={state.clientId}
+      brief={state.brief}
+      initialTranscript={state.transcript}
+      streamUrl={null}
+    />
+  );
 }
