@@ -1,6 +1,6 @@
 # SEO Creator Build — Current State
 
-**Last updated:** 2026-06-26 (UNATTENDED Run #23 ⏹ TERMINAL ~3h/5h — audit-005 discharged; **DR-026 inert live data-layer COMPLETE**: READ #66 MERGED · WRITE #67 + REVIEW-token/comment #69 OPEN for human review; M6 done. Phase 1: 11/12. Remaining is HUMAN-GATED: activation (go-live) + P1.C.4 SoM prompt-set + pilot workspace + live-Sandbox.)
+**Last updated:** 2026-06-26 (attended SoM unblock — **P1.C.4 query-bank approved (#71) + feasibility-spike done + HYBRID channel chosen + subsystem scaffolding #72 OPEN** (inert, judge 5/5). DR-026 data-layer: read #66 merged, write #67 + review #69 open. Phase 1: 11/12 mapped; P1.C.4 BUILT but DoD-open. **3 open PRs for review: #67 #69 #72.** Remaining HUMAN-GATED: activation (go-live) + SoM creds/`SOM_LIVE` + pilot workspace + live-Sandbox.)
 **Current build phase:** Phase 1 — Pilot (**audit-005 CLEAR — no Critical; HEALTHY. Only P1.C.4 (needs SoM prompt-set) + the A.005.x correctives remain to Phase-1 close**)
 **Phase progress:** **21 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 11/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, P1.C.1 #50, **P1.C.2 #56, P1.C.3 #58**) · **only P1.C.4 (PR 021) remains** · +imagegen (#43/#45) (+6 correctives: C.020.1 #49, C.021.2 #52, C.022.3 #54, +A.005.2 #61 OPEN · +1 spike · 4 audit fixes · suite #24)
 **Runs since last audit:** **0** (audit-005 done 2026-06-26 — `audits/audit-005-2026-06-26.md`, **no Critical**; 4 High → A.005.x correctives queued + [[DR-039]] + manifest check added).
@@ -11,7 +11,7 @@
 
 ## Currently in flight
 
-_(⏹ UNATTENDED Run #23 TERMINAL (~3h/5h; eligible safe engineering depleted). **2 OPEN PRs awaiting James review** (both inert, judge 5/5): [#67 DR-026 write adapter](https://github.com/digital-seniority/sagemark/pull/67) (mutations) + [#69 DR-026 review-token/comment adapter](https://github.com/digital-seniority/sagemark/pull/69) (the #1 cross-tenant token boundary). Run #23 delivered: audit-005 discharged (#61/#63/#64) · DR-026 inert data-layer COMPLETE (read #66 merged; write #67 + review #69 open) · M6. **Remaining is HUMAN-GATED — see "Active items".** Did NOT manufacture marginal blocked-lane work to fill the budget.)_
+_(Attended SoM-unblock follow-up after the unattended Run #23 terminal. **3 OPEN PRs awaiting James review** (all inert, judge 5/5): [#67 DR-026 write adapter](https://github.com/digital-seniority/sagemark/pull/67) · [#69 DR-026 review-token/comment adapter](https://github.com/digital-seniority/sagemark/pull/69) · [#72 P1.C.4 SoM subsystem scaffolding](https://github.com/digital-seniority/sagemark/pull/72). SoM unblock complete: prompt-set #71 merged, feasibility-spike done, HYBRID channel chosen (DR-038 addendum), scaffolding #72 built (inert). **Phase-1 finish line = merge #67/#69/#72 + the ACTIVATION (go-live: route-wire live adapters + service-role creds + `SOM_LIVE`/provider keys + `pilot:false` + `publishEnabled`) + the non-eng inputs (real credentialed reviewer, pilot workspace, live-Sandbox infra).**)_
 
 ## Next up (post-follow-up)
 
@@ -130,7 +130,7 @@ _(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 | P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | **MERGED** (judge security-boundary APPROVED; [[DR-034]]; ⚠ apply `0036` to Sagemark Supabase) | Run #022 | 94cde1f | [#50](https://github.com/digital-seniority/sagemark/pull/50) |
 | P1.C.2 | PR 019 — "Request changes" -> agent edit loop routing + named sign-off + approval-debt KPI | client-review | **MERGED** (judge 5/5·5/5; `0038` applied; pilot seed pending pilot-workspace ids; [[DR-037]]) | attended | cab8827 | [#56](https://github.com/digital-seniority/sagemark/pull/56) |
 | P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | worker-runtime | **MERGED** (judge 5/5·5/5 after accumulator fix-pass; `0039` applied; rebased over #56; [[DR-038]]/[[DR-039]]) | attended | 9f58e62 | [#58](https://github.com/digital-seniority/sagemark/pull/58) |
-| P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | client-review | NOT_STARTED | — | — | — |
+| P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | worker-runtime | **PR_CREATED — scaffolding** (OPEN [#72](https://github.com/digital-seniority/sagemark/pull/72), inert/flag-gated, judge 5/5; query-bank #71 merged; feasibility-spike done; HYBRID channel [[DR-038]]). **DoD-OPEN:** needs real creds/`SOM_LIVE` + real rows (not mocks) + the activation wiring — HUMAN-gated. | attended | — | [#72](https://github.com/digital-seniority/sagemark/pull/72) |
 
 ## Drift-watch trend (5-run rolling)
 
