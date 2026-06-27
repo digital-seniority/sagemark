@@ -25,6 +25,10 @@ export default defineConfig({
       "test/publish/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
+      // worker-runtime: the LIVE /api/run worker dispatcher (provisions the per-run
+      // Sandbox, starts the worker, relays its `::worker-*::` marker stream as coded
+      // SSE). Tier-1, injected fake launchSandbox + scripted worker logs (no live VM).
+      "test/run/**/*.test.ts",
       // worker-runtime: the host model-proxy (verify bridge JWT -> forward to the
       // metered Gateway with the host key -> stream SSE through). Tier-1, injected
       // upstream fetch + injected secret (no live Gateway, no real key).
