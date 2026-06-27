@@ -66,8 +66,16 @@ import {
   type BridgeTokenRejection,
   type VerifyBridgeTokenResult,
 } from "@/lib/auth/bridge-token";
+// The live Sandbox dispatcher (provisions the per-run microVM, starts the worker,
+// relays its `::worker-*::` marker stream as coded SSE). Kept in a sibling helper
+// module so this route file stays the gate-sequence orchestrator; `route.ts`
+// imports only the factory (value) — the helper imports types back from here, which
+// are erased at runtime, so the import cycle has no runtime edge.
+import { createLiveDispatcher } from "./live-dispatcher";
 
 export const runtime = "nodejs";
+/** Always run at request time — this is a live dispatch + SSE relay, never cached. */
+export const dynamic = "force-dynamic";
 /** The single-piece generation cap (seconds) — the relay/JWT run-budget ceiling. */
 export const maxDuration = 90;
 
@@ -150,7 +158,10 @@ export interface RunDeps {
 const DEFAULT_DEPS: RunDeps = {
   data: NOT_WIRED_DATA_ACCESS,
   resolveWorkspace: getCurrentWorkspace,
-  dispatcher: NOT_WIRED_DISPATCHER,
+  // The LIVE dispatcher (replaces NOT_WIRED_DISPATCHER). The injection seam is
+  // preserved: tests pass a fake `dispatcher` via RunDeps, and NOT_WIRED_DISPATCHER
+  // stays exported for the not-wired fail-closed assertion.
+  dispatcher: createLiveDispatcher(),
   truthReader: NOT_WIRED_TRUTH_READER,
   makeAccountant: () => new CostAccountant(),
   newRunId: () => randomUUID(),
