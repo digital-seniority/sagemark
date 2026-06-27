@@ -190,6 +190,7 @@ describe("resolveCanvas", () => {
     if (state.kind !== "ready") return;
     expect(state.clientId).toBe(CLIENT.id);
     expect(state.conversationId).toBe("conv-1");
+    expect(state.pieceId).toBeNull(); // no draft yet -> no edit target
     expect(state.brief).toBeNull();
     // Turns are sorted by seq ascending + projected to the transcript wire shape.
     expect(state.transcript.map((t) => t.seq)).toEqual([1, 2]);
@@ -233,6 +234,7 @@ describe("resolveCanvas", () => {
     expect(state.kind).toBe("ready");
     if (state.kind !== "ready") return;
     expect(pieceScope).toEqual({ id: "p-1", cl: CLIENT.id }); // bound client, not URL
+    expect(state.pieceId).toBe("p-1"); // the linked piece is the edit target
     expect(state.brief).toEqual({
       title: "Memory care basics",
       slug: "memory-care",

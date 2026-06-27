@@ -97,6 +97,8 @@ export type CanvasState =
       /** The client display name (top-bar pill); resolved server-side. */
       clientName: string;
       conversationId: string;
+      /** The linked piece id (null before a draft exists); drives in-place edit. */
+      pieceId: string | null;
       brief: ContentBrief | null;
       transcript: TranscriptTurn[];
     };
@@ -190,6 +192,7 @@ export async function resolveCanvas(
     clientId: client.id,
     clientName: client.name,
     conversationId: id,
+    pieceId: conversation.pieceId,
     brief,
     transcript: turns
       .slice()
