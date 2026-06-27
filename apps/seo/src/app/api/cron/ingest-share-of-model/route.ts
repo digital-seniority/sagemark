@@ -27,6 +27,9 @@ import {
   runShareOfModelIngest,
   type IngestTarget,
 } from "@/cron/ingest-share-of-model";
+import { somLiveEnabled } from "@/lib/metrics/som-adapters/types";
+import { somDirectRunner } from "@sagemark/core";
+import { makeLiveShareOfModelRowStore } from "@/lib/metrics/som-live-store";
 
 /** Reject a cron call whose Bearer token does not match a configured CRON_SECRET. */
 function authorized(request: NextRequest): boolean {
@@ -40,12 +43,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // INERT: no targets resolved here (the activation PR injects tenancy-bound
-  // targets); the handler additionally skips entirely when SOM_LIVE is unset.
+  // ACTIVATION (DR-026): inject the live DIRECT runner + the live share_of_model
+  // store, BOTH gated. The direct runner routes every model call through the
+  // metered Gateway (DR-013, forceGateway) and attaches the Claude web-search tool
+  // for the direct-citation engine. The store is null unless service-role creds are
+  // present. Crucially, even with both injected, the handler SKIPS the whole run
+  // (zero probes, zero store calls) unless `SOM_LIVE` is set — so a merge with no
+  // env triggers nothing live. We only attach the live runner when SOM_LIVE is on
+  // (no point building the AI-SDK-backed adapters for a run that will skip).
+  const live = somLiveEnabled(process.env);
+  const adapters = live
+    ? makeDefaultSomAdapters({ directRunner: somDirectRunner })
+    : makeDefaultSomAdapters();
+  const store = live ? (await makeLiveShareOfModelRowStore()) ?? undefined : undefined;
+
+  // INERT: no targets resolved here (go-live injects tenancy-bound targets); the
+  // handler also skips entirely when SOM_LIVE is unset.
   const targets: IngestTarget[] = [];
-  const result = await runShareOfModelIngest(targets, {
-    adapters: makeDefaultSomAdapters(),
-  });
+  const result = await runShareOfModelIngest(targets, { adapters, store });
 
   return NextResponse.json(result);
 }

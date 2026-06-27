@@ -39,6 +39,7 @@ import {
   NOT_WIRED_DATA_ACCESS,
   type ContentDataAccess,
 } from "@/lib/content/context";
+import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
 import {
   assembleSources,
   attributionDomainSet,
@@ -209,5 +210,10 @@ export async function handleBrief(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handleBrief(request);
+  // ACTIVATION (DR-026): resolve the live ContentDataAccess BEHIND the service-role
+  // creds gate. With no creds set this returns NOT_WIRED_DATA_ACCESS (today's
+  // fail-closed default) — the route behaves EXACTLY as before. The rest of the
+  // deps (SERP provider, fetcher, clock, auth) keep their production defaults.
+  const data = await resolveContentDataAccess();
+  return handleBrief(request, { ...DEFAULT_DEPS, data });
 }

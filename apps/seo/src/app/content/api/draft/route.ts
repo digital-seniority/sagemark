@@ -39,6 +39,7 @@ import {
   type ContentDataAccess,
   type PersistedBriefSnapshot,
 } from "@/lib/content/context";
+import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -177,5 +178,10 @@ export async function handleDraft(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handleDraft(request);
+  // ACTIVATION (DR-026): resolve the live ContentDataAccess (read+write) BEHIND the
+  // service-role creds gate. With no creds set this returns NOT_WIRED_DATA_ACCESS —
+  // the route behaves EXACTLY as before (every write throws loudly). The draft
+  // insert is scoped by the BOUND client id (never request input) by the adapter.
+  const data = await resolveContentDataAccess();
+  return handleDraft(request, { ...DEFAULT_DEPS, data });
 }

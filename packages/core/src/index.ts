@@ -4,6 +4,7 @@ export * from "./health";
 export * from "./ai/resolve-gateway-model";
 export * from "./ai/cost-accountant";
 export * from "./ai/worker-env-lint";
+export * from "./ai/som-direct-runner";
 
 // ── Engine model config (PR 002) ───────────────────────────────────────────
 // Re-exports DRAFTER/VERIFIER/JUDGE ids from the provider seam, so import

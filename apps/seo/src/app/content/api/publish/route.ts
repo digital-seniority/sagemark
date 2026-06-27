@@ -51,7 +51,8 @@ import {
 } from "@/lib/content/context";
 import { readCredentialedRelease } from "@/lib/release/read-credentialed-release";
 import { resolveBylineAuthor } from "@/lib/byline/resolve-author";
-import { makeLiveResolveReferencedAssets } from "@/lib/content/image-resolver";
+import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
+import { publishEnabled as activationPublishEnabled } from "@/lib/activation";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -271,17 +272,23 @@ export async function handlePublish(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  // Wire the LIVE image-resolver onto the publish deps BEHIND a host-config check
-  // (C.021.2/DR-035). When the service-role creds are present, attach the live
-  // `resolveReferencedAssets` so a `[photo:slug]` body resolves to its licensed
-  // generated_images row; when absent, leave it off so the route's fail-closed
-  // default holds (every token → orphan → UNLICENSED_ASSET block — the safe prior
-  // state). The rest of the ContentDataAccess pipeline (loadPiece, …) is still
-  // NOT_WIRED (the broader DR-026 effort) — this only fills the resolver method.
-  const resolveReferencedAssets = await makeLiveResolveReferencedAssets();
-  const deps: PublishDeps = resolveReferencedAssets
-    ? { ...DEFAULT_DEPS, data: { ...DEFAULT_DEPS.data, resolveReferencedAssets } }
-    : DEFAULT_DEPS;
+  // ACTIVATION (DR-026): resolve the full LIVE ContentDataAccess BEHIND the
+  // service-role creds gate. The composed live adapter carries the read methods,
+  // the write methods (incl. transitionPieceStatus), AND the live
+  // `resolveReferencedAssets` image-resolver (C.021.2/DR-035) — superseding the
+  // earlier resolver-only wiring. With no creds set this returns
+  // NOT_WIRED_DATA_ACCESS, so every method throws loudly (today's fail-closed
+  // default — a `[photo:]` body has no resolver → orphan → UNLICENSED_ASSET block).
+  const data = await resolveContentDataAccess();
+  // publishEnabled DEFAULT OFF (DR-037 + activation): only true when an explicit
+  // PUBLISH_ENABLED flag is set AND service-role creds are present. This is the
+  // global kill switch; canPublish + the DR-037 placeholder guard + the A.005.1
+  // active-authorization predicate remain the authoritative barriers (unweakened).
+  const deps: PublishDeps = {
+    ...DEFAULT_DEPS,
+    data,
+    publishEnabled: () => activationPublishEnabled(),
+  };
   return handlePublish(request, deps);
 }
 
