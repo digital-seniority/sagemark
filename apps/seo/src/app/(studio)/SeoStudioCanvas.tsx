@@ -37,17 +37,24 @@
  * VoiceSpecEditor / DraftResult). Clean ASCII / UTF-8.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   useUiMessageStream,
   type UiMessageStreamState,
   type UseUiMessageStreamOptions,
 } from "@/lib/stream/use-ui-message-stream";
+import {
+  useTurnStream,
+  snapshotFromPersisted,
+  type FetchLike,
+  type PersistedDraft,
+} from "@/lib/stream/post-turn-stream";
 import { AgentPanel } from "./agent/AgentPanel";
 import { ArtifactZone } from "./artifact/ArtifactZone";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { InspectorRail } from "./inspector/InspectorRail";
 import type { ContentBrief } from "./artifact/BriefCard";
+import type { TranscriptTurn } from "./agent/ConversationTranscript";
 
 /** localStorage key for the operator's collapsed/expanded Inspector preference. */
 const INSPECTOR_COLLAPSED_KEY = "seo.inspectorCollapsed";
@@ -60,18 +67,46 @@ export interface SeoStudioCanvasProps {
   /**
    * The SSE endpoint for the active run (the `/api/run` relay). Null/undefined when
    * the canvas mounts before a run is dispatched — the canvas renders idle.
+   *
+   * LEGACY / one-shot GET path: when a `conversationId` + `clientId` are provided the
+   * canvas drives the run via the chat composer (POST `/api/run`) instead, and this
+   * EventSource URL is ignored.
    */
   streamUrl?: string | null;
   /** The resolved content brief for the run (server-passed), or null. */
   brief?: ContentBrief | null;
+  /**
+   * The CHAT-DRIVEN front door (studio-ui). When BOTH are present the composer owns
+   * the run: it POSTs `/api/run` with `{ conversationId, clientId, prompt }` and the
+   * canvas folds the streamed taxonomy into its projected state (the POST-fetch-stream
+   * sibling of the EventSource path). Tenancy is the SERVER's: only these two ids +
+   * the prompt are sent; the workspace + run-id are bound server-side.
+   */
+  conversationId?: string | null;
+  clientId?: string | null;
+  /** Server-passed prior turns for the transcript (omitted => transcript fetches on mount). */
+  initialTranscript?: TranscriptTurn[];
+  /**
+   * The ON-DONE reconcile read (chat path). After a turn completes cleanly the canvas
+   * calls this to read the conversation's PERSISTED current draft (body + scorecard) —
+   * the persisted row is the truth, not the stream accumulation — and folds it back in
+   * as a synthetic `snapshot` so the next turn's baseline is correct. Omitted => the
+   * canvas only refreshes the transcript (no body re-fold). Injectable for tests.
+   */
+  reconcileDraft?: (info: {
+    conversationId: string;
+    clientId: string;
+  }) => Promise<PersistedDraft | null>;
   /**
    * Test seam: inject a pre-projected stream state to render the canvas
    * deterministically with NO live EventSource (the SSR render smoke test uses
    * this). When provided it overrides the live hook's state.
    */
   injectedState?: UiMessageStreamState;
-  /** Test seam: inject an EventSource factory forwarded to the hook. */
+  /** Test seam: inject an EventSource factory forwarded to the legacy GET hook. */
   eventSourceFactory?: UseUiMessageStreamOptions["eventSourceFactory"];
+  /** Test seam: inject the fetch used by the composer POST + transcript reads. */
+  fetchImpl?: FetchLike;
 }
 
 const ZONE: React.CSSProperties = {
@@ -82,10 +117,97 @@ const ZONE: React.CSSProperties = {
 };
 
 export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
-  const { streamUrl, brief = null, injectedState, eventSourceFactory } = props;
+  const {
+    streamUrl,
+    brief = null,
+    conversationId = null,
+    clientId = null,
+    initialTranscript,
+    reconcileDraft,
+    injectedState,
+    eventSourceFactory,
+    fetchImpl,
+  } = props;
 
+  // CHAT-DRIVEN when both ids are present (and no explicit injected state overrides).
+  const chatActive = Boolean(conversationId && clientId) && injectedState == null;
+
+  // The transcript the agent zone renders. The canvas re-reads it on each clean turn
+  // completion (the persisted log is the truth); until then the server-passed
+  // `initialTranscript` is shown. `refreshed` is null until the first on-done refresh,
+  // so we never mirror the prop in state (no setState-in-effect).
+  const [refreshed, setRefreshed] = useState<TranscriptTurn[] | null>(null);
+  const transcript = refreshed ?? initialTranscript;
+
+  // Refs that let the (memoized) reconcile callback read the LATEST projection +
+  // dispatch without re-creating itself each render (avoids a stale closure on the
+  // `turn` binding declared below). `dispatch` from useReducer is already stable, but
+  // `lastSeq` changes every delta — the ref keeps it fresh.
+  const lastSeqRef = useRef<number | null>(null);
+  const dispatchRef = useRef<ReturnType<typeof useTurnStream>["dispatch"] | null>(null);
+
+  // The ON-DONE reconcile: re-read the persisted transcript + draft, fold the draft
+  // back as a synthetic snapshot so the next turn's baseline is the persisted truth.
+  const onTurnComplete = useCallback(
+    async (info: { conversationId: string; clientId: string }) => {
+      // 1. Refresh the persisted transcript (the recorded agent turn now appears with
+      //    its verdict + version) — the conversation/turn log is the truth.
+      const doFetch =
+        (fetchImpl as unknown as typeof fetch | undefined) ??
+        (typeof fetch !== "undefined" ? fetch : null);
+      if (doFetch) {
+        try {
+          const res = await doFetch(
+            `/api/conversations/${encodeURIComponent(info.conversationId)}?clientId=${encodeURIComponent(info.clientId)}`,
+            { headers: { accept: "application/json" } },
+          );
+          if (res.ok) {
+            const body = (await res.json()) as { turns?: TranscriptTurn[] };
+            if (Array.isArray(body.turns)) setRefreshed(body.turns);
+          }
+        } catch {
+          // A failed transcript refresh leaves the prior transcript in place.
+        }
+      }
+      // 2. Reconcile the artifact body + scorecard to the PERSISTED draft (the row is
+      //    truth, not the stream accumulation). Optional — only when a reader is wired.
+      if (reconcileDraft) {
+        try {
+          const draft = await reconcileDraft(info);
+          if (draft) {
+            dispatchRef.current?.(
+              snapshotFromPersisted(info.conversationId, lastSeqRef.current, draft),
+            );
+          }
+        } catch {
+          // A failed draft reconcile leaves the stream-accumulated body in place.
+        }
+      }
+    },
+    [fetchImpl, reconcileDraft],
+  );
+
+  // The POST-fetch projected state (chat path). Called unconditionally (rules of
+  // hooks); inert when chat is not active (no `sendTurn` is ever invoked).
+  const turn = useTurnStream({
+    conversationId: conversationId ?? "",
+    clientId: clientId ?? "",
+    fetchImpl,
+    onTurnComplete,
+  });
+  // Keep the reconcile-callback refs pointed at the latest projection + dispatch
+  // (written in an effect, never during render — `dispatch` is stable, `lastSeq`
+  // advances per delta; the reconcile reads them at on-done time).
+  useEffect(() => {
+    lastSeqRef.current = turn.state.lastSeq;
+    dispatchRef.current = turn.dispatch;
+  }, [turn.state.lastSeq, turn.dispatch]);
+
+  // The legacy EventSource (GET) projected state — back-compat for the one-shot path.
   const live = useUiMessageStream({ url: streamUrl, eventSourceFactory });
-  const state = injectedState ?? live;
+
+  // Precedence: an injected test state wins; else the chat path; else the legacy GET.
+  const state = injectedState ?? (chatActive ? turn.state : live);
 
   // Collapsible Inspector (agent-ui). DEFAULT FALSE — docked open while drafting.
   // The operator's choice persists to localStorage; we read it on mount in an
@@ -174,7 +296,23 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         data-zone="agent"
         style={{ ...ZONE, borderRight: "1px solid color-mix(in srgb, currentColor 12%, transparent)", overflowY: "auto" }}
       >
-        <AgentPanel phase={state.phase} feed={state.feed} error={state.error} />
+        <AgentPanel
+          phase={state.phase}
+          feed={state.feed}
+          error={state.error}
+          chat={
+            chatActive && conversationId && clientId
+              ? {
+                  conversationId,
+                  clientId,
+                  initialTranscript: transcript,
+                  onSend: turn.sendTurn,
+                  inFlight: turn.inFlight,
+                  fetchImpl: fetchImpl as unknown as typeof fetch | undefined,
+                }
+              : null
+          }
+        />
       </section>
 
       <section

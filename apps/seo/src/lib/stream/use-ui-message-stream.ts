@@ -244,10 +244,15 @@ function maxSeq(current: number | null, next: number): number {
 
 // ── Hook-internal reducer (event fold + a reset sentinel for stream re-open) ───
 
-/** A reset action drops the projection to its initial state (a fresh stream). */
-type StreamAction = SseEvent | { type: "__reset" };
+/**
+ * A reset action drops the projection to its initial state (a fresh stream). The
+ * POST-fetch path (`post-turn-stream.ts`) reuses this SAME action + reducer so both
+ * the EventSource path and the composer's POST path fold IDENTICALLY (no taxonomy
+ * duplication — `reduceUiMessageStream` is the one fold; this only adds `__reset`).
+ */
+export type StreamAction = SseEvent | { type: "__reset" };
 
-function streamReducer(
+export function streamReducer(
   state: UiMessageStreamState,
   action: StreamAction,
 ): UiMessageStreamState {
