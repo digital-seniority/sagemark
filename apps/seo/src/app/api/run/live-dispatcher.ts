@@ -404,6 +404,11 @@ export interface LiveDispatcherDeps {
  * via the `WORKER_PROMPT` per-command env override (the worker entry reads it; the
  * scrubbed base env from `buildWorkerEnv` deliberately does not carry the prompt).
  * Detached, so we stream its logs while it runs.
+ *
+ * `cwd` is set explicitly so `process.cwd()` inside the worker resolves to
+ * `/home/worker/app` — the app root where the snapshot installs node_modules and
+ * skills. Without it the sandbox default CWD (not /home/worker/app) would cause
+ * `loadSuite` to fail finding the vendored skill SKILL.md files (DR-022).
  */
 async function startWorkerInSandbox(
   sandbox: LaunchResult["sandbox"],
@@ -413,6 +418,7 @@ async function startWorkerInSandbox(
   const cmd = await (sandbox as any).runCommand({
     cmd: "node",
     args: [WORKER_ENTRY],
+    cwd: "/home/worker/app",
     env: { WORKER_PROMPT: prompt },
     detached: true,
   });

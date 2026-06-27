@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "tsc -p tsconfig.worker.json && next build",
     "build:worker": "tsc -p tsconfig.worker.json",
+    "create-snapshot": "node scripts/create-worker-snapshot.mjs",
     "start": "next start -p 3001",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
