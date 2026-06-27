@@ -1,19 +1,21 @@
 "use client";
 
 /**
- * Operator sign-in page (DR-003, lane auth) — email MAGIC LINK only, no password.
+ * Operator sign-in page (DR-003, lane auth) — email + PASSWORD.
  *
  * THE FRONT DOOR. `requireOperator()` redirects an unauthenticated request here.
- * The form requests a Supabase magic link via `signInWithOtp({ email, options: {
- * emailRedirectTo: <origin>/auth/callback } })`; the operator clicks the emailed
- * link, lands on `/auth/callback` (the code-exchange route), and is redirected to
- * `/` with a cookie session established. There is NO password field and no
- * credential ever stored client-side — the browser client only ever requests a
- * link.
+ * The form calls `signInWithPassword({ email, password })`; on success the
+ * `@supabase/ssr` browser client writes the cookie session and we navigate to `/`,
+ * where the server reads it via `getUser()` (the proxy refreshes it per request).
  *
- * `emailRedirectTo` is derived from `window.location.origin` at click time so the
- * link returns to the SAME host the operator signed in from (localhost in dev, the
- * deployed origin in prod) — James enabled `/auth/callback` as an allowed redirect.
+ * WHY PASSWORD (not magic-link): Supabase's built-in email service is rate-limited
+ * to a few magic-links/hour, which blocks onboarding. Password sign-in sends NO
+ * email. Operators are provisioned in the Supabase dashboard (Auth -> Users -> Add
+ * user, "Auto Confirm") so there is no signup email either. The `/auth/callback`
+ * code-exchange route is retained (harmless) for a future magic-link path.
+ *
+ * The browser client never persists a credential beyond the Supabase session
+ * cookie; the password is sent once over TLS to Supabase Auth and not stored here.
  *
  * Colours/spacing come from the `globals.css` tokens (`--foreground`/`--background`
  * via `currentColor` + opacity) — NO hardcoded palette. Clean ASCII / UTF-8.
@@ -25,42 +27,62 @@ import { createSupabaseBrowserClient } from "@/lib/auth/supabase-browser";
 
 type Status =
   | { kind: "idle" }
-  | { kind: "sending" }
-  | { kind: "sent" }
+  | { kind: "signing-in" }
   | { kind: "error"; message: string };
+
+const LABEL: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  opacity: 0.6,
+  marginBottom: 6,
+};
+
+const FIELD: React.CSSProperties = {
+  width: "100%",
+  padding: "0.6rem 0.75rem",
+  fontSize: 16,
+  color: "var(--foreground)",
+  background: "var(--background)",
+  border: "1px solid currentColor",
+  borderRadius: 8,
+  outline: "none",
+};
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = email.trim();
-    if (!trimmed) return;
+    if (!trimmed || !password) return;
 
-    setStatus({ kind: "sending" });
+    setStatus({ kind: "signing-in" });
     try {
       const supabase = createSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signInWithPassword({
         email: trimmed,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        password,
       });
       if (error) {
         setStatus({ kind: "error", message: error.message });
         return;
       }
-      setStatus({ kind: "sent" });
+      // Session cookie is set by the browser client; the server resolves the
+      // operator on the next request. Full navigation so the server re-reads it.
+      window.location.assign("/");
     } catch (err) {
       setStatus({
         kind: "error",
-        message: err instanceof Error ? err.message : "Could not send the link.",
+        message: err instanceof Error ? err.message : "Could not sign in.",
       });
     }
   }
 
-  const sending = status.kind === "sending";
+  const busy = status.kind === "signing-in";
 
   return (
     <main style={{ maxWidth: 420, margin: "0 auto", padding: "6rem 1.5rem" }}>
@@ -76,100 +98,69 @@ export default function SignInPage() {
       </p>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>Sign in</h1>
 
-      {status.kind === "sent" ? (
-        <div style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 16, lineHeight: 1.6 }}>
-            Check your email. We sent a sign-in link to{" "}
-            <strong>{email.trim()}</strong>. Open it on this device to continue.
+      <form onSubmit={onSubmit} style={{ marginTop: 24 }}>
+        <p style={{ fontSize: 15, opacity: 0.8, marginBottom: 16 }}>
+          Enter your operator email and password.
+        </p>
+
+        <label htmlFor="email" style={LABEL}>
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          autoFocus
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={busy}
+          placeholder="you@example.com"
+          style={{ ...FIELD, opacity: busy ? 0.6 : 1 }}
+        />
+
+        <label htmlFor="password" style={{ ...LABEL, marginTop: 16 }}>
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          disabled={busy}
+          placeholder="Your password"
+          style={{ ...FIELD, opacity: busy ? 0.6 : 1 }}
+        />
+
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            marginTop: 20,
+            width: "100%",
+            padding: "0.6rem 0.75rem",
+            fontSize: 16,
+            fontWeight: 600,
+            color: "var(--background)",
+            background: "var(--foreground)",
+            border: "1px solid currentColor",
+            borderRadius: 8,
+            cursor: busy ? "default" : "pointer",
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy ? "Signing in..." : "Sign in"}
+        </button>
+        {status.kind === "error" ? (
+          <p role="alert" style={{ marginTop: 12, fontSize: 14, opacity: 0.85 }}>
+            {status.message}
           </p>
-          <button
-            type="button"
-            onClick={() => setStatus({ kind: "idle" })}
-            style={{
-              marginTop: 16,
-              background: "none",
-              border: "none",
-              padding: 0,
-              font: "inherit",
-              textDecoration: "underline",
-              opacity: 0.7,
-              cursor: "pointer",
-            }}
-          >
-            Use a different email
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={onSubmit} style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 15, opacity: 0.8, marginBottom: 16 }}>
-            Enter your email and we will send you a one-time sign-in link. No
-            password needed.
-          </p>
-          <label
-            htmlFor="email"
-            style={{
-              display: "block",
-              fontSize: 13,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              opacity: 0.6,
-              marginBottom: 6,
-            }}
-          >
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={sending}
-            placeholder="you@example.com"
-            style={{
-              width: "100%",
-              padding: "0.6rem 0.75rem",
-              fontSize: 16,
-              color: "var(--foreground)",
-              background: "var(--background)",
-              border: "1px solid currentColor",
-              borderRadius: 8,
-              outline: "none",
-              opacity: sending ? 0.6 : 1,
-            }}
-          />
-          <button
-            type="submit"
-            disabled={sending}
-            style={{
-              marginTop: 16,
-              width: "100%",
-              padding: "0.6rem 0.75rem",
-              fontSize: 16,
-              fontWeight: 600,
-              color: "var(--background)",
-              background: "var(--foreground)",
-              border: "1px solid currentColor",
-              borderRadius: 8,
-              cursor: sending ? "default" : "pointer",
-              opacity: sending ? 0.6 : 1,
-            }}
-          >
-            {sending ? "Sending..." : "Send magic link"}
-          </button>
-          {status.kind === "error" ? (
-            <p
-              role="alert"
-              style={{ marginTop: 12, fontSize: 14, opacity: 0.85 }}
-            >
-              {status.message}
-            </p>
-          ) : null}
-        </form>
-      )}
+        ) : null}
+      </form>
     </main>
   );
 }
