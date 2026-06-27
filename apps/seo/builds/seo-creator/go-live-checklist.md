@@ -73,3 +73,19 @@ Expected live pattern (from the smoke): Claude cites for discovery queries; the 
 
 ## Note — freshness cron is scheduled but inert (audit-006 L5)
 The freshness cron is in `vercel.json` but is a structural no-op as built: `emitDraft` needs the internal `content_pieces.id`, which the public `PublishedPiece` projection does not expose (only the slug). It will run weekly doing nothing until the read-adapter surfaces the piece id. SoM **ingest** is fully wired; only **freshness** is pending the piece-id projection.
+
+---
+
+## ✅ PILOT WORKSPACE PROVISIONED (2026-06-27) — B.1 + B.2 DONE
+The Whispering Willows pilot workspace is stood up (user-directed, James Shi):
+- **Workspace/client:** `workspace_id=81815c0a-e001-4c74-bfe9-e48272d2b775`, `client_id=e84acf0f-16f9-4171-8ccb-80c2011c97ab` (blog_slug `whispering-willows`).
+- **Voice spec (B.1):** `voice_specs.id=fce3dcb8-d22b-40cd-9970-9ffb77bb16db`, version 1, **approved**, `bootstrapped_from='golden:whispering-willows'`. Author `James Shi` in `spec.authors[]` (`author_id=6eeaded8-5200-44a4-a5f1-aa69a41ac470`). brandMd = warm/family-facing/non-institutional v1 (pending James's review — revise = version bump).
+- **Credentialed reviewer (B.2):** `byline_authorizations.id=de6be21f-9e8a-468f-a414-ad0143075e04` — **James Shi, "Senior Care Specialist", scope='client', placeholder=FALSE, active** (granted, not revoked, no expiry). `authorized_by=84789754-fda8-4d8d-a95d-92e7ef68a2de`. **This is the REAL reviewer that replaces the DR-037 placeholder** — production YMYL release is now governance-unblocked.
+- **A.006.1 (#79) MERGED:** `POST /api/review/release` is the route that records a `credentialed_releases` row from this authorization (passes `pilot:isPilot()` → prod refuses placeholders; this real auth is accepted).
+
+**YMYL credential note (James's call):** the credential is recorded as "Senior Care Specialist" per James's direction. The gate still independently requires authoritative citations (Alzheimer's Association/NIA) for every medical/dementia claim regardless of byline.
+
+### Still required to actually PUBLISH live (the env flip — `digital-seniority/sagemark-seo`)
+1. Deploy the merged `preview` code (incl. A.006.1) to the production deployment.
+2. Set on Vercel: `SUPABASE_URL`+`SUPABASE_SERVICE_ROLE_KEY`, `AI_GATEWAY_API_KEY`, `PUBLISH_ENABLED=1` (YMYL now legitimately publishable — real reviewer exists). `SOM_LIVE=1` for the SoM cron.
+3. Generate the first piece (brief → draft → gate) → James authorizes release via `/api/review/release` → publish.
