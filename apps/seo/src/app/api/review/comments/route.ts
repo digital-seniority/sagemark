@@ -45,6 +45,10 @@ import {
   type ReviewCommentDataAccess,
   type PinAnchor,
 } from "@/lib/review/resolve-token";
+import {
+  resolveReviewTokenAccess,
+  resolveReviewCommentAccess,
+} from "@/lib/review/resolve-review-access";
 import { COMMENT_THREAD_KINDS } from "@sagemark/schema-flywheel";
 
 export const runtime = "nodejs";
@@ -149,5 +153,13 @@ export async function handleReviewComment(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handleReviewComment(request);
+  // ACTIVATION (DR-026): resolve the live review token + comment seams BEHIND the
+  // service-role creds gate. With no creds set these return the NOT_WIRED defaults,
+  // so the token 404s before any insert (today's fail-closed default). The comment
+  // insert binds tenancy from the RESOLVED token tuple, never request input.
+  const [tokens, comments] = await Promise.all([
+    resolveReviewTokenAccess(),
+    resolveReviewCommentAccess(),
+  ]);
+  return handleReviewComment(request, { tokens, comments });
 }

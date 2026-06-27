@@ -49,6 +49,7 @@ import {
   type ReadOnlyDataAccess,
   type ContentPieceRow,
 } from "@/lib/content/context";
+import { resolveReadOnlyDataAccess } from "@/lib/content/resolve-data-access";
 import { sourcesForYmylGrounding } from "@/lib/content/serp-fetch";
 
 export const runtime = "nodejs";
@@ -212,5 +213,10 @@ export async function handleAudit(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return handleAudit(request);
+  // ACTIVATION (DR-026): resolve the live READ-ONLY view BEHIND the service-role
+  // creds gate. With no creds set this returns the fail-closed default (which
+  // throws "inject a read view") — UNCHANGED behavior. The view is structurally
+  // read-only (a Pick<> of three read methods) so audit can never mutate.
+  const data = await resolveReadOnlyDataAccess();
+  return handleAudit(request, { ...DEFAULT_DEPS, data });
 }

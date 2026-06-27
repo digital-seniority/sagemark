@@ -40,6 +40,7 @@ import {
   type ReviewPreviewTarget,
   type ReviewScope,
 } from "@/lib/review/resolve-token";
+import { resolveReviewTokenAccess } from "@/lib/review/resolve-review-access";
 import { ReviewPinCanvas } from "./PreviewClickHandler";
 import { SectionApprovalBeat } from "./SectionApprovalBeat";
 import { SerpPreview } from "./SerpPreview";
@@ -151,5 +152,11 @@ export default async function ReviewPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  return renderReviewPage(token);
+  // ACTIVATION (DR-026): resolve the live review-token seam BEHIND the service-role
+  // creds gate. With no creds set this returns NOT_WIRED_REVIEW_TOKEN_ACCESS, so
+  // EVERY token 404s (today's fail-closed default). The live adapter resolves a
+  // token to EXACTLY ONE tenancy tuple by the full SHA-256 hash, fail-closed on
+  // revoked/expired — the token boundary is unchanged.
+  const tokens = await resolveReviewTokenAccess();
+  return renderReviewPage(token, { tokens });
 }

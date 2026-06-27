@@ -88,6 +88,12 @@ export default defineConfig({
       // only, never publish). Tier-1, fully mocked (fake Gateway + fake adapters).
       "test/cron/**/*.test.ts",
       "test/metrics/**/*.test.ts",
+      // DR-026 ACTIVATION (this PR): the gated go-live wiring — the activation
+      // config gates (inert-by-default, publishEnabled OFF, DR-037 prod=>pilot:false
+      // => placeholder refused), the content data-access DI composition
+      // (NOT_WIRED default vs live-when-creds), and the live share_of_model store.
+      // Tier-1, fully mocked (no DB, no provider key).
+      "test/activation/**/*.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
