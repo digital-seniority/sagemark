@@ -60,7 +60,13 @@ export const maxDuration = 30;
 export interface PublishDeps {
   data: ContentDataAccess;
   resolveWorkspace: () => Promise<Workspace | null>;
-  /** Global publish kill switch (default reads CONTENT_PUBLISH_ENABLED). */
+  /**
+   * Global publish kill switch. SINGLE SOURCE OF TRUTH (audit-006 M3): delegates to
+   * the activation `publishEnabled()` — true ONLY when an explicit
+   * PUBLISH_ENABLED/CONTENT_PUBLISH_ENABLED flag is set AND service-role creds are
+   * present. (Previously a divergent `defaultPublishEnabled` read only
+   * CONTENT_PUBLISH_ENABLED and ignored the creds requirement.)
+   */
   publishEnabled: () => boolean;
   /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
   jwtSecret?: string;
@@ -68,14 +74,12 @@ export interface PublishDeps {
   bridgeNowMs?: () => number;
 }
 
-function defaultPublishEnabled(): boolean {
-  return process.env.CONTENT_PUBLISH_ENABLED === "1";
-}
-
 const DEFAULT_DEPS: PublishDeps = {
   data: NOT_WIRED_DATA_ACCESS,
   resolveWorkspace: getCurrentWorkspace,
-  publishEnabled: defaultPublishEnabled,
+  // audit-006 M3: ONE source of truth — the activation gate (explicit flag + creds),
+  // not the divergent CONTENT_PUBLISH_ENABLED-only read.
+  publishEnabled: () => activationPublishEnabled(),
 };
 
 function json(body: unknown, status: number): NextResponse {
@@ -284,10 +288,11 @@ export async function POST(request: Request): Promise<Response> {
   // PUBLISH_ENABLED flag is set AND service-role creds are present. This is the
   // global kill switch; canPublish + the DR-037 placeholder guard + the A.005.1
   // active-authorization predicate remain the authoritative barriers (unweakened).
+  // DEFAULT_DEPS.publishEnabled already delegates to the activation gate (M3 — one
+  // source of truth), so we only swap in the resolved live data access here.
   const deps: PublishDeps = {
     ...DEFAULT_DEPS,
     data,
-    publishEnabled: () => activationPublishEnabled(),
   };
   return handlePublish(request, deps);
 }
