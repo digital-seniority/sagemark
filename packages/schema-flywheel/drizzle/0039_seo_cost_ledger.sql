@@ -24,8 +24,14 @@
 --   3. `share_of_model`   — the AI-answer-engine citation-tracking table (the
 --      north-star share-of-model KPI). One row per (client_id, engine, query)
 --      citation check; `cited`/`position` roll up to a per-hub citation rate.
---      Engines in use: ChatGPT · Claude · Gemini (DR-038); `source_channel`
---      defaults to 'direct' (Gateway direct-query, DR-038).
+--      Engines in use: ChatGPT · Claude · Gemini (DR-038). `source_channel` is
+--      a free-text label carrying the HYBRID 3-channel model (DR-038 addendum):
+--      'direct-citation' (Claude + web-search → a REAL cited source),
+--      'direct-proxy' (a ChatGPT/Gemini model-API answer = a MENTION proxy,
+--      NEVER summed as a citation — reported as "API-answer mention rate"), and
+--      'vendor' (a contracted GEO-tracker, deferred). The column DEFAULT below is
+--      the legacy 'direct' sentinel kept for compatibility; the live store writes
+--      the hybrid labels.
 --
 -- ADDITIVE-ONLY + idempotent (`IF NOT EXISTS`). Touches ONLY the `public`
 -- schema. MUST NOT alter or drop any existing table, column, constraint, index,
@@ -128,8 +134,12 @@ ALTER TABLE public.seo_cost_run_budget ENABLE ROW LEVEL SECURITY;  -- no anon po
 -- ── share_of_model — AI-answer-engine citation tracking (north-star KPI) ──────
 -- One row per (client_id, engine, query) citation check. `cited` + `position`
 -- roll up to a per-hub citation rate (the share-of-model north star). `engine`
--- is free text (ChatGPT · Claude · Gemini per DR-038). `source_channel`
--- defaults to 'direct' (Gateway direct-query, DR-038). `parser_conf` records
+-- is free text (ChatGPT · Claude · Gemini per DR-038). `source_channel` is
+-- free-text carrying the HYBRID 3-channel model (DR-038 addendum):
+-- 'direct-citation' (a REAL cited source) | 'direct-proxy' (a model-API answer =
+-- a MENTION proxy, NEVER summed as a citation) | 'vendor' (GEO-tracker, deferred).
+-- The DEFAULT 'direct' below is a legacy sentinel; the live store writes the
+-- hybrid labels. `parser_conf` records
 -- the citation-parser's confidence; `audit_sampled` flags rows pulled for human
 -- audit. client_id FK → content_clients ON DELETE RESTRICT; piece_id FK →
 -- content_pieces ON DELETE SET NULL (per-hub rollup survives a piece delete as a
@@ -146,7 +156,7 @@ CREATE TABLE IF NOT EXISTS public.share_of_model (
   raw_response   text,
   parser_conf    numeric(4,3),
   audit_sampled  boolean NOT NULL DEFAULT false,
-  source_channel text NOT NULL DEFAULT 'direct',
+  source_channel text NOT NULL DEFAULT 'direct',  -- hybrid label (DR-038 addendum): direct-citation | direct-proxy (mention, NOT a citation) | vendor. DEFAULT 'direct' = legacy sentinel; live store writes hybrid labels.
   locale         text,
   device_profile text,
   captured_at    timestamptz NOT NULL DEFAULT now()
