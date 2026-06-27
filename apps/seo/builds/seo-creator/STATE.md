@@ -1,76 +1,178 @@
 # SEO Creator Build — Current State
 
-**Last updated:** — (bootstrap; Run #001 not yet started)
-**Current build phase:** Phase 0 — Foundations
-**Phase progress:** 0 / 23 engineering PRs merged
+**Last updated:** 2026-06-27 (**v1 BUILD COMPLETE** — Phase 0 + Phase 1 all merged; **P1.C.4 DoD CLOSED** with 30 real labeled `share_of_model` rows. DR-026 data-layer (read #66 / **write #67 MERGED** / **review #69 MERGED**), SoM #72, activation #74 all MERGED + INERT on preview. **0 open PRs.** **audit-006 done (no Critical, go-live-ready).** James-directed **audit+harden** block COMPLETE (Run #24 audit + Run #25 harden): **4 correctives built, judged APPROVED, OPEN + HELD FOR HUMAN MERGE** (A.006.x never auto-merge) — [#79](https://github.com/digital-seniority/sagemark/pull/79) A.006.1 (wires the credentialed-release route — the H1 go-live blocker), [#80](https://github.com/digital-seniority/sagemark/pull/80) A.006.2 (metering lint), [#81](https://github.com/digital-seniority/sagemark/pull/81) A.006.3 (cron config), [#82](https://github.com/digital-seniority/sagemark/pull/82) A.006.4 (SoM spec reconciliation). **Loop terminated honestly** (no further eligible engineering). Go-live + real reviewer + pilot workspace remain HUMAN-gated; Phase 2 (GA) is OUT OF v1 scope (prd.md:714).)
+**Current build phase:** **Phase 1 / v1 — COMPLETE** (12/12 mapped PRs merged + P1.C.4 DoD closed). **audit-006 CLEAR (no Critical; go-live-ready on integrity).** Trust gate: do NOT auto-start Phase 2 (GA, out of scope) — awaiting James for go-live (human-gated). Harden block in progress (A.006.x correctives).
+**Phase progress:** **21 / 23 mapped engineering PRs merged** — all 10 Phase-0 + **Phase 1: 11/12 merged** (P1.R.1 #31, P1.R.2 #34, P1.R.3 #47, P1.W.1 #32, P1.U.1 #35, P1.U.2 #37, P1.U.3 #39, P1.U.4 #41, P1.C.1 #50, **P1.C.2 #56, P1.C.3 #58**) · **only P1.C.4 (PR 021) remains** · +imagegen (#43/#45) (+6 correctives: C.020.1 #49, C.021.2 #52, C.022.3 #54, +A.005.2 #61 OPEN · +1 spike · 4 audit fixes · suite #24)
+**Runs since last audit:** **0** (audit-006 done 2026-06-27 — `audits/audit-006-2026-06-27.md`, build-completion, **no Critical, go-live-ready**; 1 High go-live blocker H1 + Mediums → A.006.x correctives; DR-040/DR-041 + `live-side-effect-idempotency` manifest check added).
+**Sibling build:** `@sagemark/imagegen` BUILT OUT — Stage 1 #43 + Stage 2 #45 (engine + generateHeroImage + Supabase persistence; 0035 applied to Sagemark + private bucket; [[DR-032]]). Pexels key provisioned.
+**Loop status:** **⏹ AUTO-LOOP ENDED (active:false) — Run #24/25 (audit+harden) terminal 2026-06-27.** James-directed 10h block: ran build-completion audit-006 (no Critical, go-live-ready) + built/judged/opened 4 correctives A.006.1–A.006.4 (all APPROVED, held for human merge). Terminated honestly at iteration 2 — no further dependency-eligible engineering (v1 complete; remainder human-gated/out-of-scope); no filler manufactured. _[prior: Run #022 terminal below]_ **⏹ Run #022 terminal.** Run #22 (James-directed `auto`, 6h budget from 2026-06-26T16:23Z): wired 4 structured judge checks into the manifest (process debt A.014.5 discharged), then a 3-agent floodgate batch → **C.020.1 #49 MERGED** (audit-004 F1 edit draft-guard; judge 5/5·5/5; CI green); **P1.C.1 #50 OPEN** held for human merge (High-risk public tenant-isolation review surface + new `0036` migration; judge security boundary APPROVED after a CI-wiring fix); **C.021.1 BLOCKED** (structural mis-scope — no live Drizzle adapter ([[DR-026]]) + no slug→generated_images linkage ([[DR-033]]); agent correctly refused to fabricate fail-open; → [[DR-035]]). **Terminal reason:** remaining mapped Phase-1 engineering (P1.C.2/3/4) blocked on NON-ENGINEERING (D6 credentialed reviewer; ≥3-engine share-of-model measurement) + C.021.1 blocked on a schema-tenancy prerequisite. **To resume:** (1) James merges #50 + applies `0036` to Sagemark Supabase; (2) land the schema-tenancy-lane live-Drizzle-adapter + asset-linkage PR (unblocks C.021.1 + P1.C.x); (3) provide the non-eng inputs (D6 reviewer, ≥3-engine SoM) for P1.C.2/3/4.
+
+**⟳ POST-RUN-22 FOLLOW-UP (James-directed, 2026-06-26):** **#1 DONE** — P1.C.1 **#50 MERGED** (`94cde1f`); the `0036` migration still needs applying to Sagemark Supabase (James — no service-role/DATABASE_URL in Claude's env). **#2 DONE** — C.021.1 re-scoped + built as **C.021.2 [#52](https://github.com/digital-seniority/sagemark/pull/52) OPEN** (slug asset-linkage + live image-resolver adapter; judge APPROVED 5/5·5/5; REQUIRES_HUMAN_MERGE; applies `0037` on merge). **#3 DONE (decisions)** — D6 reviewer = seeded placeholder for the pilot ([[DR-037]]); share-of-model = ChatGPT·Claude·Gemini via AI Gateway direct-query ([[DR-038]]). **P1.C.2/3/4 now SPEC-UNBLOCKED.** Remaining human inputs (no rush): a **real credentialed reviewer before any live YMYL publish** (go-live guard blocks the placeholder); the **per-client SoM prompt-set** (P1.C.4 prerequisite); apply `0036`+`0037` to Supabase. Remaining eng prerequisite: the **[[DR-013]] Gateway-only-metering corrective** before P1.C.3 (PR 020) cost ledger.
 
 ## Currently in flight
 
-_(none — bootstrap; first run will populate)_
+_(**0 open PRs.** The full live pipeline is MERGED + INERT on preview: DR-026 data-layer (#66/#67/#69), SoM subsystem (#72), gated activation wiring (#74 `533e751`). Merging changed NOTHING live — `activation.ts` defaults all gates OFF (publishEnabled off, pilot:false-in-prod, somLive off). **GO-LIVE is the env flip + prereqs in `apps/seo/builds/seo-creator/go-live-checklist.md`** (James): set `SUPABASE_*`/`AI_GATEWAY_API_KEY`/`SOM_LIVE`/`PUBLISH_ENABLED` on the Vercel deploy + provision a real credentialed reviewer (replacing the placeholder — DR-037 blocks YMYL publish against it) + a pilot workspace. Deferred (non-blocking): freshness cron (awaits piece-id in the public projection), GEO-tracker vendor upgrade, live-Sandbox Stage B/C. P1.C.4 DoD closes when real labeled SoM rows land.)_
 
-## Next up (dependencies satisfied)
+## Next up — JAMES: review/merge the 4 audit-006 correctives (A.006.x — built, judged APPROVED, held)
 
-- PR P0.W.1: PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)
-- PR P0.E.1: PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core
+- **[#79](https://github.com/digital-seniority/sagemark/pull/79) A.006.1 (HIGH — go-live functional blocker):** NEW `POST /api/review/release` wires `recordCredentialedRelease` (was uncallable) w/ `pilot:isPilot()` + folds M3 (publishEnabled single-source). Judge 5/5·5/5; seo build green; 656 tests. **Production-critical (publish/DR-037) — merge needed before go-live can publish.**
+- **[#80](https://github.com/digital-seniority/sagemark/pull/80) A.006.2 (MED):** `gate-path-lint` now covers `packages/core/src/ai/` metered call sites (som-direct-runner forceGateway). Judge 5/5·4/5.
+- **[#81](https://github.com/digital-seniority/sagemark/pull/81) A.006.3 (MED):** cron route `runtime`/`dynamic`/`maxDuration`. Judge 5/5·5/5.
+- **[#82](https://github.com/digital-seniority/sagemark/pull/82) A.006.4 (MED, docs):** SoM hybrid-channel reconciliation (RFC/PRD/0039/content.ts comments + adapter headers). Judge 5/5·5/5.
+- **DRs written:** [[DR-040]] (activation gate model), [[DR-041]] (live SoM ingest/DoD-close). Manifest check: `live-side-effect-idempotency`. **Queued DRs (when #79/#80 merge):** release-write-seam pattern + metered-lint closed-root convention (judge DR-NEEDED).
+- **HUMAN-GATED / OUT-OF-SCOPE (not buildable unattended):** go-live env flip (`go-live-checklist.md`); a REAL credentialed reviewer replacing the placeholder (A.006.1 builds the release path; the *identity* is human); pilot workspace; GEO-tracker vendor (SoM proxy→real-citation); live-Sandbox Stage B/C; **Phase 2/GA (out of v1 scope, prd.md:714).**
+
+## Active items (human / deployment)
+
+- **🚀 FULL PRODUCTION DEPLOY — DONE (2026-06-27).** Preview HEAD `75410d2` deployed to production (`dpl_GZGHKdJhoG2vd8tD9iinn2uW1m4j`, READY) → live at **https://sagemark-seo.vercel.app**. The full build is now live (was previously only the Stage-A scaffold `362620d8`, 70 commits behind). Verified: `/api/health` 200; `/api/review/release` 405-GET/400-POST (A.006.1 live + guarding). Production env on Vercel: `NEXT_PUBLIC_SUPABASE_URL`+`SUPABASE_SERVICE_ROLE_KEY`+`AI_GATEWAY_API_KEY`+`PUBLISH_ENABLED`+`SOM_LIVE` (all production-scoped). Live adapters ACTIVE, publish gate ARMED (real reviewer exists), SoM cron enabled. **Deployed via Vercel CLI** (`vercel deploy --prod`) — the project is NOT git-linked.
+  - **✅ CRON_SECRET — DONE (2026-06-27):** generated + set on Vercel (production+preview, encrypted) + production redeployed (`sagemark-pri00qt80`). Verified: `GET /api/cron/ingest-share-of-model` + `/api/cron/freshness-scan` now **401** unauthenticated (was 200). Vercel's scheduler auto-sends the Bearer on scheduled runs. Secret value stashed in the session scratchpad `.cron_secret` (gitignored) for manual triggers; canonical copy is the Vercel env.
+  - **⏳ GitHub link — NEEDS JAMES:** the Vercel GitHub App is NOT installed on the org (API link returns "Install GitHub App"). James must install **https://github.com/apps/vercel** on `digital-seniority` + grant the `sagemark` repo, then the project can be git-linked (production branch `preview`) for auto-deploy. Until then, releases are manual `vercel deploy --prod` from preview HEAD (the recipe works).
+- **Deploy Stage B/C — REMAINING (P0.W.2 live Tier-2/3).** Build the worker `Dockerfile` → Sandbox (snapshot, or the base-`node24` fallback path), provision it pointed at `sagemark-seo.vercel.app` with a per-run **bridge JWT** + the Gateway base URL, drive a real brief → assert serpFetch→runGate→persistPiece writes to Sagemark → teardown → state reloads, + the recycle/residue test. **Still needs:** the bridge-JWT signing secret configured on BOTH host + worker (new shared secret), the worker Gateway credential, and the Sandbox wiring. The Vercel token (Sandbox provisioning) is available.
+- ~~**DR-013 enforcement corrective**~~ **DONE** (C.022.3, #54 `a7f03b7`, judge 5/5·5/5): the gates now resolve via `resolveGatewayModel(GATE_MODEL, "host", { forceGateway: true })` (skips the direct-Anthropic BYOK branch even with `ANTHROPIC_API_KEY` set) + a build-failing `gate-path-lint` CI step over both gate files + negative tests. **P1.C.3's Gateway-only-metering prerequisite is cleared.**
+- **ALL migrations APPLIED (2026-06-26):** `0036` (comment_threads + review_tokens), `0037` (generated_images.slug), `0038` (byline_authorizations.placeholder), `0039` (seo_cost_ledger + seo_cost_run_budget + share_of_model) — applied to Sagemark Supabase via a Node `pg` script (James set `DATABASE_URL` in `.claude/settings.local.json`; gitignored). Verified each time: tables/columns/indexes present, **RLS enabled, no anon policy (fail-closed)**. See [[sagemark-supabase-migration-access]] memory for the recipe. **✅ PILOT WORKSPACE PROVISIONED (2026-06-27):** NOT the placeholder seed — a REAL reviewer. Whispering Willows pilot: `workspace_id=81815c0a-e001-4c74-bfe9-e48272d2b775`, `client_id=e84acf0f-16f9-4171-8ccb-80c2011c97ab`; voice_spec `fce3dcb8…` (approved, bootstrapped from golden, author James Shi `author_id=6eeaded8…`); **byline_authorizations `de6be21f…` = James Shi, "Senior Care Specialist", scope=client, placeholder=FALSE, active** (`authorized_by=84789754…`). See `go-live-checklist.md` §PILOT WORKSPACE PROVISIONED.
+- **✅ Go-live safety ([[DR-037]]) — SATISFIED:** A.006.1 (#79, MERGED) wires `recordCredentialedRelease` via `POST /api/review/release` passing `pilot: isPilot()` (prod forces false → placeholders refused). The real James-Shi authorization (placeholder=FALSE) is the accepted release authority. YMYL release is governance-unblocked; actual publish still gated on the Vercel env flip (`PUBLISH_ENABLED` + creds + deploy).
+- **Stale worktrees:** several merged-PR worktrees under `.claude/worktrees/` can be pruned (kaishi / `git worktree prune`).
+
+## Next up (auto-loop, unattended)
+
+- **Run #013 → P0.S.2** (PR 009 — voice-spec hard stop + fail-closed publish endpoint) — **NOW ELIGIBLE** (RFC dep PR 008 ✓ merged #26). canPublish reads `credentialed_releases` (never `client_signoffs`); byline server-resolved; revoked/expired authorization blocks. **Fold in:** A.011.6 (rename FSM `NOT_PUBLISH_VERDICT`→`VERDICT_NOT_PUBLISH` per §9.1) + A.011.7 (bind `evalRan` to a persisted `gate_results` row, promote DR-009 open bullet).
+- **Phase 1** opens after P0.S.2: P1.U.x (agent-ui), P1.R.x (render-geo), P1.W.1, P1.C.x (client-review) — many become dep-eligible.
+- **Opportunistic correctives (audit-002):** A.011.4 (agent-worker/emit tests), A.011.5 (no-console posture), A.011.8 (schema-flywheel test), A.011.13 (alg check), live-infra verification pass (Tier-3), wire `build:worker` → `apps/seo/dist/` (so the Dockerfile COPY resolves).
+
+## Active risks (audit-002 + Run #012 — High/Med; no Critical)
+
+### audit-005 (2026-06-26) — ALL HIGH RESOLVED (Run #23 unattended)
+- **✅ H1/H2 — RESOLVED:** A.005.1 [#63](https://github.com/digital-seniority/sagemark/pull/63) MERGED (`adab32d`) widened `PersistedAuthorization` (`granted_at`/`scope`) + scope-aware §11.5 predicate (fail-closed all degenerate inputs; read/write parity); A.005.3 [#64](https://github.com/digital-seniority/sagemark/pull/64) MERGED (`aa7bc47`) reconciled RFC/PRD to gate_results-as-projection ([[DR-039]]). **[[DR-025]] DISCHARGED** (obligation 3 done; table mandate superseded by DR-039).
+- **✅ H3/H4 — RESOLVED:** A.005.2 [#61](https://github.com/digital-seniority/sagemark/pull/61) MERGED (`463240e`) — real anon-isolation Tier-2 (now runs live + PASSES in CI, proving review_tokens/comment_threads anon-zero-rows) + `gate-path-lint` glob-discovery + `gate-metering-lint-coverage-complete` manifest check. (CI race "tuple concurrently updated" fixed: serialized node:test + dropped redundant turbo passthrough.)
+- **✅ M2 — RESOLVED:** A.005.3 mounted `CostLedgerPanel`/`ApprovalDebtPanel` (data-gated, degrade-safe) + smoke tests.
+- **Remaining (non-blocking):** **[Med] M1** — the live `recordCredentialedRelease` persistence now EXISTS (DR-026 write adapter #67, `insertCredentialedRelease`, inert) but is not yet route-activated; final wiring (with `pilot:false`) is the **activation** step (human gate). **[Med] M6 — RESOLVED:** `worktree-base-freshness` manifest structured-check added (formalizes DR-036; STEP-0.5 in every agent). **[Low] — RESOLVED:** `sse-relay.ts` gate_results comments fixed in #66. 
+- **DR-026 live data-layer — COMPLETE + MERGED, all judge 5/5, INERT (creds-gated; factory null w/o creds; activation #74 wired them into routes):** **READ #66 MERGED** (`4aaeeec`, 14 tenancy-scoped reads). **WRITE #67 MERGED** (`d65e33b`, 6 writes + 2 fail-closed; no gate/FSM bypass; DR-031 immutability). **REVIEW-token/comment #69 MERGED** (`f75c6bf`, the fail-closed token boundary + exposure-safe preview + comment insert). [audit-006 M5: the adapters ARE wired into routes (creds-gated/inert), despite stale "not wired" file headers — A.006.4 reconciles the headers.]
+- **⏭ ACTIVATION (the go-live human gate — NOT done autonomously):** after merging #67/#69, wire the live adapters into the routes (`/content/api/*`, `/review/[token]`, `/api/review/comments`, publish) behind the service-role-creds check, set `pilot:false` for production ([[DR-037]]), flip `publishEnabled` ON only after a REAL credentialed reviewer replaces the placeholder + the pilot workspace + seed exist. This activates the live pipeline against the real DB — review carefully.
+
+- **DISCHARGED:** ~~A.011.1~~ (allowlist single-source — closed in P0.W.5 #26, asserted by test), ~~A.011.2~~ (RFC path reconciled), ~~A.011.9~~ (Dockerfile COPY + context).
+- **[Med] A.011.6** FSM `NOT_PUBLISH_VERDICT` vs §9.1 `VERDICT_NOT_PUBLISH` → fold into P0.S.2. **[Med] A.011.7** `evalRan` from `verdict!==null` (DR-009) → fold into P0.S.2. **[Med] A.011.5** no-console dead directives. **[Med] A.011.8** schema-flywheel vacuous test.
+- **[Med] Run#012 cross-lane ([[DR-024]]):** the canonical Whispering Willows demo prose is itself gate-vetoed for em-dash density (all 10 golden pieces `VETO_BANNED_LEXICON`) — demo-content vs banned-lexicon-threshold decision (content ↔ gate lane).
+- **[Med] Run#012:** `apps/seo/dist/` worker build artifact has no producing build step — the Dockerfile is context-consistent but `docker build` fails at the `COPY apps/seo/dist/` layer until a `build:worker` compile is wired (pre-existing P0.W.2 follow-up).
+- **[Low] A.011.12** worker bridge-JWT can POST /content/api/publish (FSM release-gate is the real, sound barrier — defense-in-depth). **[Low] A.011.13** alg header unchecked (not exploitable).
+- Two draft structured checks for the judge: `tool-allowlist-single-source`, `worker-credential-publish-scope` (see audit-002).
+- **Go-live blockers (worker undeployed):** live-Sandbox Tier-2/3 (skill load, adversarial re-run, SSE e2e), expert golden-label certification (DR-022/DR-024), the dist build wiring.
 
 ## Blocked / awaiting input
 
-_(none — bootstrap)_
+_(none currently blocking — the P0.W.1 architecture gate is resolved.)_
 
-## Recent learnings (last 5 — older entries roll into run-log)
+- **PR P0.W.1 (PR 000 — capability-denial spike)** — **MERGED** at PR #3 (squash `54731a1`, 2026-06-25). Live Vercel Sandbox adversarial run CONFIRMED 4/4 PASS under the hardened profile; the two initial FAILs (egress MMDS, fs unconstrained shell) were remediated in-tree and re-verified. Decisions: **DR-010** (egress = networkPolicy + in-VM MMDS `iptables` block), **DR-011** (no-shell worker + workdir-scoped file tool).
+  - **Worker-lane consequence:** **P0.W.2 (worker host) is now reachable** and must implement the hardened profile (DR-010 + DR-011); the spike's `_harness.ts` carries the reference `hardenSandbox` / `readViaWorkdirTool` / boot-refusal contract. P0.W.3/W.4/W.5/P0.S.2/P1.W.1 follow.
+  - **Audit gate:** STATE flags an audit is due (4 runs since last; threshold 5) — the orchestrator runs it before the next work-doing run (P0.W.2).
 
-_(none — bootstrap)_
+## Audit-001 findings — disposition (all reachable ones now fixed; await human merge)
+
+- **[Critical] A.005.1 anon tenancy-map leak** → **PR #13** (content_clients RLS, judge 5/5·5/5). **MERGED** (user-approved).
+- **[High] A.005.2 governance spec contradiction** → **PR #14** (reconcile to D5/D9, judge 4/5·4/5). **MERGED** (user-approved). **Merge before P0.W.2.**
+- **[High] A.005.3 model spend escapes the Gateway** → **PR #15** (gates via `resolveGatewayModel`, judge 5/5·5/5; [[DR-013]]). **MERGED** (user-approved). ⚠️ open policy: host-context BYOK can bypass metering — decide Gateway-only-for-gates before the D4 ledger (PR 020).
+- **[High] A.005.4 no CI runs tests** → **PR #16** (GitHub Actions: typecheck/lint/test/build + node:test RLS + worker-env-lint, judge 4/5·5/5; [[DR-014]]). **MERGED** (user-approved).
+- **[CLOSED] A.005.5 RLS behaviorally unproven** → `DATABASE_URL` secret set (Sagemark) + the C.008.1 anon-`SET ROLE` fix (#18); CI RLS Tier-2 now runs **17/17 green** against the live DB (anon=published-only + zero on internal tables, cross-tenant, FK, CHECK all pass). Behavioral tenant isolation is proven in CI.
+- **Process (done):** event-log reconciled; judge `source-consumed-integration-build` check applied (`060b6b1`) — it gated A.005.1 + A.005.3.
+- **Mediums (logged, not yet built):** core barrel re-exports `server-only` (A.012.1), passive-voice regex drift (A.012.2), schema-flywheel in-package tests / dual runner, console.* logging, dual route namespace. Pick up opportunistically.
+
+## Recent learnings (last 5)
+
+-5. **Run #24/25 — build-completion audit + harden; honest terminal at v1 done.** With the v1 build complete (12/12 + P1.C.4 DoD) and no feature work eligible, the right unattended use was certification, not filler: audit-006 (5 auditors) returned **no Critical, go-live-ready**, surfacing 1 HIGH go-live FUNCTIONAL blocker — **the credentialed-release writer (`recordCredentialedRelease`/`isPilot`) had zero non-test callers, so after the env flip nothing could record a YMYL release** (audit-005 M1 re-confirmed at runtime). Built 4 correctives (A.006.1 new `/api/review/release` seam + M3; A.006.2 metering-lint ai/ coverage; A.006.3 cron config; A.006.4 SoM spec reconciliation), all judge-APPROVED first pass, all **held for human merge (A.006.x never auto-merge)**. Wrote DR-040 (activation gate model) + DR-041 (live-ingest method) + the `live-side-effect-idempotency` manifest check (the manual 30-row P1.C.4 ingest had no row-level idempotency key). Loop terminated honestly at iteration 2 of 10h — remainder is human-gated (go-live) or out-of-scope (Phase 2/GA). **Lesson: at a build-completion trust gate, the unattended block's value is an audit + the correctives it surfaces, not manufactured feature work.**
+-4. **Run #022 — the orchestrator can mis-scope; the agent's refusal-to-fabricate IS the safety net.** C.021.1 ("wire the live Drizzle `resolveReferencedAssets`/`resolveHeroAssets`") was unbuildable as scoped: there is NO live Drizzle data-access adapter in `apps/seo` (only `NOT_WIRED` throw-stubs + in-memory fixtures — the [[DR-026]] deferral) and NO slug→`generated_images` linkage (no `slug` column / asset-ref table — exactly [[DR-033]]'s "Revisit if"). The agent STOPPED rather than fuzzy-match slug→`storage_key` (which would reopen the DR-033 fail-open). Parked → [[DR-035]]; the current fail-closed behavior (image bodies unpublishable, hero→placeholder) is the safe state, no regression. Two clean wins shipped alongside: **C.020.1** (#49, audit-004 F1 edit draft-guard, judge 5/5·5/5, auto-merged) and **P1.C.1** (#50, tokenized client-review preview, judge security-boundary APPROVED, held for human merge). Also: process debt A.014.5 discharged (4 structured judge checks wired into the manifest before the schema PR). **[[DR-036]]: `isolation:"worktree"` agents branched from the stale orchestrator-compile commit (`95d5486`, 65 behind preview), not preview HEAD — all 3 self-corrected via ff-to-preview; add a STEP 0.5 ff-guard to the agent template.**
+-3. **Suite wired + golden harness (Run #012, P0.W.5 #26 `f52f4af`).** The real `seo-blog-writer` SKILL.md (vendored, DR-022) is loaded verbatim into the worker driving `/content/api/draft` (kernel-backed, identity-checked). Golden-set tripwire captures the real `@sagemark/core` kernel. **Judge caught a load-bearing defect:** the golden extraction normalized em-dashes BEFORE the gate, masking a real `VETO_BANNED_LEXICON` Stage-A veto — blinding the AI-slop drift class. Fixed: honest all-veto baseline ([[DR-024]]) + anti-masking meta-check ("no extraction transform changes a captured veto") + test-time clean-draft synthesis for Stage-B drift. Lesson: any "normalize input before the gate" step in a characterization harness must escalate to a DR. audit Highs A.011.1 (allowlist single-source), A.011.2 (RFC path), A.011.9 (Dockerfile COPY) discharged. Surfaced cross-lane tension: the canonical demo prose fails the org's own em-dash gate.
+-2. **Bridge-auth enforced end-to-end (Run #010, C.009.1 #22 `2128791`, judge 5/5·5/5).** DR-018 discharged: the per-run bridge JWT (minted host-side, sent by the worker) is now verified at EVERY `/content/api/*` host tool — not just convention. Pattern: `authenticateBridgeRequest()` ([[DR-021]]) branches on `Authorization: Bearer` → token-as-credential (tenancy from claims, **reject if body.clientId ≠ token.cl** → no scope-widening, fail-closed); no bearer → unchanged operator path. Verifier extracted to `@/lib/auth/bridge-token`. Standing table-driven regression fails CI until every host tool authenticates. Cross-tenant fully closed; intra-tenant same-window run replay is by-design within ~90s ([[DR-020]] — harden when a run registry exists per [[DR-017]]). **P0.W.5 blocker discovered:** its golden corpus needs HUMAN labels (non-engineering) and the suite SKILL.md files live at `~/.claude/skills/seo-copywriter/`, not in-repo — `load-suite.ts` needs a vendoring/packaging decision.
+-1. **Worker streaming + confinement landed (Run #009, PRs #19/#20).** The capability-denial profile is now a named module (`apps/seo/src/worker/capability-profile.ts`) that `sandbox-launch.ts` applies-and-proves with fail-closed boot; the SSE transport (`/api/run` → `sse-relay`) mints a per-run bridge JWT scoped to (workspace,client,run) and resumes from a PERSISTED truth snapshot on reconnect (never worker memory). Two seams to close: (a) [[DR-018]] — `verifyBridgeToken` exists + is tested but the PR-005 `/content/api/*` routes don't call it yet (worker→host bridge auth is convention-only until wired; release gate before a live tenant); (b) the W.3 `modelToolAllowlist` boot-refusal path isn't exercised through `launchSandbox`, and `agent-worker.ts` hardcodes the tool literals instead of importing `WORKER_ALLOWED_TOOLS` (the "no-drift" claim is paper-only). Both logged for a hardening pass. [[DR-019]]: a PR adding a new test dir may append-only to `vitest.config.ts` `include`.
+0. **P0.W.2 worker host built (Run #008, PR #17)** — the spike's proven controls (`hardenSandbox`/`networkPolicy`/`readViaWorkdirTool`/`assertControlsOrRefuse`) are now REAL in `apps/seo/src/worker/sandbox-launch.ts`; fail-closed boot, no-publish-tool model surface (`tools:[]` + 2-item allowlist), frozen per-run tenancy binding, host-side `session-store` (worker has no Supabase creds), worker model traffic via the Agent-SDK CLI env seam not `resolveGatewayModel` ([[DR-016]]), host lease-reclaim watchdog deferred ([[DR-017]]). 0034_worker_sessions migration added (needs applying to Sagemark). Tier-2/3 = live-Sandbox NEEDS-INPUT.
+0a. **Supabase project = Sagemark/`rilaycjkksfosnxvenzt` (2026-06-26)** [[DR-015]], redirected from DSN (now orphaned). It's in a DIFFERENT org (`dbukahlorzsipthfpwda`) — the MCP token was re-scoped to reach it. `0030`–`0033` applied; RLS verified behaviorally as anon. Public conn vars (`NEXT_PUBLIC_SUPABASE_URL`/publishable key/`SUPABASE_PROJECT_REF`) wired in `.claude/settings.local.json`; service-role + `DATABASE_URL` are human/CI secrets (point the CI `DATABASE_URL` secret at THIS project). The pre-existing `rls_auto_enable()` event trigger had anon/authenticated EXECUTE revoked. Future migrations apply here. Supersedes the old "No Supabase wired" + DSN notes.
+0b. **Audit-001 (Run #005): the moat is solid; the gaps are at the edges.** Deterministic kernel + host-side enforcement + tests are spec-faithful (zero hollow tests). Real risks: anon-RLS on `content_clients`, the Approach-B/D5-D9 spec contradiction, gates bypassing the metered Gateway, and NO CI executing any test. See [[audit-001]] + Active risks above.
+1. **P0.W.1 gate CONFIRMED via live run + remediation (2026-06-25).** Vercel Sandbox is a viable worker runtime *with a hardened profile*: (a) egress = SDK `networkPolicy` allowlist + in-VM `iptables` DROP on `169.254.0.0/16` (the Firecracker MMDS is hypervisor-local and token-gated — the egress policy can't refuse it; the iptables block can) [[DR-010]]; (b) fs = **no-shell worker** + a workdir-scoped file tool — a VM shell jail is unachievable (non-root run, permissive image, no chroot), so the control lives at the tool layer [[DR-011]]. All 4 probes PASS. The `vercel-sandbox` run user is uid 1000 but can `sudo` and the base image is permissive. PR 006 must build this profile.
+1. **Port sources live in `C:/Users/stone/Code/flywheel-main/`** (DR-001), not in sagemark. RFC `apps/trailhead`/`apps/agents` paths are relative to that sibling repo (read-only). Agents read them by absolute path.
+2. **Spike PRs that need real infra** can't complete unattended — deliver the artifact + an honest Tier-3 NEEDS-INPUT, hold the PR open, gate the dependent host PR. Don't fabricate verdicts.
+3. **`auth.ts` is a no-op placeholder seam** (DR-003) until a schema-tenancy PR fills it — studio surfaces are NOT actually access-controlled yet.
+4. **`@sagemark/core` is source-consumed** (DR-004); `build = tsc --noEmit`; the turbo "no output files" warning is expected.
+5. **AC#3 (worker-env CI lint "fails the build") is half-delivered** — the lint function exists + is unit-tested, but no CI/turbo step invokes it (no CI harness in the repo yet). Deferred to the worker-runtime lane / a CI-bootstrap PR. (escalation — see checkpoint)
 
 ## Files most recently touched
 
-_(none — bootstrap)_
+- `apps/seo/src/lib/auth/bridge-token.ts` (NEW) + `src/lib/content/context.ts` (authenticateBridgeRequest) + `src/app/content/api/{brief,draft,audit,publish}/route.ts` + `src/app/api/run/route.ts` (re-export) + `test/content/bridge-auth.test.ts` (C.009.1 / PR #22)
+- `apps/seo/src/worker/capability-profile.ts` (NEW) + `sandbox-launch.ts` (apply-and-prove profile) + `test/worker/{capability-denial,egress-allowlist}.test.ts` (P0.W.3 / PR #19)
+- `apps/seo/src/app/api/run/route.ts` + `src/lib/stream/{sse-relay,event-taxonomy}.ts` + `src/worker/emit.ts` + `test/stream/sse-relay.test.ts` + `vitest.config.ts` (P0.W.4 / PR #20)
+- `apps/seo/src/worker/{agent-worker,sandbox-launch,host-tool-bridge,session-store,entry}.ts` + `Dockerfile` (P0.W.2 / PR #17)
+- `packages/schema-flywheel/drizzle/0034_worker_sessions.sql` + drizzle schema
+- `packages/core/src/gates/{faithfulness,voice}-gate.ts` (PR #15 — Gateway seam)
+- `.github/workflows/ci.yml` (PR #16 — CI bootstrap)
+- `apps/seo/test/tenancy/rls-contract.test.ts` (C.008.1 — in-band SET ROLE anon fix)
 
 ## Phase 0 — Foundations PR map
 
 | ID | Title | Lane | Status | Run merged | Commit | PR |
 |---|---|---|---|---|---|---|
-| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | NOT_STARTED | — | — | — |
-| P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
-| P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
-| P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | NOT_STARTED | — | — | — |
-| P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | NOT_STARTED | — | — | — |
-| P0.E.4 | PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate) | engine-port | NOT_STARTED | — | — | — |
-| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | NOT_STARTED | — | — | — |
-| P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | NOT_STARTED | — | — | — |
-| P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | NOT_STARTED | — | — | — |
-| P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | NOT_STARTED | — | — | — |
-| P0.S.2 | PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out) | schema-tenancy | NOT_STARTED | — | — | — |
+| P0.W.1 | PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate) | worker-runtime | **MERGED** (live run CONFIRMED 4/4 PASS, hardened profile) | post-#004 | 54731a1 | [#3](https://github.com/digital-seniority/sagemark/pull/3) |
+| P0.E.1 | PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core | engine-port | MERGED | 1 | ec13f1c | [#2](https://github.com/digital-seniority/sagemark/pull/2) |
+| P0.E.2 | PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core | engine-port | MERGED | 2 | a74a1c7 | [#5](https://github.com/digital-seniority/sagemark/pull/5) |
+| P0.E.3 | PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core | engine-port | MERGED | 3 | d44d7e9 | [#8](https://github.com/digital-seniority/sagemark/pull/8) |
+| P0.S.1 | PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test | schema-tenancy | MERGED | 2 | 895507e | [#6](https://github.com/digital-seniority/sagemark/pull/6) |
+| P0.E.4 | PR 005 — /content/api/{brief,draft,audit,publish} kernel route contract | engine-port | MERGED | 4 | ca776f0 | [#11](https://github.com/digital-seniority/sagemark/pull/11) |
+| P0.W.2 | PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host) | worker-runtime | **MERGED** (judge 5/5·4/5; live Tier-2/3 deferred to deploy) | Run #008 | 68ad820 | [#17](https://github.com/digital-seniority/sagemark/pull/17) |
+| P0.W.3 | PR 006b — Worker runtime capability-denial profile + adversarial confinement tests | worker-runtime | **MERGED** (judge 4/5·4/5; Tier-2/3 live-Sandbox deferred) | Run #009 | 69650e4 | [#19](https://github.com/digital-seniority/sagemark/pull/19) |
+| P0.W.4 | PR 007 — Worker <-> apps/seo SSE transport (the streaming hop) | worker-runtime | **MERGED** (judge 4/5·4/5; TENANCY PASS; AC6 wiring deferred [[DR-018]]) | Run #009 | 96da4ef | [#20](https://github.com/digital-seniority/sagemark/pull/20) |
+| P0.W.5 | PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness | worker-runtime | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; honest golden baseline [[DR-024]]; A.011.1/2/9 folded) | Run #012 | f52f4af | [#26](https://github.com/digital-seniority/sagemark/pull/26) |
+| P0.S.2 | PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out) | schema-tenancy | **MERGED** (judge 5/5·5/5; YMYL byline-trust hole closed; A.011.6/A.011.7 folded; [[DR-025]]) | Run #013 | ea0fc0f | [#28](https://github.com/digital-seniority/sagemark/pull/28) |
 
 ## Phase 1 — Pilot PR map
 
 | ID | Title | Lane | Status | Run merged | Commit | PR |
 |---|---|---|---|---|---|---|
-| P1.U.1 | PR 010 — Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas) | agent-ui | NOT_STARTED | — | — | — |
-| P1.U.2 | PR 011 — Live token streaming into the center editor + Inspector gate scorecard | agent-ui | NOT_STARTED | — | — | — |
-| P1.U.3 | PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning | agent-ui | NOT_STARTED | — | — | — |
-| P1.U.4 | PR 013 — Version hub: switch / name / compare + undeletable named sign-off | agent-ui | NOT_STARTED | — | — | — |
-| P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | NOT_STARTED | — | — | — |
-| P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | NOT_STARTED | — | — | — |
-| P1.R.2 | PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions) | render-geo | NOT_STARTED | — | — | — |
-| P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | NOT_STARTED | — | — | — |
-| P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | NOT_STARTED | — | — | — |
-| P1.C.2 | PR 019 — "Request changes" -> agent edit loop routing + named sign-off + approval-debt KPI | client-review | NOT_STARTED | — | — | — |
-| P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | client-review | NOT_STARTED | — | — | — |
-| P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | client-review | NOT_STARTED | — | — | — |
+| P1.U.1 | PR 010 — Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas) | agent-ui | **MERGED** (judge 5/5·5/5 fit-for-shell; SSE-wired; DOM-test-runner gap flagged) | Run #016 | aef8fad | [#35](https://github.com/digital-seniority/sagemark/pull/35) |
+| P1.U.2 | PR 011 — Live token streaming into the center editor + Inspector gate scorecard | agent-ui | **MERGED** (judge 5/5·5/5; scorecard-honesty + jsdom runner [[DR-028]]/[[DR-029]]) | Run #017 | 92192bd | [#37](https://github.com/digital-seniority/sagemark/pull/37) |
+| P1.U.3 | PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning | agent-ui | **MERGED** (judge 5/5·5/5; ★Slice-1 close★; 409/429/403 guards; [[DR-030]]) | Run #018 | 13e409c | [#39](https://github.com/digital-seniority/sagemark/pull/39) |
+| P1.U.4 | PR 013 — Version hub: switch / name / compare + undeletable named sign-off | agent-ui | **MERGED** (judge 5/5·5/5; sign-off immutable at the seam; [[DR-031]] DB follow-up) | Run #019 | 63c65e5 | [#41](https://github.com/digital-seniority/sagemark/pull/41) |
+| P1.W.1 | PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain | worker-runtime | **MERGED** (judge 5/5·5/5; N=3 cap [[DR-027]]; A.014.1+A.014.5 folded) | Run #015 | 659b083 | [#32](https://github.com/digital-seniority/sagemark/pull/32) |
+| P1.R.1 | PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping | render-geo | **MERGED** (judge NEEDS-FIXES→fixed→5/5·5/5; escape-first [[DR-026]]) | Run #015 | 6258732 | [#31](https://github.com/digital-seniority/sagemark/pull/31) |
+| P1.R.2 | PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions) | render-geo | **MERGED** (judge 5/5·5/5; both-directions + failing-case proofs; ci.yml step) | Run #016 | 2232ee3 | [#34](https://github.com/digital-seniority/sagemark/pull/34) |
+| P1.R.3 | PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution | render-geo | **MERGED** (judge 5/5·5/5; +DR-033 publish image-license gate; hero async/Pexels-first/gated) | Run #021 | cd5a49c | [#47](https://github.com/digital-seniority/sagemark/pull/47) |
+| P1.C.1 | PR 018 — Tokenized client-review preview + pinned comments + section verbs | client-review | **MERGED** (judge security-boundary APPROVED; [[DR-034]]; ⚠ apply `0036` to Sagemark Supabase) | Run #022 | 94cde1f | [#50](https://github.com/digital-seniority/sagemark/pull/50) |
+| P1.C.2 | PR 019 — "Request changes" -> agent edit loop routing + named sign-off + approval-debt KPI | client-review | **MERGED** (judge 5/5·5/5; `0038` applied; pilot seed pending pilot-workspace ids; [[DR-037]]) | attended | cab8827 | [#56](https://github.com/digital-seniority/sagemark/pull/56) |
+| P1.C.3 | PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation | worker-runtime | **MERGED** (judge 5/5·5/5 after accumulator fix-pass; `0039` applied; rebased over #56; [[DR-038]]/[[DR-039]]) | attended | 9f58e62 | [#58](https://github.com/digital-seniority/sagemark/pull/58) |
+| P1.C.4 | PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed) | worker-runtime | **DoD-COMPLETE 2026-06-26** (#72 scaffolding + activation #74; query-bank #71; HYBRID [[DR-038]]). User provisioned the WW pilot client (`client_id=e84acf0f…`, `workspace_id=81815c0a…`); ran a 10-prompt×3-engine slice through the live path → **30 real labeled `share_of_model` rows persisted + verified** (Claude `direct-citation` 6/10 = real SoM; ChatGPT/Gemini `direct-proxy` 3/10 echo-only). Evidence: `som-live-smoke-evidence.md`. Deferred: GEO-tracker vendor for ChatGPT/AIO consumer-engine citations. | attended | — | [#72](https://github.com/digital-seniority/sagemark/pull/72) |
 
+## Drift-watch trend (5-run rolling)
+
+| Run | Process | Product | BLOCKED rate | Re-judge rate |
+|---|---|---|---|---|
+| 001 | 4.5 | 4.0 | 0% | 0% |
+| 002 | 5.0 | 4.5 | 0% | 0% |
+| 003 | 5.0 | 4.0 | 0% | 0% |
+| 004 | 5.0 | 4.75 | 0% | 0% |
+| 005 | audit | audit | — | — |
+| 006 | 4.5 | 4.5 | 0% | 0% |
+| 007 | 4.5 | 5.0 | 0% | 0% |
+| 008 | 5.0 | 4.0 | 0% | 0% |
+| 009 | 4.0 | 4.0 | 0% | 0% |
+| 010 | 5.0 | 5.0 | 0% | 0% |
+| 011 | audit | audit | — | — |
+| 012 | 5.0 | 5.0 | 0% | 100% (1/1, judge caught golden mask) |
+| 013 | 5.0 | 5.0 | 0% | 0% |
+| 014 | audit | audit | — | — |
+| 015 | 5.0 | 5.0 | 0% | 50% (1/2, judge caught JSON-LD bug) |
+| 016 | 5.0 | 5.0 | 0% | 0% |
+| 017 | 5.0 | 5.0 | 0% | 0% |
+| 018 | 5.0 | 5.0 | 0% | 0% |
+| 019 | 5.0 | 5.0 | 0% | 0% |
+| imagegen S1/S2 | 5.0 | 5.0 | 0% | 50% (1/2, CI storage-perms fix) |
+| 020 | audit | audit | — | — |
+| 021 | 5.0 | 5.0 | 0% | 0% |
+| 022 | 4.5 | 5.0 | 33% (1/3 BLOCKED — orchestrator mis-scope) | 50% (1/2 re-judge, judge caught CI-wiring gap on the leak-test) |
+| attended (C.021.2/C.022.3/P1.C.2/P1.C.3) | 5.0 | 5.0 | 0% | 33% (P1.C.3 accumulator-table fix-pass) |
+| audit-005 | audit | audit | — | — |
+| audit-006 | audit | audit | — | — |
 
 ## Status legend
 
-- `NOT_STARTED` — eligible only when deps are MERGED; not yet picked up
-- `IN_FLIGHT` — currently being implemented by an engineering agent
-- `INTERRUPTED` — partial work; needs continuation (worktree preserved)
-- `APPROVED_NOT_COMMITTED` — judge approved; commit pending
-- `PR_CREATED` — opened on GitHub, awaiting merge (auto or manual)
-- `MERGED` — landed on `preview`
-- `PREVIEW_FAILED` — commit attempt failed (PR-specific); worktree preserved for retry
-- `BLOCKED` — judge rejected after 3 passes; worktree preserved for human inspection
-- `REQUIRES_HUMAN_MERGE` — PR_CREATED but excluded from auto-merge (audit-finding, production-critical, etc.)
+- `NOT_STARTED` · `IN_FLIGHT` · `INTERRUPTED` · `APPROVED_NOT_COMMITTED` · `PR_CREATED` (open, awaiting merge) · `MERGED` · `PREVIEW_FAILED` · `BLOCKED` · `REQUIRES_HUMAN_MERGE`
 
 ---
 
-*Bootstrap state · Run #001 not yet started · 23 PRs total · all NOT_STARTED · ready for `/seo-creator-build` invocation*
+*Attended (post-Run-22) · Phase 1 (9/12 merged): P1.C.1 #50 + C.021.2 #52 + C.020.1 #49 + C.022.3 #54 all MERGED · **0036+0037 APPLIED (RLS fail-closed)** · **P1.C.2 [#56](https://github.com/digital-seniority/sagemark/pull/56) + P1.C.3 [#58](https://github.com/digital-seniority/sagemark/pull/58) OPEN for review** (judge 5/5·5/5; +`0038`/`0039`) · DR-034..038. **Next: James merges #56/#58 → apply `0038`/`0039`+pilot seed → AUDIT (overdue) → P1.C.4 (needs SoM prompt-set) = last Phase-1 PR.***
+
+> **Reachability note (post-Run #010):** C.009.1 (#22 `2128791`) MERGED — DR-018 discharged; the per-run bridge JWT is now enforced at every `/content/api/*` host tool (cross-tenant closed, fail-closed, standing CI regression). Worker host + SSE transport + capability-denial profile + bridge-auth are all on preview. **Audit is now DUE** (5 runs since last; threshold 5 — Phase 2 gate blocks the next work-doing run until `/seo-creator-build audit full` runs). **P0.W.5 (PR 008) is BLOCKED** on the human-labeled Whispering Willows golden corpus (non-engineering) + the suite-skill→Sandbox vendoring decision; P0.S.2 follows P0.W.5. Open hardening: W.3 boot-wiring/no-drift notes; [[DR-020]] intra-tenant run binding (when a run registry exists); Stage B/C live-Sandbox Tier-2/3. Next: run the audit, then unblock P0.W.5's golden corpus.

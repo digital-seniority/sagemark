@@ -1,34 +1,14 @@
-# RESUME — SEO Creator build (intra-run cursor)
+# RESUME cursor — audit+harden block TERMINAL
 
-> **What this file is.** The fine-grained cursor for an in-flight `/seo-creator-build auto` run.
-> STATE.md is the between-batch PR ledger; THIS file is the within-run pointer — rewritten by the
-> orchestrator at every phase transition. After a context compaction or session resume, re-read
-> this file first, then STATE.md, then continue. Never restart a run from scratch based on a
-> compaction summary — trust this cursor + STATE.md + `gh pr view` reality.
+**Status:** ⏹ ENDED (active:false) — Run #24/25 audit+harden complete 2026-06-27T04:31:13Z.
 
-**Status:** not started (no auto run has begun yet)
+## What happened
+v1 build complete → James-directed audit+harden block. Run #24 = build-completion audit-006 (no Critical, go-live-ready). Run #25 = 4 correctives A.006.1-A.006.4 built/judged(APPROVED)/opened, ALL HELD FOR HUMAN MERGE (#79-#82). DR-040/DR-041 + live-side-effect-idempotency check landed.
 
-## Cursor
+## There is nothing to resume
+No dependency-eligible engineering remains. Do NOT restart the loop. Next actions are the user's:
+- Review/merge #79 (A.006.1 — the go-live functional blocker), #80, #81, #82.
+- Go-live = human (env flip + real credentialed reviewer + pilot workspace; see go-live-checklist.md).
+- Phase 2/GA is OUT of v1 scope.
 
-| Field | Value |
-|---|---|
-| Run # | — |
-| Loop iteration | — / — |
-| Lock phase | — |
-| Updated at | — |
-
-## In-flight PRs (this batch)
-
-_None yet. When a run is active, each spawned PR appears here as `id → worktree → branch → status`._
-
-## Next action
-
-Begin a run: read STATE.md, run drift watch + preflight, plan the first batch.
-
-## Resume command
-
-```
-/seo-creator-build auto
-```
-
-To halt an active autonomous loop, delete `C:/Users/stone/Code/sagemark/apps/seo/builds/seo-creator/.auto-loop.json`.
+If the user wants more autonomous work, it would be a NEW directive (e.g. another audit, or scoping Phase 2) — not a continuation of this loop.

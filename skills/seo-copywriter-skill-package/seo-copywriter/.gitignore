@@ -1,0 +1,6 @@
+# Never commit secrets — keep your Pexels key local.
+.env.local
+.env*.local
+
+node_modules/
+.DS_Store

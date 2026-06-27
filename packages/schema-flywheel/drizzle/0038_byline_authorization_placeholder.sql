@@ -1,0 +1,48 @@
+-- 0038_byline_authorization_placeholder.sql — DR-037 go-live guard column.
+--
+-- Adds a `placeholder` boolean to `byline_authorizations` so the seeded PILOT
+-- placeholder reviewer authorization ("Pending Clinical Reviewer", RN — DR-037)
+-- can be RECOGNIZED and REFUSED as a real release authority in any non-pilot /
+-- production context. A real credentialed-reviewer authorization carries
+-- `placeholder = false` (the column default); only the pilot seed row sets it
+-- true. `apps/seo/src/lib/review/signoff.ts` reads this flag (via the
+-- `PersistedAuthorization.placeholder` projection): when a `credentialed_releases`
+-- write is attempted in production against a placeholder authorization, the write
+-- is refused (no release written, publish stays blocked) — the byline must resolve
+-- to a real credentialed person before any production YMYL publish.
+--
+-- WHY A COLUMN (not only a sentinel name): the name sentinel ("Pending Clinical
+-- Reviewer") is a defense-in-depth fallback the writer also honors, but a typed
+-- boolean is the authoritative, rename-proof marker. Both signals block.
+--
+-- ADDITIVE-ONLY + idempotent (`ADD COLUMN IF NOT EXISTS`). Touches ONLY the
+-- `public` schema. MUST NOT alter or drop any existing table, column, constraint,
+-- index, or policy. Follows the exact style of 0037_generated_image_slug.
+--
+-- DEFAULT FALSE / NOT NULL: every existing (real) authorization row is backfilled
+-- to `false` by the default — a real authorization is never a placeholder. The
+-- NOT NULL + DEFAULT false is safe on a small table; the column is set true ONLY
+-- by the SEPARATE pilot seed SQL (drizzle/seed/0038_pilot_placeholder_reviewer.sql),
+-- which is applied out-of-band by a human into the PILOT workspace only — it is
+-- NOT applied inside this schema migration.
+--
+-- MIGRATION-ROLE NOTE (migration-runs-on-live-pooled-role): writes ONLY the
+-- `public` schema; uses ONLY `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. NO event
+-- trigger, NO SET ROLE, NO GRANT, NO ALTER OWNER, NO superuser-only construct. The
+-- live POOLED migration role can execute every statement below. (The
+-- `rls_auto_enable()` event trigger — DR-015 — does not re-fire on ADD COLUMN; RLS
+-- on byline_authorizations is already enabled by 0032 and is untouched here.)
+--
+-- Source-of-truth Drizzle definition: src/content.ts
+-- (bylineAuthorizations.placeholder). Companion tests:
+-- apps/seo/test/review/route-to-edit.test.ts (Tier-1: the placeholder-in-
+-- production refusal + the active-authorization fail-closed write).
+--
+-- ROLLBACK (down) — additive, so the down is:
+--   ALTER TABLE public.byline_authorizations DROP COLUMN IF EXISTS placeholder;
+-- Reverting the column makes the writer fall back to the name-sentinel check
+-- alone (still fail-closed for the recognizable placeholder name) — never
+-- fail-open.
+
+ALTER TABLE public.byline_authorizations
+  ADD COLUMN IF NOT EXISTS placeholder boolean NOT NULL DEFAULT false;

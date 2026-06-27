@@ -5,33 +5,30 @@
   "anchors": [
     {
       "path": "plans/seo-creator/flywheel/prd.md",
-      "build_phase": "Phase 0 — Foundations",
+      "build_phase": "Phase 0 \u00e2\u20ac\u201d Foundations",
       "hash_algo": "sha256",
-      "current_hash": "4dd82dfa9c9e72af4b26b1880d69e041a7e1e932",
-      "last_updated_run": null,
-      "last_updated_at": "2026-06-25T17:30:00-04:00",
-      "assertions": [
-      ]
+      "current_hash": "9170c3468056a81cd48c2b8e5f4fe8850e16731b",
+      "last_updated_run": 23,
+      "last_updated_at": "2026-06-26T20:55:00Z",
+      "assertions": []
     },
     {
       "path": "plans/seo-creator/flywheel/engineering-rfc.md",
-      "build_phase": "Phase 0 — Foundations",
+      "build_phase": "Phase 0 \u00e2\u20ac\u201d Foundations",
       "hash_algo": "sha256",
-      "current_hash": "16b799f895c74743eba162b6cfefe500ef7c32ef",
-      "last_updated_run": null,
-      "last_updated_at": "2026-06-25T17:30:00-04:00",
-      "assertions": [
-      ]
+      "current_hash": "2e929ea1ca76b91df95e5e2996497cff63d8870c",
+      "last_updated_run": 23,
+      "last_updated_at": "2026-06-26T20:55:00Z",
+      "assertions": []
     },
     {
       "path": "plans/seo-creator/DECISIONS.md",
-      "build_phase": "Phase 0 — Foundations",
+      "build_phase": "Phase 0 \u00e2\u20ac\u201d Foundations",
       "hash_algo": "sha256",
       "current_hash": "5188f9f1bcd3c88fa0491a2cb770bf396f2cd218",
-      "last_updated_run": null,
-      "last_updated_at": "2026-06-25T17:30:00-04:00",
-      "assertions": [
-      ]
+      "last_updated_run": 4,
+      "last_updated_at": "2026-06-25T20:50:00Z",
+      "assertions": []
     }
   ]
 }

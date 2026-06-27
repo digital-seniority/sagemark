@@ -1,0 +1,25 @@
+{
+  "name": "checklist",
+  "htmlFile": "checklist.html",
+  "clusterRole": "checklist",
+  "funnelStage": "decision",
+  "keyword": "memory care tour checklist",
+  "isYmyl": true,
+  "slug": "checklist",
+  "title": "Memory Care Tour Checklist",
+  "body": "Print or save as PDF\nFamily tour checklist\nMemory Care Tour Checklist\nWhispering Willows Memory Care\nMount Vernon, WA · (360) 208-7555\nCommunity visited: ______________________\nBring this page to every community you tour. Ask the same questions at each, jot a quick note, and compare them side by side. There are no wrong questions — a good community welcomes all of them.\nThe 12 questions to ask\n1. What is your staff-to-resident ratio — day and overnight?\n2. How are staff trained specifically in dementia care, and how often?\n3. What is your staff turnover, and how long have caregivers been here?\n4. How do you keep residents safe from wandering and falls?\n5. How do you build a personalized care plan, and how often is it updated?\n6. Can my parent stay as the disease progresses (age in place)?\n7. What does a typical day look like?\n8. How is dining handled for someone with dementia?\n9. How do you coordinate medical care and medications?\n10. How — and how often — will you communicate with our family?\n11. How do you handle a difficult day without over-relying on medication?\n12. What are all the costs, and what would trigger a price increase?\nTrust what you observe — green flags vs. red flags\n✓ Green flags ✗ Red flags\nResidents look engaged, clean, and cared for Residents parked unattended for long stretches\nStaff greet residents warmly, by name Staff who can't tell you much about residents\nA calm, home-like atmosphere; pleasant smell Strong odors, tension, an institutional feel\nSecured but not a lockdown; safe outdoor space Either unsafe, or so locked-down it feels like confinement\nTransparent about pricing and what raises it Vague on staffing, training, or true cost\nWelcomes your questions and a second visit Pressure to sign quickly\nBefore the tour — 10 early warning signs of dementia to discuss\nIf several of these are happening and don't resolve, talk to a doctor (some causes are treatable). Source: Alzheimer's Association.\nMemory loss that disrupts daily life\nTrouble planning or solving problems\nDifficulty completing familiar tasks\nConfusion with time or place\nTrouble with visual images & spatial relationships\nNew problems with words\nMisplacing things, can't retrace steps\nDecreased or poor judgment\nWithdrawal from work or social activities\nChanges in mood and personality\n✦ Two visits beat one\nWhenever you can, visit twice — and make one stop unannounced or at mealtime. The truest picture of a community is the ordinary day you weren't expected to see.\nEducational checklist — not a substitute for professional medical or financial advice. Every family's needs differ; tour and verify in person. © 2026 Whispering Willows Memory Care · (360) 208-7555 · 2311 E Division St, Mount Vernon, WA 98274\nPrint or save as PDF\n← Read the full guide to choosing a community",
+  "faqData": [],
+  "expectedStageAClean": false,
+  "expectedVerdict": "REVISE",
+  "expectedScore": null,
+  "expectedDimensions": [],
+  "expectedFailureCodes": [
+    "VETO_BANNED_LEXICON"
+  ],
+  "provenance": {
+    "capturedFrom": "@sagemark/core runSeoGate",
+    "deterministicScorers": "real",
+    "llmGates": "baseline-injected (faithfulness=FAITHFUL/100, voice=PASS)",
+    "certification": "NEEDS-INPUT (expert sign-off; does not block the regression tripwire)"
+  }
+}

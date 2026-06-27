@@ -77,7 +77,7 @@
   "lanes": [
     {
       "name": "engine-port",
-      "definition": "Port the deterministic content kernel (scorers, faithfulness/voice gates, seo-gate, lifecycle-fsm, content-store) from flywheel-main origin/preview into @sagemark/core + apps/seo, verbatim — no reinvention, no markdown drift.",
+      "definition": "Port the deterministic content kernel (scorers, faithfulness/voice gates, seo-gate, lifecycle-fsm, content-store) from flywheel-main origin/preview into @sagemark/core + apps/seo, verbatim \u2014 no reinvention, no markdown drift.",
       "write_scope_paths": [
         "apps/seo/**",
         "apps/seo/package.json",
@@ -357,9 +357,9 @@
   "pr_map": [
     {
       "id": "P0.W.1",
-      "title": "PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
+      "title": "PR 000 \u2014 Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
       "lane": "worker-runtime",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [],
       "write_scope": [
         "apps/seo/spike/capability-enforcement/egress-probe.ts",
@@ -372,7 +372,7 @@
         "Each of the four controls (egress allowlist, env scrub, constrained shell/file, boot-refusal) is exercised by a real adversarial run on Vercel Sandbox (not a mock) and its pass/fail recorded in RESULTS.md.",
         "If all controls are enforceable, RESULTS.md records \"Vercel Sandbox confirmed\" and PR 006/006b proceed as written.",
         "If any control is unenforceable, RESULTS.md records the specific failure and the adopted fallback runtime (egress proxy / isolated container service / no-shell-capable Agent-SDK worker in v1), and PR 006/006b are re-scoped against that fallback before the worker is built.",
-        "The decision is made before PR 006 (the worker host) merges — this PR is an explicit architecture gate, not a parallel track."
+        "The decision is made before PR 006 (the worker host) merges \u2014 this PR is an explicit architecture gate, not a parallel track."
       ],
       "test_plan": {
         "tier_1": "The four probe scripts run locally against a Sandbox dev target.",
@@ -390,9 +390,9 @@
     },
     {
       "id": "P0.E.1",
-      "title": "PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core",
+      "title": "PR 001 \u2014 Scaffold apps/seo + port the provider seam into @sagemark/core",
       "lane": "engine-port",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [],
       "write_scope": [
         "apps/seo/package.json",
@@ -407,8 +407,8 @@
       ],
       "acceptance_criteria": [
         "pnpm --filter @sagemark/seo build and pnpm --filter @sagemark/core build both succeed via turbo.",
-        "Worker invariant — all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
-        "CI assertion — a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
+        "Worker invariant \u2014 all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
+        "CI assertion \u2014 a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
         "CostAccountant.reserve() throws CostCapExceededError once the per-run USD ceiling is exceeded (unit test).",
         "Model ids re-baselined off claude-sonnet-4.5 to claude-sonnet-4-6 (drafter) / claude-haiku-4-5 (verifier) / claude-opus-4-7 (judge); budget_tokens dropped for 4.6+/Opus."
       ],
@@ -428,9 +428,9 @@
     },
     {
       "id": "P0.E.2",
-      "title": "PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core",
+      "title": "PR 002 \u2014 Port the scorer library + faithfulness/voice gates into @sagemark/core",
       "lane": "engine-port",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.E.1"
       ],
@@ -471,9 +471,9 @@
     },
     {
       "id": "P0.E.3",
-      "title": "PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core",
+      "title": "PR 003 \u2014 Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core",
       "lane": "engine-port",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.E.2"
       ],
@@ -487,10 +487,10 @@
         "packages/core/src/index.ts"
       ],
       "acceptance_criteria": [
-        "Stage-A first veto short-circuits to REJECT/REVISE with score=null and Stage-B is never computed (test per veto code: VETO_BROKEN_CHUNK, VETO_UNSOURCED_STAT, VETO_KEYWORD_STUFF, VETO_YMYL_MISCLASSIFIED, VETO_YMYL_NO_BYLINE, VETO_THIN_CONTENT, VETO_BANNED_LEXICON, VETO_VOICE_FAIL, VETO_EVAL_FAILED). The Stage-A set has NO VETO_YMYL_NO_REVIEW — the credentialed-reviewer release is enforced separately in canPublish() on review->approved, not as a Stage-A veto.",
+        "Stage-A first veto short-circuits to REJECT/REVISE with score=null and Stage-B is never computed (test per veto code: VETO_BROKEN_CHUNK, VETO_UNSOURCED_STAT, VETO_KEYWORD_STUFF, VETO_YMYL_MISCLASSIFIED, VETO_YMYL_NO_BYLINE, VETO_THIN_CONTENT, VETO_BANNED_LEXICON, VETO_VOICE_FAIL, VETO_EVAL_FAILED). The Stage-A set has NO VETO_YMYL_NO_REVIEW \u2014 the credentialed-reviewer release is enforced separately in canPublish() on review->approved, not as a Stage-A veto.",
         "VETO_YMYL_MISCLASSIFIED fires when the ymylSignals detector finds medical-claim signals in a body whose is_ymyl=false (the YMYL false-negative guard).",
-        "STAGE_B_WEIGHTS sum to exactly 1.0 and faithfulness is strictly the max weight (0.20) — asserted in a unit test.",
-        "canPublish() returns true only when verdict==='PUBLISH' && evalRan===true && humanRelease===true && (!is_ymyl || namedCredentialedAuthor && citations); a skipped/thrown eval blocks (test). humanRelease is satisfied only by a credentialed_release, never a client_signoff — a unit test asserts a client_signoff-shaped input is rejected as NO_HUMAN_RELEASE.",
+        "STAGE_B_WEIGHTS sum to exactly 1.0 and faithfulness is strictly the max weight (0.20) \u2014 asserted in a unit test.",
+        "canPublish() returns true only when verdict==='PUBLISH' && evalRan===true && humanRelease===true && (!is_ymyl || namedCredentialedAuthor && citations); a skipped/thrown eval blocks (test). humanRelease is satisfied only by a credentialed_release, never a client_signoff \u2014 a unit test asserts a client_signoff-shaped input is rejected as NO_HUMAN_RELEASE.",
         "FSM rejects illegal edges with stable codes (ILLEGAL_EDGE, EVAL_DID_NOT_RUN, NO_HUMAN_RELEASE, YMYL_NO_BYLINE), never prose."
       ],
       "test_plan": {
@@ -509,9 +509,9 @@
     },
     {
       "id": "P0.S.1",
-      "title": "PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test",
+      "title": "PR 004 \u2014 Supabase tenancy schema + release/signoff split + RLS + CI contract test",
       "lane": "schema-tenancy",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.E.1"
       ],
@@ -546,9 +546,9 @@
     },
     {
       "id": "P0.E.4",
-      "title": "PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate)",
+      "title": "PR 005 \u2014 Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate)",
       "lane": "engine-port",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.E.3",
         "P0.S.1"
@@ -565,9 +565,9 @@
       "acceptance_criteria": [
         "/content/api/audit (the runScorers/runGate path) is read-only: it returns a verdict + Stage-A/Stage-B detail but cannot mutate status; a test asserts no DB write occurs.",
         "/content/api/draft rejects any payload whose workspace_id/client_id does not match the bound request context (403), and refuses creation when the client has no approved_at voice spec (hard stop).",
-        "Kernel-host-unreachable is a hard, non-silent failure: a suite step that cannot reach a /content/api/* route surfaces a clear 'kernel host unreachable' error (naming the route + base URL) and stops — it never fabricates a brief/draft, never skips the gate, never silently no-ops (test).",
+        "Kernel-host-unreachable is a hard, non-silent failure: a suite step that cannot reach a /content/api/* route surfaces a clear 'kernel host unreachable' error (naming the route + base URL) and stops \u2014 it never fabricates a brief/draft, never skips the gate, never silently no-ops (test).",
         "/content/api/brief blocks private/loopback/link-local IPs and non-http(s) schemes (SSRF test) and caps fetched content; fetched page text is treated as untrusted (never executed, never re-injected as a tool result verbatim into a privileged path).",
-        "Source-quality layer: each brief.sources entry captures canonical URL + domain + fetched-at + an authority class — (a) medical/statistical authority, (b) client-fact authority (voice_specs.attributionSources[]), or (c) low-authority/unknown; robots.txt/ToS honored and near-duplicate/spam snippets filtered. A test asserts the class is assigned (a plain attributionSources[] entry classifies as (b), not (a)) and that duplicates are dropped.",
+        "Source-quality layer: each brief.sources entry captures canonical URL + domain + fetched-at + an authority class \u2014 (a) medical/statistical authority, (b) client-fact authority (voice_specs.attributionSources[]), or (c) low-authority/unknown; robots.txt/ToS honored and near-duplicate/spam snippets filtered. A test asserts the class is assigned (a plain attributionSources[] entry classifies as (b), not (a)) and that duplicates are dropped.",
         "Neither a low-quality scraped DDG snippet NOR a client attributionSources[] entry can, by itself, satisfy a medical claim's sourcing: for an is_ymyl piece, a numeric/medical claim grounded only in a class-(b) or class-(c) source is treated as unsourced and does NOT clear VETO_UNSOURCED_STAT; only a class-(a) medical/statistical authority satisfies it (two tests assert the veto still fires; a class-(b) source still validly grounds a client-specific fact).",
         "Every /content/api/* call is keyed to exactly one (workspace_id, client_id); a cross-tenant call returns zero rows / 403.",
         "Each route's request/response JSON schema carries a contract version; a contract-version test asserts the worker (suite skills) and host agree on the schema version and fails the build on a mismatch."
@@ -588,9 +588,9 @@
     },
     {
       "id": "P0.W.2",
-      "title": "PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host)",
+      "title": "PR 006 \u2014 Agent-SDK worker on Vercel Sandbox (the autonomous loop host)",
       "lane": "worker-runtime",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.E.4",
         "P0.W.1"
@@ -604,7 +604,7 @@
         "apps/seo/test/worker/session-store.test.ts"
       ],
       "acceptance_criteria": [
-        "A Sandbox microVM provisions, runs the loop with the existing seo-blog-writer suite skill loaded (driving the /content/api/draft route — the thinnest-slice single-drafter path; the full chain wires in PR 014), and tears down; the run's session/agent state is fully reconstructable from Supabase after teardown (test reloads a persisted run).",
+        "A Sandbox microVM provisions, runs the loop with the existing seo-blog-writer suite skill loaded (driving the /content/api/draft route \u2014 the thinnest-slice single-drafter path; the full chain wires in PR 014), and tears down; the run's session/agent state is fully reconstructable from Supabase after teardown (test reloads a persisted run).",
         "The worker's only mutation path is the host persistPiece tool; the Sandbox has no Supabase write credentials of its own (verified by attempting a direct write and asserting it fails).",
         "A worker run keyed to client A cannot call host tools bound to client B (the bearer token scopes one (workspace_id, client_id, run_id)).",
         "A wedged/timed-out Sandbox emits a terminal error event and releases its lease within the configured ceiling (no indefinite zombie microVM).",
@@ -627,9 +627,9 @@
     },
     {
       "id": "P0.W.3",
-      "title": "PR 006b — Worker runtime capability-denial profile + adversarial confinement tests",
+      "title": "PR 006b \u2014 Worker runtime capability-denial profile + adversarial confinement tests",
       "lane": "worker-runtime",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.W.2",
         "P0.W.1"
@@ -642,9 +642,9 @@
       ],
       "acceptance_criteria": [
         "Network egress allowlist: the worker can reach only the Claude API/Gateway endpoint(s) and the apps/seo host-tool bridge URL; a direct connection to any other host (incl. 169.254.169.254 cloud metadata, a private range, or an arbitrary public host) is refused at the network layer, not just by tool absence. A test drives a curl/fetch from inside the worker to a non-allowlisted host and asserts it fails.",
-        "No ambient secrets in the worker env: the worker env contains no Supabase service-role key, no provider API key, and no cloud credentials — only the per-run bridge JWT (scoped (workspace_id, client_id, run_id), expiring at the run-budget ceiling). A test enumerates the worker process env and asserts no secret-shaped value is present beyond the run JWT.",
+        "No ambient secrets in the worker env: the worker env contains no Supabase service-role key, no provider API key, and no cloud credentials \u2014 only the per-run bridge JWT (scoped (workspace_id, client_id, run_id), expiring at the run-budget ceiling). A test enumerates the worker process env and asserts no secret-shaped value is present beyond the run JWT.",
         "Shell/file tools disabled or constrained: the claude subprocess's general-purpose Bash/file/web tools are disabled or constrained to the ephemeral working dir; the FS mount policy exposes only that working dir. A test asserts a tool-call to read outside the working dir or to a sibling run's path fails.",
-        "Adversarial brief/prompt suite — all four attacks fail: a malicious brief and a malicious fetched-source string that instruct the agent to (a) raw-curl an external host, (b) dump environment variables, (c) read another run's working-dir files, and (d) write Supabase/the Claude API directly (bypassing persistPiece/the Gateway) are each blocked; the run continues to completion or terminates cleanly, and no attack succeeds. persistPiece and runGate remain the worker's only state-touching paths.",
+        "Adversarial brief/prompt suite \u2014 all four attacks fail: a malicious brief and a malicious fetched-source string that instruct the agent to (a) raw-curl an external host, (b) dump environment variables, (c) read another run's working-dir files, and (d) write Supabase/the Claude API directly (bypassing persistPiece/the Gateway) are each blocked; the run continues to completion or terminates cleanly, and no attack succeeds. persistPiece and runGate remain the worker's only state-touching paths.",
         "Fail-closed bootstrap: if any capability control fails to apply, sandbox-launch refuses to start the loop rather than running with a weaker profile."
       ],
       "test_plan": {
@@ -663,9 +663,9 @@
     },
     {
       "id": "P0.W.4",
-      "title": "PR 007 — Worker <-> apps/seo SSE transport (the streaming hop)",
+      "title": "PR 007 \u2014 Worker <-> apps/seo SSE transport (the streaming hop)",
       "lane": "worker-runtime",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.W.2"
       ],
@@ -681,7 +681,7 @@
         "Tool-use events arrive as stable taxonomy-coded rows (serpFetch, runFaithfulnessGate, runGate.stageA, runGate.stageB), never raw model prose re-piped into the loop.",
         "CostAccountant.reserve() runs pre-flight; a request over the per-run cap returns a cost error before any worker dispatch.",
         "A worker-side error surfaces as a terminal SSE error event with a stable code, not a hung stream (heartbeat/timeout enforced).",
-        "On a last_event_id reconnect, the relay re-reads the persisted content_pieces + gate_results rows as the truth snapshot and resumes streaming only the deltas after the cursor — never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.",
+        "On a last_event_id reconnect, the relay re-reads the persisted content_pieces + gate_results rows as the truth snapshot and resumes streaming only the deltas after the cursor \u2014 never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.",
         "The worker->host bridge token is a per-run JWT minted by /api/run, scoped to exactly (workspace_id, client_id, run_id) and expiring at the run-budget ceiling (~90s); a test asserts an expired or cross-run token is rejected by every host tool."
       ],
       "test_plan": {
@@ -700,9 +700,9 @@
     },
     {
       "id": "P0.W.5",
-      "title": "PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness",
+      "title": "PR 008 \u2014 Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness",
       "lane": "worker-runtime",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.W.4"
       ],
@@ -721,7 +721,7 @@
         "Generating against the golden brief reproduces the expected Stage-A clean/veto for each golden piece (within the documented tolerance band on Stage-B dimensions).",
         "gate-spec.ts enumerates every Stage-A veto code and the Stage-B verdict bands (PUBLISH>=85 / REVIEW / REVISE / REJECT).",
         "A deliberately weakened skill-config/model variant regresses below tolerance and the harness fails (proving the tripwire catches methodology drift).",
-        "Gate-adjudication protocol (PRD §4.4): a disputed gate result is recorded as a labeled {veto_code, claimed_outcome, resolution} row, and a unit test asserts a dispute does not flip the verdict to publishable — the only way to clear the veto is to fix the underlying evidence. The labeled disputes feed the per-veto-code false-positive/false-negative metric (PR 020).",
+        "Gate-adjudication protocol (PRD \u00a74.4): a disputed gate result is recorded as a labeled {veto_code, claimed_outcome, resolution} row, and a unit test asserts a dispute does not flip the verdict to publishable \u2014 the only way to clear the veto is to fix the underlying evidence. The labeled disputes feed the per-veto-code false-positive/false-negative metric (PR 020).",
         "Medical/YMYL-detector change control: a CI guard flags any diff to the ymylSignals detector, the faithfulness check, or the YMYL byline/review vetoes as release-blocking (requires the golden-set re-regression to pass), so a medical-detector change cannot ship as a quiet config tweak."
       ],
       "test_plan": {
@@ -738,9 +738,9 @@
     },
     {
       "id": "P0.S.2",
-      "title": "PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out)",
+      "title": "PR 009 \u2014 Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out)",
       "lane": "schema-tenancy",
-      "phase": "Phase 0 — Foundations",
+      "phase": "Phase 0 \u2014 Foundations",
       "dependencies": [
         "P0.W.5",
         "P0.S.1"
@@ -760,10 +760,10 @@
         "A YMYL piece cannot reach published unless verdict==='PUBLISH' AND evalRan AND a recorded human release (a credentialed_releases row, NOT a client_signoffs row) AND a named credentialed author + citations resolve; any failed precondition returns a stable FSM code.",
         "canPublish() reads credentialed_releases as the source of truth and a client_signoff can NEVER satisfy a YMYL release: a test seeds a piece with a client_signoff only and asserts canPublish() returns NO_HUMAN_RELEASE; a second seeds a credentialed_release (with credential snapshot + authorization_id) and asserts release is permitted and the byline resolves from that record.",
         "A PUBLISH verdict alone still leaves the piece at draft until a recorded credentialed_release exists (no autopilot).",
-        "Fail-closed byline authorization (§11.5): a credentialed_release whose authorization_id resolves to a revoked (revoked_at set), expired (expires_at in the past), or otherwise inactive byline_authorizations row is rejected — publish is blocked (stable NO_HUMAN_RELEASE/authorization-inactive code), and the byline is never resolved from an inactive authorization. A test seeds (a) revoked, (b) expired, (c) inactive and asserts each blocks, while an active authorization permits it — fail-closed, never default-allow."
+        "Fail-closed byline authorization (\u00a711.5): a credentialed_release whose authorization_id resolves to a revoked (revoked_at set), expired (expires_at in the past), or otherwise inactive byline_authorizations row is rejected \u2014 publish is blocked (stable NO_HUMAN_RELEASE/authorization-inactive code), and the byline is never resolved from an inactive authorization. A test seeds (a) revoked, (b) expired, (c) inactive and asserts each blocks, while an active authorization permits it \u2014 fail-closed, never default-allow."
       ],
       "test_plan": {
-        "tier_1": "can-publish.test.ts truth table (incl. client_signoff-only ⇒ NO_HUMAN_RELEASE, credentialed_release ⇒ permitted, and the revoked/expired/inactive-authorization ⇒ blocked cases); voice-spec hard-stop unit test; byline-resolution test (forged author ignored, byline sourced from the credentialed_release credential snapshot).",
+        "tier_1": "can-publish.test.ts truth table (incl. client_signoff-only \u21d2 NO_HUMAN_RELEASE, credentialed_release \u21d2 permitted, and the revoked/expired/inactive-authorization \u21d2 blocked cases); voice-spec hard-stop unit test; byline-resolution test (forged author ignored, byline sourced from the credentialed_release credential snapshot).",
         "tier_2": "End-to-end: brief -> worker draft -> gate -> persist draft -> attempt publish -> blocked without a credentialed_release, allowed with one + credentialed author.",
         "tier_3": "Manual operator walk: generate a YMYL piece, watch a Stage-A veto block it with score=null, fix the brief, see it pass to Stage-B, confirm it still sits at draft until a credentialed release is recorded."
       },
@@ -778,9 +778,9 @@
     },
     {
       "id": "P1.U.1",
-      "title": "PR 010 — Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas)",
+      "title": "PR 010 \u2014 Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas)",
       "lane": "agent-ui",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P0.W.4"
       ],
@@ -816,9 +816,9 @@
     },
     {
       "id": "P1.U.2",
-      "title": "PR 011 — Live token streaming into the center editor + Inspector gate scorecard",
+      "title": "PR 011 \u2014 Live token streaming into the center editor + Inspector gate scorecard",
       "lane": "agent-ui",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.U.1"
       ],
@@ -834,8 +834,8 @@
       ],
       "acceptance_criteria": [
         "The body types in live token-by-token via readUIMessageStream; the editor is read-only during generating and editable at done.",
-        "When a Stage-A veto fired, the scorecard shows the specific veto chip, the composite reads score=null ('no composite — Stage-A veto'), and the verdict band reads REJECT/REVISE.",
-        "When Stage-A is clean, 8 dimension bars render 0–100 with the verdict band (PUBLISH>=85 / REVIEW / REVISE / REJECT); faithfulness is visually weighted heaviest.",
+        "When a Stage-A veto fired, the scorecard shows the specific veto chip, the composite reads score=null ('no composite \u2014 Stage-A veto'), and the verdict band reads REJECT/REVISE.",
+        "When Stage-A is clean, 8 dimension bars render 0\u2013100 with the verdict band (PUBLISH>=85 / REVIEW / REVISE / REJECT); faithfulness is visually weighted heaviest.",
         "Client-side deterministic scorers (flesch-kincaid, keyword-density, passive-voice) run via useMemo with zero LLM/credit cost for the live editor heuristics."
       ],
       "test_plan": {
@@ -852,9 +852,9 @@
     },
     {
       "id": "P1.U.3",
-      "title": "PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning",
+      "title": "PR 012 \u2014 Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning",
       "lane": "agent-ui",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P0.S.2",
         "P1.U.2"
@@ -869,9 +869,9 @@
       ],
       "acceptance_criteria": [
         "An accepted edit writes an append-only content_piece_versions snapshot, bumps version, and re-runs the full gate before the verdict updates.",
-        "A fine-tune instruction that breaks faithfulness (or trips any Stage-A veto) is recorded as a version but the verdict gates release — it cannot advance toward publish (test: 'drop the citations' edit -> faithfulness veto -> blocked).",
+        "A fine-tune instruction that breaks faithfulness (or trips any Stage-A veto) is recorded as a version but the verdict gates release \u2014 it cannot advance toward publish (test: 'drop the citations' edit -> faithfulness veto -> blocked).",
         "SHA-256 stale-edit guard returns 409; per-tenant rate limit (30 auto-versions/hr) returns 429; workspace-ownership mismatch returns 403; missing key returns 503.",
-        "No instruction text, LLM prose, or body is logged — only ids, counts, wall-clock (PII discipline test)."
+        "No instruction text, LLM prose, or body is logged \u2014 only ids, counts, wall-clock (PII discipline test)."
       ],
       "test_plan": {
         "tier_1": "guards.test.ts (409/429/403/503 + PII discipline).",
@@ -889,9 +889,9 @@
     },
     {
       "id": "P1.U.4",
-      "title": "PR 013 — Version hub: switch / name / compare + undeletable named sign-off",
+      "title": "PR 013 \u2014 Version hub: switch / name / compare + undeletable named sign-off",
       "lane": "agent-ui",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.U.3"
       ],
@@ -921,9 +921,9 @@
     },
     {
       "id": "P1.W.1",
-      "title": "PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain",
+      "title": "PR 014 \u2014 Wire the remaining three suite skills into the worker (strategist / assistant / audit) \u2014 the full chain",
       "lane": "worker-runtime",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P0.W.5"
       ],
@@ -952,9 +952,9 @@
     },
     {
       "id": "P1.R.1",
-      "title": "PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping",
+      "title": "PR 015 \u2014 Content-hub SSR render route + FAQ JSON-LD + placeholder stripping",
       "lane": "render-geo",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P0.S.2"
       ],
@@ -972,7 +972,7 @@
         "apps/seo/test/render/status-filter.test.ts"
       ],
       "acceptance_criteria": [
-        "The full article body is present in the initial server HTML (no client-side fetch) — asserted by parsing the SSR response, not the hydrated DOM.",
+        "The full article body is present in the initial server HTML (no client-side fetch) \u2014 asserted by parsing the SSR response, not the hydrated DOM.",
         "faq_data emits valid schema.org FAQPage JSON-LD (schema-validated in test).",
         "Unresolved [photo:slug]/[cta:type] tokens are stripped, never leaked as literal text.",
         "A slug belonging to another client resolves to null and 404s; only status='published' rows render (cross-namespace + status-filter tests)."
@@ -992,9 +992,9 @@
     },
     {
       "id": "P1.R.2",
-      "title": "PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions)",
+      "title": "PR 016 \u2014 CI reachability gate (sitemap == published-and-indexable set, both directions)",
       "lane": "render-geo",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.R.1"
       ],
@@ -1022,9 +1022,9 @@
     },
     {
       "id": "P1.R.3",
-      "title": "PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution",
+      "title": "PR 017 \u2014 Generated resource-library homepage (D7) + imagegen hero resolution",
       "lane": "render-geo",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.W.1",
         "P1.R.1"
@@ -1058,9 +1058,9 @@
     },
     {
       "id": "P1.C.1",
-      "title": "PR 018 — Tokenized client-review preview + pinned comments + section verbs",
+      "title": "PR 018 \u2014 Tokenized client-review preview + pinned comments + section verbs",
       "lane": "client-review",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.R.1",
         "P1.R.3"
@@ -1098,9 +1098,9 @@
     },
     {
       "id": "P1.C.2",
-      "title": "PR 019 — \"Request changes\" -> agent edit loop routing + named sign-off + approval-debt KPI",
+      "title": "PR 019 \u2014 \"Request changes\" -> agent edit loop routing + named sign-off + approval-debt KPI",
       "lane": "client-review",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.U.3",
         "P1.C.1",
@@ -1116,10 +1116,10 @@
         "apps/seo/test/review/route-to-edit.test.ts"
       ],
       "acceptance_criteria": [
-        "A 'Request changes' comment, once an operator triages it, becomes a bounded /api/edit instruction anchored to the commented region; the comment thread updates to 'addressed in vN — see diff.'",
-        "client_signoffs and credentialed_releases are separate persisted tables (PR 004 0032) with separate actors, permissions, timestamps, and UI labels. A client 'Approve' writes only a client_signoffs row (advisory) and can NEVER release or supply reviewer credentials — canPublish() reads credentialed_releases as the source of truth and accepts only a credentialed_release as the human release for a YMYL piece (test asserts a client_signoffs row alone leaves the piece unreleasable and never populates the byline).",
-        "Only a credentialed_releases row (by the credentialed reviewer, D6) writes the named, undeletable release version recording the reviewer's identity + credential snapshot + authorization_id; that record is the sole source of the YMYL 'Reviewed by [Name, Credential]' byline — a client_signoffs row carries no credential/authorization_id and is structurally incapable of supplying reviewer credentials.",
-        "The release write requires an active byline authorization (§11.5, fail-closed): signoff.ts writes a credentialed_releases row only when its authorization_id resolves to an active byline_authorizations row (granted, not revoked, not expired); an attempt to release against a revoked/expired/inactive authorization is refused (no release written, publish stays blocked) — a test asserts the three inactive cases are blocked at write time and an active one succeeds.",
+        "A 'Request changes' comment, once an operator triages it, becomes a bounded /api/edit instruction anchored to the commented region; the comment thread updates to 'addressed in vN \u2014 see diff.'",
+        "client_signoffs and credentialed_releases are separate persisted tables (PR 004 0032) with separate actors, permissions, timestamps, and UI labels. A client 'Approve' writes only a client_signoffs row (advisory) and can NEVER release or supply reviewer credentials \u2014 canPublish() reads credentialed_releases as the source of truth and accepts only a credentialed_release as the human release for a YMYL piece (test asserts a client_signoffs row alone leaves the piece unreleasable and never populates the byline).",
+        "Only a credentialed_releases row (by the credentialed reviewer, D6) writes the named, undeletable release version recording the reviewer's identity + credential snapshot + authorization_id; that record is the sole source of the YMYL 'Reviewed by [Name, Credential]' byline \u2014 a client_signoffs row carries no credential/authorization_id and is structurally incapable of supplying reviewer credentials.",
+        "The release write requires an active byline authorization (\u00a711.5, fail-closed): signoff.ts writes a credentialed_releases row only when its authorization_id resolves to an active byline_authorizations row (granted, not revoked, not expired); an attempt to release against a revoked/expired/inactive authorization is refused (no release written, publish stays blocked) \u2014 a test asserts the three inactive cases are blocked at write time and an active one succeeds.",
         "Approval-cycle time (link-sent -> client_signoffs row, and draft->review -> credentialed_releases row) and open-thread count are computed per client and surfaced in the operator panel."
       ],
       "test_plan": {
@@ -1138,9 +1138,9 @@
     },
     {
       "id": "P1.C.3",
-      "title": "PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation",
+      "title": "PR 020 \u2014 Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation",
       "lane": "client-review",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P0.W.4",
         "P1.R.1",
@@ -1155,11 +1155,11 @@
         "apps/seo/test/ledger/reserve.test.ts"
       ],
       "acceptance_criteria": [
-        "Cost is reserved pre-flight via a lock-row conditional UPDATE (a concurrent over-cap run is rejected, not silently over-spent) — concurrency test.",
+        "Cost is reserved pre-flight via a lock-row conditional UPDATE (a concurrent over-cap run is rejected, not silently over-spent) \u2014 concurrency test.",
         "Per-stage actual_usd + latency_ms are recorded from Gateway usage; a per-piece cost is measured (not estimated) and compared against the <=$2 target.",
-        "Gateway-disabled ⇒ no model call: a worker run launched with the Gateway base URL absent/disabled (and no fallback provider key) makes zero model calls — it fails fast with a stable 'no model seam' error, and a network attempt to the raw Anthropic endpoint is refused by the PR 006b egress allowlist (test).",
+        "Gateway-disabled \u21d2 no model call: a worker run launched with the Gateway base URL absent/disabled (and no fallback provider key) makes zero model calls \u2014 it fails fast with a stable 'no model seam' error, and a network attempt to the raw Anthropic endpoint is refused by the PR 006b egress allowlist (test).",
         "Per-run reconciliation: the ledger's per-run_id token/cost records reconcile against the Gateway's reported usage for that run (within tolerance); an unreconciled gap (a call that escaped the seam) fails the check.",
-        "The gate-block-by-sourcing rate (VETO_UNSOURCED_STAT + low-faithfulness-from-thin-sources share) is computed — the D3 reversal trigger (instrumenting the D2xD3 tension).",
+        "The gate-block-by-sourcing rate (VETO_UNSOURCED_STAT + low-faithfulness-from-thin-sources share) is computed \u2014 the D3 reversal trigger (instrumenting the D2xD3 tension).",
         "Share-of-model citation checks persist per (client_id, engine, query) and roll up to a per-hub citation rate."
       ],
       "test_plan": {
@@ -1178,9 +1178,9 @@
     },
     {
       "id": "P1.C.4",
-      "title": "PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed)",
+      "title": "PR 021 \u2014 Share-of-model citation-ingestion cron + freshness cron (the north-star feed)",
       "lane": "client-review",
-      "phase": "Phase 1 — Pilot",
+      "phase": "Phase 1 \u2014 Pilot",
       "dependencies": [
         "P1.C.3",
         "P1.R.3"
@@ -1201,14 +1201,14 @@
         "apps/seo/test/metrics/som-adapters.test.ts"
       ],
       "acceptance_criteria": [
-        "Measurement-feasibility spike FIRST (gates the rest of this PR): before building the adapters, a feasibility spike proves >=3 legal/reliable citation-measurement channels actually exist — naming candidate sanctioned APIs/providers per engine and recording, for each, its quota and per-run cost. The spike output is a one-page channel matrix {engine, channel, sanctioned?, quota, per-run $, citation-signal reliability}. If fewer than 3 engines expose a legal/reliable channel, the degraded v1 metric ships instead.",
-        "Gated on real credentials / a contracted vendor, not mocks: PR 021's DoD is auditable rows landing from real adapter credentials or a contracted measurement vendor for the channels the spike confirmed — a fully-mocked adapter suite is not sufficient to close this PR (mocks remain valid for Tier-1/Tier-2 tests).",
-        "Degraded v1 metric defined: if only 1–2 engines expose reliable citation behavior, share-of-model ships as a single-/dual-engine metric explicitly labeled as such (rows record which engines are covered; per-hub rate qualified 'citation rate across {covered engines}', never reported as universal), and uncovered engines are recorded as a known gap with their blocking reason.",
+        "Measurement-feasibility spike FIRST (gates the rest of this PR): before building the adapters, a feasibility spike proves >=3 legal/reliable citation-measurement channels actually exist \u2014 naming candidate sanctioned APIs/providers per engine and recording, for each, its quota and per-run cost. The spike output is a one-page channel matrix {engine, channel, sanctioned?, quota, per-run $, citation-signal reliability}. If fewer than 3 engines expose a legal/reliable channel, the degraded v1 metric ships instead.",
+        "Gated on real credentials / a contracted vendor, not mocks: PR 021's DoD is auditable rows landing from real adapter credentials or a contracted measurement vendor for the channels the spike confirmed \u2014 a fully-mocked adapter suite is not sufficient to close this PR (mocks remain valid for Tier-1/Tier-2 tests).",
+        "Degraded v1 metric defined: if only 1\u20132 engines expose reliable citation behavior, share-of-model ships as a single-/dual-engine metric explicitly labeled as such (rows record which engines are covered; per-hub rate qualified 'citation rate across {covered engines}', never reported as universal), and uncovered engines are recorded as a known gap with their blocking reason.",
         "The SoM ingestion cron poses the per-client query bank to >=3 answer engines (or the degraded set) via provider-specific adapters and populates share_of_model with {client_id, piece_id, engine, query, cited, position, captured_at} durable rows plus the stored normalized prompt + raw response + parser-confidence + locale/device profile.",
         "Each adapter honors a per-engine rate-limit budget and ToS; an over-budget or ToS-restricted engine falls back to the sanctioned vendor API (or logs a heartbeat miss) behind the same interface, never crashing the cron or scraping past a ban.",
         "Queries are normalized before probing so week-over-week trends compare like-for-like; a sampled fraction of citations is flagged for manual audit and parser confidence is recorded per row.",
         "Share-of-model is a derived ratio (citations won / queries posed) trendable per client and per piece off the persisted rows, qualified by the recorded geo/device profile.",
-        "The freshness cron emits a refresh draft for a stale published piece and never flips a row to published — the refreshed draft re-runs the full gate and still requires a recorded human release.",
+        "The freshness cron emits a refresh draft for a stale published piece and never flips a row to published \u2014 the refreshed draft re-runs the full gate and still requires a recorded human release.",
         "Both crons emit a heartbeat; a missed heartbeat raises an alert (no silent stall)."
       ],
       "test_plan": {
@@ -1240,17 +1240,17 @@
       "anchor_subpages": [
         {
           "path": "plans/seo-creator/flywheel/prd.md",
-          "build_phase": "Phase 0 — Foundations",
+          "build_phase": "Phase 0 \u2014 Foundations",
           "current_hash": "4dd82dfa9c9e72af4b26b1880d69e041a7e1e932"
         },
         {
           "path": "plans/seo-creator/flywheel/engineering-rfc.md",
-          "build_phase": "Phase 0 — Foundations",
+          "build_phase": "Phase 0 \u2014 Foundations",
           "current_hash": "16b799f895c74743eba162b6cfefe500ef7c32ef"
         },
         {
           "path": "plans/seo-creator/DECISIONS.md",
-          "build_phase": "Phase 0 — Foundations",
+          "build_phase": "Phase 0 \u2014 Foundations",
           "current_hash": "5188f9f1bcd3c88fa0491a2cb770bf396f2cd218"
         }
       ]
@@ -1314,7 +1314,7 @@
   },
   "judge_criteria": {
     "universal_process": [
-      "Implemented exactly the PR spec — no scope additions, no while-we-here refactors.",
+      "Implemented exactly the PR spec \u2014 no scope additions, no while-we-here refactors.",
       "Touched only files in the declared write-scope manifest; any out-of-scope edit is flagged as scope creep.",
       "Self-tested before declaring done; used the highest available test tier and never silently passed a test that should have run.",
       "Included an executable 60-second rollback plan.",
@@ -1347,14 +1347,56 @@
       {
         "name": "GATE-BYPASS SCAN",
         "trigger_shape": "any PR touching the worker, the agent tool surface, the gate/scorers, or the publish/lifecycle path",
-        "forced_output": "GATE-BYPASS: PASS|FAIL — prove the agent still has no publish tool AND canPublish() runs host-side AND Stage-A short-circuits before Stage-B; cite the file:line.",
-        "citation": "plan PRD §4.3/§4.4/§9.1; journeys J4"
+        "forced_output": "GATE-BYPASS: PASS|FAIL \u2014 prove the agent still has no publish tool AND canPublish() runs host-side AND Stage-A short-circuits before Stage-B; cite the file:line.",
+        "citation": "plan PRD \u00a74.3/\u00a74.4/\u00a79.1; journeys J4"
       },
       {
         "name": "TENANCY-LEAK SCAN",
         "trigger_shape": "any PR adding/altering a query, table access, voice-spec read, or worker tool",
-        "forced_output": "TENANCY: PASS|FAIL — paste the client_id+workspace filter on every new query; confirm warm-pool VM wipe on lease handoff.",
-        "citation": "plan PRD §4.5/§11.4; journeys J8/J9"
+        "forced_output": "TENANCY: PASS|FAIL \u2014 paste the client_id+workspace filter on every new query; confirm warm-pool VM wipe on lease handoff.",
+        "citation": "plan PRD \u00a74.5/\u00a711.4; journeys J8/J9"
+      },
+      {
+        "name": "migration-runs-on-live-pooled-role",
+        "trigger_shape": "any PR touching packages/schema-flywheel/drizzle/*.sql or rls-contract.test.ts",
+        "forced_output": "MIGRATION-ROLE: PASS|FAIL -- list every schema this migration writes; for each non-public schema (storage/auth/extensions) and superuser-only construct (event triggers, SET ROLE, GRANT EXECUTE on system fns, ALTER OWNER), state whether the live pooled migration role can execute it; if any cannot -> FAIL and require an out-of-band step or a documented external-provision note.",
+        "citation": "audit-004 C-1; 0035 storage.buckets 0817379; C.008.1; DR-015"
+      },
+      {
+        "name": "tool-allowlist-single-source",
+        "trigger_shape": "any PR touching the worker tool surface, agent-worker.ts, capability-profile.ts, or WORKER_ALLOWED_TOOLS",
+        "forced_output": "TOOL-ALLOWLIST: PASS|FAIL -- the worker tool allowlist resolves from a SINGLE exported source (WORKER_ALLOWED_TOOLS); no hardcoded tool literals duplicated in agent-worker.ts or elsewhere; cite the import path. A second source of truth -> FAIL.",
+        "citation": "audit-002 A.011.1; STATE Run #009 no-drift note"
+      },
+      {
+        "name": "worker-credential-publish-scope",
+        "trigger_shape": "any PR touching the worker bridge auth, bridge-token, or a /content/api/* route credential check",
+        "forced_output": "WORKER-CRED-SCOPE: PASS|FAIL -- prove the worker bridge credential cannot reach publish and cannot widen tenancy (body.clientId != token.cl is rejected fail-closed); the FSM release-gate remains the real barrier; cite file:line.",
+        "citation": "audit-002 A.011.12; DR-021; C.009.1 #22"
+      },
+      {
+        "name": "normalize-before-gate",
+        "trigger_shape": "any PR touching a golden/characterization harness, gate input extraction, or lexicon/em-dash normalization",
+        "forced_output": "NORMALIZE-BEFORE-GATE: PASS|FAIL -- no input-normalization step (em-dash/lexicon) runs BEFORE the gate in a way that could mask a Stage-A veto; any such transform must be escalated to a DR and the captured-veto baseline must stay honest; cite the file:line of any normalization vs the gate boundary.",
+        "citation": "DR-024; P0.W.5 #26 golden-mask catch"
+      },
+      {
+        "name": "gate-metering-lint-coverage-complete",
+        "trigger_shape": "any PR adding/renaming a file under packages/core/src/gates/ OR touching gate-path-lint.ts / resolveGatewayModel call sites",
+        "forced_output": "LINT-COVERAGE: PASS|FAIL -- enumerate every file under packages/core/src/gates/ that calls resolveGatewayModel (or any model-resolution helper); confirm EACH is present in GATE_PATH_SOURCE_FILES (or covered by a glob-discovered scan) AND passes forceGateway:true. A gate call site outside the lint file set, or reached via an aliased/wrapped import, -> FAIL. Prefer glob discovery over a hardcoded list. Cite file:line.",
+        "citation": "DR-013; C.022.3 #54; audit-005 H4; gate-path-lint.ts:93-96"
+      },
+      {
+        "name": "worktree-base-freshness",
+        "trigger_shape": "every engineering PR (spawned-agent worktree work)",
+        "forced_output": "BASE-FRESHNESS: PASS|FAIL -- confirm the PR branch was based on (or rebased/ff-onto) current origin/preview HEAD and the diff shows ONLY this PRs intended changes (no stale-base phantom adds/deletes from a worktree cut behind preview -- the DR-036 hazard). Cite the base SHA vs origin/preview. A diff that reverts unrelated merged work -> FAIL.",
+        "citation": "DR-036; Run #22 stale-compile-commit hazard; orchestrator Phase-0.5 ff-guard + Phase-5 base check"
+      },
+      {
+        "name": "live-side-effect-idempotency",
+        "trigger_shape": "Any run that performs an external write to a live/production data store OUTSIDE a merged-and-tested code path (manual ingest, backfill, seed, one-shot DoD-close).",
+        "forced_output": "STATE the idempotency key or dedup mechanism for these rows; if none exists, STATE the run-exactly-once operator guard AND why a DB-level UNIQUE/ON CONFLICT constraint is intentionally absent (e.g. append-only time series).",
+        "citation": "audit-006 (state-historian #72 re-judge); DR-041; share_of_model has no UNIQUE/ON CONFLICT and the manual P1.C.4 ingest wrote 30 rows with no row-level idempotency key."
       }
     ]
   },
@@ -1367,7 +1409,7 @@
     "drift_state_sanity_sample_size": 3
   },
   "anti_patterns": [
-    "Letting any PR give the autonomous agent a direct publish tool — publish is host-only behind canPublish().",
+    "Letting any PR give the autonomous agent a direct publish tool \u2014 publish is host-only behind canPublish().",
     "Re-implementing the gate / scorers / FSM / persistence in the worker or in markdown instead of driving the /content/api kernel routes (markdown drift).",
     "Collapsing the drafter != verifier faithfulness invariant to \"save a model\".",
     "Letting a client sign-off populate the credentialed reviewer byline or satisfy a YMYL release.",
@@ -1385,14 +1427,14 @@
     ],
     "pr_phases": [
       {
-        "name": "Phase 0 — Foundations",
+        "name": "Phase 0 \u2014 Foundations",
         "prs": [
           {
             "id": "P0.W.1",
-            "title": "PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
+            "title": "PR 000 \u2014 Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [],
             "write_scope": [
               "apps/seo/spike/capability-enforcement/egress-probe.ts",
@@ -1405,7 +1447,7 @@
               "Each of the four controls (egress allowlist, env scrub, constrained shell/file, boot-refusal) is exercised by a real adversarial run on Vercel Sandbox (not a mock) and its pass/fail recorded in RESULTS.md.",
               "If all controls are enforceable, RESULTS.md records \"Vercel Sandbox confirmed\" and PR 006/006b proceed as written.",
               "If any control is unenforceable, RESULTS.md records the specific failure and the adopted fallback runtime (egress proxy / isolated container service / no-shell-capable Agent-SDK worker in v1), and PR 006/006b are re-scoped against that fallback before the worker is built.",
-              "The decision is made before PR 006 (the worker host) merges — this PR is an explicit architecture gate, not a parallel track."
+              "The decision is made before PR 006 (the worker host) merges \u2014 this PR is an explicit architecture gate, not a parallel track."
             ],
             "test_plan": {
               "tier_1": "The four probe scripts run locally against a Sandbox dev target.",
@@ -1424,10 +1466,10 @@
           },
           {
             "id": "P0.E.1",
-            "title": "PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core",
+            "title": "PR 001 \u2014 Scaffold apps/seo + port the provider seam into @sagemark/core",
             "lane": "engine-port",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [],
             "write_scope": [
               "apps/seo/package.json",
@@ -1442,8 +1484,8 @@
             ],
             "acceptance_criteria": [
               "pnpm --filter @sagemark/seo build and pnpm --filter @sagemark/core build both succeed via turbo.",
-              "Worker invariant — all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
-              "CI assertion — a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
+              "Worker invariant \u2014 all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
+              "CI assertion \u2014 a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
               "CostAccountant.reserve() throws CostCapExceededError once the per-run USD ceiling is exceeded (unit test).",
               "Model ids re-baselined off claude-sonnet-4.5 to claude-sonnet-4-6 (drafter) / claude-haiku-4-5 (verifier) / claude-opus-4-7 (judge); budget_tokens dropped for 4.6+/Opus."
             ],
@@ -1464,10 +1506,10 @@
           },
           {
             "id": "P0.E.2",
-            "title": "PR 002 — Port the scorer library + faithfulness/voice gates into @sagemark/core",
+            "title": "PR 002 \u2014 Port the scorer library + faithfulness/voice gates into @sagemark/core",
             "lane": "engine-port",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.E.1"
             ],
@@ -1509,10 +1551,10 @@
           },
           {
             "id": "P0.E.3",
-            "title": "PR 003 — Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core",
+            "title": "PR 003 \u2014 Port seo-gate + lifecycle-fsm + failure-codes into @sagemark/core",
             "lane": "engine-port",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.E.2"
             ],
@@ -1526,10 +1568,10 @@
               "packages/core/src/index.ts"
             ],
             "acceptance_criteria": [
-              "Stage-A first veto short-circuits to REJECT/REVISE with score=null and Stage-B is never computed (test per veto code: VETO_BROKEN_CHUNK, VETO_UNSOURCED_STAT, VETO_KEYWORD_STUFF, VETO_YMYL_MISCLASSIFIED, VETO_YMYL_NO_BYLINE, VETO_THIN_CONTENT, VETO_BANNED_LEXICON, VETO_VOICE_FAIL, VETO_EVAL_FAILED). The Stage-A set has NO VETO_YMYL_NO_REVIEW — the credentialed-reviewer release is enforced separately in canPublish() on review->approved, not as a Stage-A veto.",
+              "Stage-A first veto short-circuits to REJECT/REVISE with score=null and Stage-B is never computed (test per veto code: VETO_BROKEN_CHUNK, VETO_UNSOURCED_STAT, VETO_KEYWORD_STUFF, VETO_YMYL_MISCLASSIFIED, VETO_YMYL_NO_BYLINE, VETO_THIN_CONTENT, VETO_BANNED_LEXICON, VETO_VOICE_FAIL, VETO_EVAL_FAILED). The Stage-A set has NO VETO_YMYL_NO_REVIEW \u2014 the credentialed-reviewer release is enforced separately in canPublish() on review->approved, not as a Stage-A veto.",
               "VETO_YMYL_MISCLASSIFIED fires when the ymylSignals detector finds medical-claim signals in a body whose is_ymyl=false (the YMYL false-negative guard).",
-              "STAGE_B_WEIGHTS sum to exactly 1.0 and faithfulness is strictly the max weight (0.20) — asserted in a unit test.",
-              "canPublish() returns true only when verdict==='PUBLISH' && evalRan===true && humanRelease===true && (!is_ymyl || namedCredentialedAuthor && citations); a skipped/thrown eval blocks (test). humanRelease is satisfied only by a credentialed_release, never a client_signoff — a unit test asserts a client_signoff-shaped input is rejected as NO_HUMAN_RELEASE.",
+              "STAGE_B_WEIGHTS sum to exactly 1.0 and faithfulness is strictly the max weight (0.20) \u2014 asserted in a unit test.",
+              "canPublish() returns true only when verdict==='PUBLISH' && evalRan===true && humanRelease===true && (!is_ymyl || namedCredentialedAuthor && citations); a skipped/thrown eval blocks (test). humanRelease is satisfied only by a credentialed_release, never a client_signoff \u2014 a unit test asserts a client_signoff-shaped input is rejected as NO_HUMAN_RELEASE.",
               "FSM rejects illegal edges with stable codes (ILLEGAL_EDGE, EVAL_DID_NOT_RUN, NO_HUMAN_RELEASE, YMYL_NO_BYLINE), never prose."
             ],
             "test_plan": {
@@ -1549,10 +1591,10 @@
           },
           {
             "id": "P0.S.1",
-            "title": "PR 004 — Supabase tenancy schema + release/signoff split + RLS + CI contract test",
+            "title": "PR 004 \u2014 Supabase tenancy schema + release/signoff split + RLS + CI contract test",
             "lane": "schema-tenancy",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.E.1"
             ],
@@ -1588,10 +1630,10 @@
           },
           {
             "id": "P0.E.4",
-            "title": "PR 005 — Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate)",
+            "title": "PR 005 \u2014 Stand up the /content/api/{brief,draft,audit,publish} kernel route contract (the agent-unreachable enforcement boundary the suite skills orchestrate)",
             "lane": "engine-port",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.E.3",
               "P0.S.1"
@@ -1608,9 +1650,9 @@
             "acceptance_criteria": [
               "/content/api/audit (the runScorers/runGate path) is read-only: it returns a verdict + Stage-A/Stage-B detail but cannot mutate status; a test asserts no DB write occurs.",
               "/content/api/draft rejects any payload whose workspace_id/client_id does not match the bound request context (403), and refuses creation when the client has no approved_at voice spec (hard stop).",
-              "Kernel-host-unreachable is a hard, non-silent failure: a suite step that cannot reach a /content/api/* route surfaces a clear 'kernel host unreachable' error (naming the route + base URL) and stops — it never fabricates a brief/draft, never skips the gate, never silently no-ops (test).",
+              "Kernel-host-unreachable is a hard, non-silent failure: a suite step that cannot reach a /content/api/* route surfaces a clear 'kernel host unreachable' error (naming the route + base URL) and stops \u2014 it never fabricates a brief/draft, never skips the gate, never silently no-ops (test).",
               "/content/api/brief blocks private/loopback/link-local IPs and non-http(s) schemes (SSRF test) and caps fetched content; fetched page text is treated as untrusted (never executed, never re-injected as a tool result verbatim into a privileged path).",
-              "Source-quality layer: each brief.sources entry captures canonical URL + domain + fetched-at + an authority class — (a) medical/statistical authority, (b) client-fact authority (voice_specs.attributionSources[]), or (c) low-authority/unknown; robots.txt/ToS honored and near-duplicate/spam snippets filtered. A test asserts the class is assigned (a plain attributionSources[] entry classifies as (b), not (a)) and that duplicates are dropped.",
+              "Source-quality layer: each brief.sources entry captures canonical URL + domain + fetched-at + an authority class \u2014 (a) medical/statistical authority, (b) client-fact authority (voice_specs.attributionSources[]), or (c) low-authority/unknown; robots.txt/ToS honored and near-duplicate/spam snippets filtered. A test asserts the class is assigned (a plain attributionSources[] entry classifies as (b), not (a)) and that duplicates are dropped.",
               "Neither a low-quality scraped DDG snippet NOR a client attributionSources[] entry can, by itself, satisfy a medical claim's sourcing: for an is_ymyl piece, a numeric/medical claim grounded only in a class-(b) or class-(c) source is treated as unsourced and does NOT clear VETO_UNSOURCED_STAT; only a class-(a) medical/statistical authority satisfies it (two tests assert the veto still fires; a class-(b) source still validly grounds a client-specific fact).",
               "Every /content/api/* call is keyed to exactly one (workspace_id, client_id); a cross-tenant call returns zero rows / 403.",
               "Each route's request/response JSON schema carries a contract version; a contract-version test asserts the worker (suite skills) and host agree on the schema version and fails the build on a mismatch."
@@ -1632,10 +1674,10 @@
           },
           {
             "id": "P0.W.2",
-            "title": "PR 006 — Agent-SDK worker on Vercel Sandbox (the autonomous loop host)",
+            "title": "PR 006 \u2014 Agent-SDK worker on Vercel Sandbox (the autonomous loop host)",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.E.4",
               "P0.W.1"
@@ -1649,7 +1691,7 @@
               "apps/seo/test/worker/session-store.test.ts"
             ],
             "acceptance_criteria": [
-              "A Sandbox microVM provisions, runs the loop with the existing seo-blog-writer suite skill loaded (driving the /content/api/draft route — the thinnest-slice single-drafter path; the full chain wires in PR 014), and tears down; the run's session/agent state is fully reconstructable from Supabase after teardown (test reloads a persisted run).",
+              "A Sandbox microVM provisions, runs the loop with the existing seo-blog-writer suite skill loaded (driving the /content/api/draft route \u2014 the thinnest-slice single-drafter path; the full chain wires in PR 014), and tears down; the run's session/agent state is fully reconstructable from Supabase after teardown (test reloads a persisted run).",
               "The worker's only mutation path is the host persistPiece tool; the Sandbox has no Supabase write credentials of its own (verified by attempting a direct write and asserting it fails).",
               "A worker run keyed to client A cannot call host tools bound to client B (the bearer token scopes one (workspace_id, client_id, run_id)).",
               "A wedged/timed-out Sandbox emits a terminal error event and releases its lease within the configured ceiling (no indefinite zombie microVM).",
@@ -1673,10 +1715,10 @@
           },
           {
             "id": "P0.W.3",
-            "title": "PR 006b — Worker runtime capability-denial profile + adversarial confinement tests",
+            "title": "PR 006b \u2014 Worker runtime capability-denial profile + adversarial confinement tests",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.W.2",
               "P0.W.1"
@@ -1689,9 +1731,9 @@
             ],
             "acceptance_criteria": [
               "Network egress allowlist: the worker can reach only the Claude API/Gateway endpoint(s) and the apps/seo host-tool bridge URL; a direct connection to any other host (incl. 169.254.169.254 cloud metadata, a private range, or an arbitrary public host) is refused at the network layer, not just by tool absence. A test drives a curl/fetch from inside the worker to a non-allowlisted host and asserts it fails.",
-              "No ambient secrets in the worker env: the worker env contains no Supabase service-role key, no provider API key, and no cloud credentials — only the per-run bridge JWT (scoped (workspace_id, client_id, run_id), expiring at the run-budget ceiling). A test enumerates the worker process env and asserts no secret-shaped value is present beyond the run JWT.",
+              "No ambient secrets in the worker env: the worker env contains no Supabase service-role key, no provider API key, and no cloud credentials \u2014 only the per-run bridge JWT (scoped (workspace_id, client_id, run_id), expiring at the run-budget ceiling). A test enumerates the worker process env and asserts no secret-shaped value is present beyond the run JWT.",
               "Shell/file tools disabled or constrained: the claude subprocess's general-purpose Bash/file/web tools are disabled or constrained to the ephemeral working dir; the FS mount policy exposes only that working dir. A test asserts a tool-call to read outside the working dir or to a sibling run's path fails.",
-              "Adversarial brief/prompt suite — all four attacks fail: a malicious brief and a malicious fetched-source string that instruct the agent to (a) raw-curl an external host, (b) dump environment variables, (c) read another run's working-dir files, and (d) write Supabase/the Claude API directly (bypassing persistPiece/the Gateway) are each blocked; the run continues to completion or terminates cleanly, and no attack succeeds. persistPiece and runGate remain the worker's only state-touching paths.",
+              "Adversarial brief/prompt suite \u2014 all four attacks fail: a malicious brief and a malicious fetched-source string that instruct the agent to (a) raw-curl an external host, (b) dump environment variables, (c) read another run's working-dir files, and (d) write Supabase/the Claude API directly (bypassing persistPiece/the Gateway) are each blocked; the run continues to completion or terminates cleanly, and no attack succeeds. persistPiece and runGate remain the worker's only state-touching paths.",
               "Fail-closed bootstrap: if any capability control fails to apply, sandbox-launch refuses to start the loop rather than running with a weaker profile."
             ],
             "test_plan": {
@@ -1711,10 +1753,10 @@
           },
           {
             "id": "P0.W.4",
-            "title": "PR 007 — Worker <-> apps/seo SSE transport (the streaming hop)",
+            "title": "PR 007 \u2014 Worker <-> apps/seo SSE transport (the streaming hop)",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.W.2"
             ],
@@ -1730,7 +1772,7 @@
               "Tool-use events arrive as stable taxonomy-coded rows (serpFetch, runFaithfulnessGate, runGate.stageA, runGate.stageB), never raw model prose re-piped into the loop.",
               "CostAccountant.reserve() runs pre-flight; a request over the per-run cap returns a cost error before any worker dispatch.",
               "A worker-side error surfaces as a terminal SSE error event with a stable code, not a hung stream (heartbeat/timeout enforced).",
-              "On a last_event_id reconnect, the relay re-reads the persisted content_pieces + gate_results rows as the truth snapshot and resumes streaming only the deltas after the cursor — never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.",
+              "On a last_event_id reconnect, the relay re-reads the persisted content_pieces + gate_results rows as the truth snapshot and resumes streaming only the deltas after the cursor \u2014 never replaying from worker memory; a test drops the stream mid-run and asserts the reconnect emits the persisted artifact + scorecard then resumes without duplication or loss.",
               "The worker->host bridge token is a per-run JWT minted by /api/run, scoped to exactly (workspace_id, client_id, run_id) and expiring at the run-budget ceiling (~90s); a test asserts an expired or cross-run token is rejected by every host tool."
             ],
             "test_plan": {
@@ -1750,10 +1792,10 @@
           },
           {
             "id": "P0.W.5",
-            "title": "PR 008 — Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness",
+            "title": "PR 008 \u2014 Wire the seo-blog-writer suite skill into the worker (single-drafter slice) + golden-set regression harness",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.W.4"
             ],
@@ -1772,7 +1814,7 @@
               "Generating against the golden brief reproduces the expected Stage-A clean/veto for each golden piece (within the documented tolerance band on Stage-B dimensions).",
               "gate-spec.ts enumerates every Stage-A veto code and the Stage-B verdict bands (PUBLISH>=85 / REVIEW / REVISE / REJECT).",
               "A deliberately weakened skill-config/model variant regresses below tolerance and the harness fails (proving the tripwire catches methodology drift).",
-              "Gate-adjudication protocol (PRD §4.4): a disputed gate result is recorded as a labeled {veto_code, claimed_outcome, resolution} row, and a unit test asserts a dispute does not flip the verdict to publishable — the only way to clear the veto is to fix the underlying evidence. The labeled disputes feed the per-veto-code false-positive/false-negative metric (PR 020).",
+              "Gate-adjudication protocol (PRD \u00a74.4): a disputed gate result is recorded as a labeled {veto_code, claimed_outcome, resolution} row, and a unit test asserts a dispute does not flip the verdict to publishable \u2014 the only way to clear the veto is to fix the underlying evidence. The labeled disputes feed the per-veto-code false-positive/false-negative metric (PR 020).",
               "Medical/YMYL-detector change control: a CI guard flags any diff to the ymylSignals detector, the faithfulness check, or the YMYL byline/review vetoes as release-blocking (requires the golden-set re-regression to pass), so a medical-detector change cannot ship as a quiet config tweak."
             ],
             "test_plan": {
@@ -1790,10 +1832,10 @@
           },
           {
             "id": "P0.S.2",
-            "title": "PR 009 — Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out)",
+            "title": "PR 009 \u2014 Voice-spec hard stop + fail-closed publish endpoint (thinnest-slice close-out)",
             "lane": "schema-tenancy",
             "status": "NOT_STARTED",
-            "phase": "Phase 0 — Foundations",
+            "phase": "Phase 0 \u2014 Foundations",
             "dependencies": [
               "P0.W.5",
               "P0.S.1"
@@ -1813,10 +1855,10 @@
               "A YMYL piece cannot reach published unless verdict==='PUBLISH' AND evalRan AND a recorded human release (a credentialed_releases row, NOT a client_signoffs row) AND a named credentialed author + citations resolve; any failed precondition returns a stable FSM code.",
               "canPublish() reads credentialed_releases as the source of truth and a client_signoff can NEVER satisfy a YMYL release: a test seeds a piece with a client_signoff only and asserts canPublish() returns NO_HUMAN_RELEASE; a second seeds a credentialed_release (with credential snapshot + authorization_id) and asserts release is permitted and the byline resolves from that record.",
               "A PUBLISH verdict alone still leaves the piece at draft until a recorded credentialed_release exists (no autopilot).",
-              "Fail-closed byline authorization (§11.5): a credentialed_release whose authorization_id resolves to a revoked (revoked_at set), expired (expires_at in the past), or otherwise inactive byline_authorizations row is rejected — publish is blocked (stable NO_HUMAN_RELEASE/authorization-inactive code), and the byline is never resolved from an inactive authorization. A test seeds (a) revoked, (b) expired, (c) inactive and asserts each blocks, while an active authorization permits it — fail-closed, never default-allow."
+              "Fail-closed byline authorization (\u00a711.5): a credentialed_release whose authorization_id resolves to a revoked (revoked_at set), expired (expires_at in the past), or otherwise inactive byline_authorizations row is rejected \u2014 publish is blocked (stable NO_HUMAN_RELEASE/authorization-inactive code), and the byline is never resolved from an inactive authorization. A test seeds (a) revoked, (b) expired, (c) inactive and asserts each blocks, while an active authorization permits it \u2014 fail-closed, never default-allow."
             ],
             "test_plan": {
-              "tier_1": "can-publish.test.ts truth table (incl. client_signoff-only ⇒ NO_HUMAN_RELEASE, credentialed_release ⇒ permitted, and the revoked/expired/inactive-authorization ⇒ blocked cases); voice-spec hard-stop unit test; byline-resolution test (forged author ignored, byline sourced from the credentialed_release credential snapshot).",
+              "tier_1": "can-publish.test.ts truth table (incl. client_signoff-only \u21d2 NO_HUMAN_RELEASE, credentialed_release \u21d2 permitted, and the revoked/expired/inactive-authorization \u21d2 blocked cases); voice-spec hard-stop unit test; byline-resolution test (forged author ignored, byline sourced from the credentialed_release credential snapshot).",
               "tier_2": "End-to-end: brief -> worker draft -> gate -> persist draft -> attempt publish -> blocked without a credentialed_release, allowed with one + credentialed author.",
               "tier_3": "Manual operator walk: generate a YMYL piece, watch a Stage-A veto block it with score=null, fix the brief, see it pass to Stage-B, confirm it still sits at draft until a credentialed release is recorded."
             },
@@ -1847,14 +1889,14 @@
         ]
       },
       {
-        "name": "Phase 1 — Pilot",
+        "name": "Phase 1 \u2014 Pilot",
         "prs": [
           {
             "id": "P1.U.1",
-            "title": "PR 010 — Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas)",
+            "title": "PR 010 \u2014 Three-zone agent canvas shell (reuse the existing apps/agents StudioCanvas)",
             "lane": "agent-ui",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P0.W.4"
             ],
@@ -1891,10 +1933,10 @@
           },
           {
             "id": "P1.U.2",
-            "title": "PR 011 — Live token streaming into the center editor + Inspector gate scorecard",
+            "title": "PR 011 \u2014 Live token streaming into the center editor + Inspector gate scorecard",
             "lane": "agent-ui",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.U.1"
             ],
@@ -1910,8 +1952,8 @@
             ],
             "acceptance_criteria": [
               "The body types in live token-by-token via readUIMessageStream; the editor is read-only during generating and editable at done.",
-              "When a Stage-A veto fired, the scorecard shows the specific veto chip, the composite reads score=null ('no composite — Stage-A veto'), and the verdict band reads REJECT/REVISE.",
-              "When Stage-A is clean, 8 dimension bars render 0–100 with the verdict band (PUBLISH>=85 / REVIEW / REVISE / REJECT); faithfulness is visually weighted heaviest.",
+              "When a Stage-A veto fired, the scorecard shows the specific veto chip, the composite reads score=null ('no composite \u2014 Stage-A veto'), and the verdict band reads REJECT/REVISE.",
+              "When Stage-A is clean, 8 dimension bars render 0\u2013100 with the verdict band (PUBLISH>=85 / REVIEW / REVISE / REJECT); faithfulness is visually weighted heaviest.",
               "Client-side deterministic scorers (flesch-kincaid, keyword-density, passive-voice) run via useMemo with zero LLM/credit cost for the live editor heuristics."
             ],
             "test_plan": {
@@ -1929,10 +1971,10 @@
           },
           {
             "id": "P1.U.3",
-            "title": "PR 012 — Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning",
+            "title": "PR 012 \u2014 Conversational fine-tune: /api/edit bounded diff + full gate re-run + versioning",
             "lane": "agent-ui",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P0.S.2",
               "P1.U.2"
@@ -1947,9 +1989,9 @@
             ],
             "acceptance_criteria": [
               "An accepted edit writes an append-only content_piece_versions snapshot, bumps version, and re-runs the full gate before the verdict updates.",
-              "A fine-tune instruction that breaks faithfulness (or trips any Stage-A veto) is recorded as a version but the verdict gates release — it cannot advance toward publish (test: 'drop the citations' edit -> faithfulness veto -> blocked).",
+              "A fine-tune instruction that breaks faithfulness (or trips any Stage-A veto) is recorded as a version but the verdict gates release \u2014 it cannot advance toward publish (test: 'drop the citations' edit -> faithfulness veto -> blocked).",
               "SHA-256 stale-edit guard returns 409; per-tenant rate limit (30 auto-versions/hr) returns 429; workspace-ownership mismatch returns 403; missing key returns 503.",
-              "No instruction text, LLM prose, or body is logged — only ids, counts, wall-clock (PII discipline test)."
+              "No instruction text, LLM prose, or body is logged \u2014 only ids, counts, wall-clock (PII discipline test)."
             ],
             "test_plan": {
               "tier_1": "guards.test.ts (409/429/403/503 + PII discipline).",
@@ -1968,10 +2010,10 @@
           },
           {
             "id": "P1.U.4",
-            "title": "PR 013 — Version hub: switch / name / compare + undeletable named sign-off",
+            "title": "PR 013 \u2014 Version hub: switch / name / compare + undeletable named sign-off",
             "lane": "agent-ui",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.U.3"
             ],
@@ -2002,10 +2044,10 @@
           },
           {
             "id": "P1.W.1",
-            "title": "PR 014 — Wire the remaining three suite skills into the worker (strategist / assistant / audit) — the full chain",
+            "title": "PR 014 \u2014 Wire the remaining three suite skills into the worker (strategist / assistant / audit) \u2014 the full chain",
             "lane": "worker-runtime",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P0.W.5"
             ],
@@ -2035,10 +2077,10 @@
           },
           {
             "id": "P1.R.1",
-            "title": "PR 015 — Content-hub SSR render route + FAQ JSON-LD + placeholder stripping",
+            "title": "PR 015 \u2014 Content-hub SSR render route + FAQ JSON-LD + placeholder stripping",
             "lane": "render-geo",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P0.S.2"
             ],
@@ -2056,7 +2098,7 @@
               "apps/seo/test/render/status-filter.test.ts"
             ],
             "acceptance_criteria": [
-              "The full article body is present in the initial server HTML (no client-side fetch) — asserted by parsing the SSR response, not the hydrated DOM.",
+              "The full article body is present in the initial server HTML (no client-side fetch) \u2014 asserted by parsing the SSR response, not the hydrated DOM.",
               "faq_data emits valid schema.org FAQPage JSON-LD (schema-validated in test).",
               "Unresolved [photo:slug]/[cta:type] tokens are stripped, never leaked as literal text.",
               "A slug belonging to another client resolves to null and 404s; only status='published' rows render (cross-namespace + status-filter tests)."
@@ -2077,10 +2119,10 @@
           },
           {
             "id": "P1.R.2",
-            "title": "PR 016 — CI reachability gate (sitemap == published-and-indexable set, both directions)",
+            "title": "PR 016 \u2014 CI reachability gate (sitemap == published-and-indexable set, both directions)",
             "lane": "render-geo",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.R.1"
             ],
@@ -2109,10 +2151,10 @@
           },
           {
             "id": "P1.R.3",
-            "title": "PR 017 — Generated resource-library homepage (D7) + imagegen hero resolution",
+            "title": "PR 017 \u2014 Generated resource-library homepage (D7) + imagegen hero resolution",
             "lane": "render-geo",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.W.1",
               "P1.R.1"
@@ -2147,10 +2189,10 @@
           },
           {
             "id": "P1.C.1",
-            "title": "PR 018 — Tokenized client-review preview + pinned comments + section verbs",
+            "title": "PR 018 \u2014 Tokenized client-review preview + pinned comments + section verbs",
             "lane": "client-review",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.R.1",
               "P1.R.3"
@@ -2189,10 +2231,10 @@
           },
           {
             "id": "P1.C.2",
-            "title": "PR 019 — \"Request changes\" -> agent edit loop routing + named sign-off + approval-debt KPI",
+            "title": "PR 019 \u2014 \"Request changes\" -> agent edit loop routing + named sign-off + approval-debt KPI",
             "lane": "client-review",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.U.3",
               "P1.C.1",
@@ -2208,10 +2250,10 @@
               "apps/seo/test/review/route-to-edit.test.ts"
             ],
             "acceptance_criteria": [
-              "A 'Request changes' comment, once an operator triages it, becomes a bounded /api/edit instruction anchored to the commented region; the comment thread updates to 'addressed in vN — see diff.'",
-              "client_signoffs and credentialed_releases are separate persisted tables (PR 004 0032) with separate actors, permissions, timestamps, and UI labels. A client 'Approve' writes only a client_signoffs row (advisory) and can NEVER release or supply reviewer credentials — canPublish() reads credentialed_releases as the source of truth and accepts only a credentialed_release as the human release for a YMYL piece (test asserts a client_signoffs row alone leaves the piece unreleasable and never populates the byline).",
-              "Only a credentialed_releases row (by the credentialed reviewer, D6) writes the named, undeletable release version recording the reviewer's identity + credential snapshot + authorization_id; that record is the sole source of the YMYL 'Reviewed by [Name, Credential]' byline — a client_signoffs row carries no credential/authorization_id and is structurally incapable of supplying reviewer credentials.",
-              "The release write requires an active byline authorization (§11.5, fail-closed): signoff.ts writes a credentialed_releases row only when its authorization_id resolves to an active byline_authorizations row (granted, not revoked, not expired); an attempt to release against a revoked/expired/inactive authorization is refused (no release written, publish stays blocked) — a test asserts the three inactive cases are blocked at write time and an active one succeeds.",
+              "A 'Request changes' comment, once an operator triages it, becomes a bounded /api/edit instruction anchored to the commented region; the comment thread updates to 'addressed in vN \u2014 see diff.'",
+              "client_signoffs and credentialed_releases are separate persisted tables (PR 004 0032) with separate actors, permissions, timestamps, and UI labels. A client 'Approve' writes only a client_signoffs row (advisory) and can NEVER release or supply reviewer credentials \u2014 canPublish() reads credentialed_releases as the source of truth and accepts only a credentialed_release as the human release for a YMYL piece (test asserts a client_signoffs row alone leaves the piece unreleasable and never populates the byline).",
+              "Only a credentialed_releases row (by the credentialed reviewer, D6) writes the named, undeletable release version recording the reviewer's identity + credential snapshot + authorization_id; that record is the sole source of the YMYL 'Reviewed by [Name, Credential]' byline \u2014 a client_signoffs row carries no credential/authorization_id and is structurally incapable of supplying reviewer credentials.",
+              "The release write requires an active byline authorization (\u00a711.5, fail-closed): signoff.ts writes a credentialed_releases row only when its authorization_id resolves to an active byline_authorizations row (granted, not revoked, not expired); an attempt to release against a revoked/expired/inactive authorization is refused (no release written, publish stays blocked) \u2014 a test asserts the three inactive cases are blocked at write time and an active one succeeds.",
               "Approval-cycle time (link-sent -> client_signoffs row, and draft->review -> credentialed_releases row) and open-thread count are computed per client and surfaced in the operator panel."
             ],
             "test_plan": {
@@ -2231,10 +2273,10 @@
           },
           {
             "id": "P1.C.3",
-            "title": "PR 020 — Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation",
+            "title": "PR 020 \u2014 Separate SEO cost ledger (AI Gateway) + share-of-model instrumentation",
             "lane": "client-review",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P0.W.4",
               "P1.R.1",
@@ -2249,11 +2291,11 @@
               "apps/seo/test/ledger/reserve.test.ts"
             ],
             "acceptance_criteria": [
-              "Cost is reserved pre-flight via a lock-row conditional UPDATE (a concurrent over-cap run is rejected, not silently over-spent) — concurrency test.",
+              "Cost is reserved pre-flight via a lock-row conditional UPDATE (a concurrent over-cap run is rejected, not silently over-spent) \u2014 concurrency test.",
               "Per-stage actual_usd + latency_ms are recorded from Gateway usage; a per-piece cost is measured (not estimated) and compared against the <=$2 target.",
-              "Gateway-disabled ⇒ no model call: a worker run launched with the Gateway base URL absent/disabled (and no fallback provider key) makes zero model calls — it fails fast with a stable 'no model seam' error, and a network attempt to the raw Anthropic endpoint is refused by the PR 006b egress allowlist (test).",
+              "Gateway-disabled \u21d2 no model call: a worker run launched with the Gateway base URL absent/disabled (and no fallback provider key) makes zero model calls \u2014 it fails fast with a stable 'no model seam' error, and a network attempt to the raw Anthropic endpoint is refused by the PR 006b egress allowlist (test).",
               "Per-run reconciliation: the ledger's per-run_id token/cost records reconcile against the Gateway's reported usage for that run (within tolerance); an unreconciled gap (a call that escaped the seam) fails the check.",
-              "The gate-block-by-sourcing rate (VETO_UNSOURCED_STAT + low-faithfulness-from-thin-sources share) is computed — the D3 reversal trigger (instrumenting the D2xD3 tension).",
+              "The gate-block-by-sourcing rate (VETO_UNSOURCED_STAT + low-faithfulness-from-thin-sources share) is computed \u2014 the D3 reversal trigger (instrumenting the D2xD3 tension).",
               "Share-of-model citation checks persist per (client_id, engine, query) and roll up to a per-hub citation rate."
             ],
             "test_plan": {
@@ -2273,10 +2315,10 @@
           },
           {
             "id": "P1.C.4",
-            "title": "PR 021 — Share-of-model citation-ingestion cron + freshness cron (the north-star feed)",
+            "title": "PR 021 \u2014 Share-of-model citation-ingestion cron + freshness cron (the north-star feed)",
             "lane": "client-review",
             "status": "NOT_STARTED",
-            "phase": "Phase 1 — Pilot",
+            "phase": "Phase 1 \u2014 Pilot",
             "dependencies": [
               "P1.C.3",
               "P1.R.3"
@@ -2297,14 +2339,14 @@
               "apps/seo/test/metrics/som-adapters.test.ts"
             ],
             "acceptance_criteria": [
-              "Measurement-feasibility spike FIRST (gates the rest of this PR): before building the adapters, a feasibility spike proves >=3 legal/reliable citation-measurement channels actually exist — naming candidate sanctioned APIs/providers per engine and recording, for each, its quota and per-run cost. The spike output is a one-page channel matrix {engine, channel, sanctioned?, quota, per-run $, citation-signal reliability}. If fewer than 3 engines expose a legal/reliable channel, the degraded v1 metric ships instead.",
-              "Gated on real credentials / a contracted vendor, not mocks: PR 021's DoD is auditable rows landing from real adapter credentials or a contracted measurement vendor for the channels the spike confirmed — a fully-mocked adapter suite is not sufficient to close this PR (mocks remain valid for Tier-1/Tier-2 tests).",
-              "Degraded v1 metric defined: if only 1–2 engines expose reliable citation behavior, share-of-model ships as a single-/dual-engine metric explicitly labeled as such (rows record which engines are covered; per-hub rate qualified 'citation rate across {covered engines}', never reported as universal), and uncovered engines are recorded as a known gap with their blocking reason.",
+              "Measurement-feasibility spike FIRST (gates the rest of this PR): before building the adapters, a feasibility spike proves >=3 legal/reliable citation-measurement channels actually exist \u2014 naming candidate sanctioned APIs/providers per engine and recording, for each, its quota and per-run cost. The spike output is a one-page channel matrix {engine, channel, sanctioned?, quota, per-run $, citation-signal reliability}. If fewer than 3 engines expose a legal/reliable channel, the degraded v1 metric ships instead.",
+              "Gated on real credentials / a contracted vendor, not mocks: PR 021's DoD is auditable rows landing from real adapter credentials or a contracted measurement vendor for the channels the spike confirmed \u2014 a fully-mocked adapter suite is not sufficient to close this PR (mocks remain valid for Tier-1/Tier-2 tests).",
+              "Degraded v1 metric defined: if only 1\u20132 engines expose reliable citation behavior, share-of-model ships as a single-/dual-engine metric explicitly labeled as such (rows record which engines are covered; per-hub rate qualified 'citation rate across {covered engines}', never reported as universal), and uncovered engines are recorded as a known gap with their blocking reason.",
               "The SoM ingestion cron poses the per-client query bank to >=3 answer engines (or the degraded set) via provider-specific adapters and populates share_of_model with {client_id, piece_id, engine, query, cited, position, captured_at} durable rows plus the stored normalized prompt + raw response + parser-confidence + locale/device profile.",
               "Each adapter honors a per-engine rate-limit budget and ToS; an over-budget or ToS-restricted engine falls back to the sanctioned vendor API (or logs a heartbeat miss) behind the same interface, never crashing the cron or scraping past a ban.",
               "Queries are normalized before probing so week-over-week trends compare like-for-like; a sampled fraction of citations is flagged for manual audit and parser confidence is recorded per row.",
               "Share-of-model is a derived ratio (citations won / queries posed) trendable per client and per piece off the persisted rows, qualified by the recorded geo/device profile.",
-              "The freshness cron emits a refresh draft for a stale published piece and never flips a row to published — the refreshed draft re-runs the full gate and still requires a recorded human release.",
+              "The freshness cron emits a refresh draft for a stale published piece and never flips a row to published \u2014 the refreshed draft re-runs the full gate and still requires a recorded human release.",
               "Both crons emit a heartbeat; a missed heartbeat raises an alert (no silent stall)."
             ],
             "test_plan": {
@@ -2328,10 +2370,10 @@
     "initial_eligible_prs": [
       {
         "id": "P0.W.1",
-        "title": "PR 000 — Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
+        "title": "PR 000 \u2014 Phase-0 spike: prove Sandbox + Agent-SDK capability-denial is enforceable (architecture gate)",
         "lane": "worker-runtime",
         "status": "NOT_STARTED",
-        "phase": "Phase 0 — Foundations",
+        "phase": "Phase 0 \u2014 Foundations",
         "dependencies": [],
         "write_scope": [
           "apps/seo/spike/capability-enforcement/egress-probe.ts",
@@ -2344,7 +2386,7 @@
           "Each of the four controls (egress allowlist, env scrub, constrained shell/file, boot-refusal) is exercised by a real adversarial run on Vercel Sandbox (not a mock) and its pass/fail recorded in RESULTS.md.",
           "If all controls are enforceable, RESULTS.md records \"Vercel Sandbox confirmed\" and PR 006/006b proceed as written.",
           "If any control is unenforceable, RESULTS.md records the specific failure and the adopted fallback runtime (egress proxy / isolated container service / no-shell-capable Agent-SDK worker in v1), and PR 006/006b are re-scoped against that fallback before the worker is built.",
-          "The decision is made before PR 006 (the worker host) merges — this PR is an explicit architecture gate, not a parallel track."
+          "The decision is made before PR 006 (the worker host) merges \u2014 this PR is an explicit architecture gate, not a parallel track."
         ],
         "test_plan": {
           "tier_1": "The four probe scripts run locally against a Sandbox dev target.",
@@ -2363,10 +2405,10 @@
       },
       {
         "id": "P0.E.1",
-        "title": "PR 001 — Scaffold apps/seo + port the provider seam into @sagemark/core",
+        "title": "PR 001 \u2014 Scaffold apps/seo + port the provider seam into @sagemark/core",
         "lane": "engine-port",
         "status": "NOT_STARTED",
-        "phase": "Phase 0 — Foundations",
+        "phase": "Phase 0 \u2014 Foundations",
         "dependencies": [],
         "write_scope": [
           "apps/seo/package.json",
@@ -2381,8 +2423,8 @@
         ],
         "acceptance_criteria": [
           "pnpm --filter @sagemark/seo build and pnpm --filter @sagemark/core build both succeed via turbo.",
-          "Worker invariant — all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
-          "CI assertion — a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
+          "Worker invariant \u2014 all worker model traffic routes through the metered Gateway: resolveGatewayModel()'s direct-Anthropic provider branch is host/non-worker-only; a unit test asserts the 'worker' context can resolve only a Gateway provider and refuses a raw-Anthropic-endpoint provider even if ANTHROPIC_API_KEY is present in the ambient env.",
+          "CI assertion \u2014 a CI env/config lint fails the build if any worker-bound env or Sandbox-provision config contains a raw Anthropic endpoint (api.anthropic.com) together with a provider API key; the worker's only model credential is the run-scoped Gateway base URL + bridge JWT.",
           "CostAccountant.reserve() throws CostCapExceededError once the per-run USD ceiling is exceeded (unit test).",
           "Model ids re-baselined off claude-sonnet-4.5 to claude-sonnet-4-6 (drafter) / claude-haiku-4-5 (verifier) / claude-opus-4-7 (judge); budget_tokens dropped for 4.6+/Opus."
         ],

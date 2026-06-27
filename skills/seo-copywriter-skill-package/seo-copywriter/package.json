@@ -1,0 +1,14 @@
+{
+  "name": "seo-copywriter-skill",
+  "version": "1.1.0",
+  "description": "The SEO Copywriter Claude Code skill suite. For a content client, the agent plans the SEO/GEO strategy (seo-strategist), writes the articles, builds a brand-themed static content-hub website (mimicking the bundled reference demos, re-skinned per client), fetches fresh on-brand imagery from the Pexels API, and deploys it as its own standalone Vercel project. Self-contained — no app/database/console; bring your own Pexels key. Includes optional internal 'content engine' sub-skills (seo-assistant/seo-blog-writer/seo-audit) that require a separate web app and are not needed for the standalone workflow.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install-skill": "bash scripts/install-skill.sh --copy",
+    "uninstall-skill": "bash scripts/install-skill.sh --uninstall"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

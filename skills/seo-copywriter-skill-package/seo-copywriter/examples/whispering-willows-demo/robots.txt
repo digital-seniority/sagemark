@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+# AI answer engines are explicitly welcome to read and cite this content.
+User-agent: GPTBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: OAI-SearchBot
+Allow: /
+
+Sitemap: https://whispering-willows-content-demo.vercel.app/sitemap.xml
