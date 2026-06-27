@@ -18,5 +18,16 @@
 - **ChatGPT/Gemini (proxy) only echo the brand when it's named in the prompt** — they "cite" on the direct brand question but NOT for discovery queries (no web access). This is exactly the `direct-proxy` semantics: a model-answer mention, NOT a discovery citation. It's the empirical reason the GEO-tracker vendor is the eventual upgrade for those engines.
 - **Conclusion:** the proxy-vs-citation distinction the subsystem enforces structurally is real and meaningful in live data — Claude finds the client; the bare model APIs don't. The `rollUpBySourceChannel` separation (proxy never summed as a citation) is the honest way to report this.
 
-## Status
-Path + hybrid labeling **proven live**. Formal P1.C.4 DoD (real labeled `share_of_model` rows persisted for a provisioned client) remains open — close it via the runbook (deploy + env + client + cron). Once those rows land, P1.C.4 is DoD-complete.
+## DoD CLOSE — real persisted rows (2026-06-26)
+After the smoke, the user provisioned the pilot client (`content_clients` for Whispering Willows; `client_id=e84acf0f-16f9-4171-8ccb-80c2011c97ab`, `workspace_id=81815c0a-e001-4c74-bfe9-e48272d2b775` — **user-provided tenancy**, not agent-invented) and authorized the ingest. A representative slice of the bank (10 prompts × 3 engines = **30 real labeled rows**) was run through the live path (`gateway`+`generateText`, Claude web-search) and **persisted to `public.share_of_model`** scoped to that client. Verified read-only:
+
+| engine | source_channel | n | cited | rate |
+|---|---|---|---|---|
+| claude | `direct-citation` | 10 | 6 | 60% |
+| chatgpt | `direct-proxy` | 10 | 3 | 30% |
+| gemini | `direct-proxy` | 10 | 3 | 30% |
+
+**Real SoM = the `direct-citation` channel: 6/10** (Claude cites WW for the discovery queries — best-memory-care-Skagit, Mount-Vernon-facilities, where-to-learn — + all brand queries). The `direct-proxy` engines cite only on the 3 brand-named prompts (echo, never summed as a citation). Each row carries `source_channel`/`locale`/`device_profile`/`raw_response`/`captured_at`.
+
+## Status — DoD-COMPLETE
+**P1.C.4 DoD closed:** real (not mock) labeled `share_of_model` rows land from the live adapter for the WW client, channel-separated per DR-038. The scheduled weekly cron runs the full 28-prompt bank on the same path; this slice proves persistence end-to-end. Remaining SoM upgrade (deferred): GEO-tracker vendor for real ChatGPT/AIO consumer-engine citations (the `direct-proxy` engines).
