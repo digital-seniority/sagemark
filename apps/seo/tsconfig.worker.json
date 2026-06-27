@@ -1,0 +1,47 @@
+{
+  // Worker-runtime compile (lane worker-runtime). Produces `apps/seo/dist/` —
+  // the compiled autonomous worker the Sandbox image runs. The Dockerfile
+  // `COPY apps/seo/dist/ ./dist/` + `ENTRYPOINT ["node", "dist/worker/entry.js"]`
+  // depend on the `dist/worker/entry.js` layout this config emits.
+  //
+  // This is a SEPARATE pass from `next build`: the worker is a non-serverless
+  // Node process, not part of the Next.js bundle. `next build` ignores it; this
+  // config never touches the Next app. Run via `npm run build:worker`.
+  //
+  // WHY CommonJS (not ESM): `apps/seo/package.json` has no `"type": "module"`,
+  // so Node treats emitted `.js` as CommonJS. CommonJS + `moduleResolution:
+  // node` lets the worker's extensionless relative imports (`./agent-worker`,
+  // `../lib/content/contract`) resolve at runtime with no source rewrite. The
+  // entry uses no top-level await / import.meta, so CJS is fully sufficient for
+  // the Node 24 runtime the Dockerfile boots.
+  //
+  // WHY only `entry.ts` in `include`: tsc follows the import graph and emits
+  // exactly the reachable files (entry -> agent-worker -> {host-tool-bridge,
+  // sandbox-launch, capability-profile, skills/load-suite} -> lib/content/
+  // contract). This deliberately EXCLUDES sibling worker/lib files that import
+  // `server-only` or `@sagemark/core` (e.g. session-store, loop/revise-cap) —
+  // they are not on the runtime path and would otherwise pull host-only deps
+  // into the worker image. `@sagemark/core` is therefore NOT needed by this
+  // compile (the one file that imports it is unreachable from entry); the
+  // dynamic `await import("@anthropic-ai/claude-agent-sdk")` is likewise not a
+  // static dependency.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "noEmit": false,
+    "declaration": false,
+    "incremental": false,
+    "sourceMap": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "plugins": []
+  },
+  "include": ["src/worker/entry.ts"],
+  "exclude": ["node_modules", "dist", ".next"]
+}
