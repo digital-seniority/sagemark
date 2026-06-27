@@ -21,6 +21,16 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { runFreshnessScan, type FreshnessTarget } from "@/cron/freshness-scan";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+/**
+ * The cron run-budget ceiling (seconds). When live, this cron scans a client's
+ * published pieces and emits refresh DRAFTS — lighter than the ingest cron but
+ * still per-piece work, so it gets a generous budget above the per-request route
+ * values while staying well under the platform ceiling.
+ */
+export const maxDuration = 120;
+
 function authorized(request: NextRequest): boolean {
   const secret = (process.env.CRON_SECRET ?? "").trim();
   if (!secret) return true; // no secret set ⇒ route is inert anyway

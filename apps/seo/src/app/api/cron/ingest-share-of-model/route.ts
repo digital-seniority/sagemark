@@ -31,6 +31,16 @@ import { somLiveEnabled } from "@/lib/metrics/som-adapters/types";
 import { somDirectRunner } from "@sagemark/core";
 import { makeLiveShareOfModelRowStore } from "@/lib/metrics/som-live-store";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+/**
+ * The cron run-budget ceiling (seconds). When live, this cron probes N engines
+ * across the funnel-staged query bank per (client, query, engine) and persists a
+ * row each — the app's heaviest workload — so it takes the platform's default
+ * function-timeout ceiling (300s) rather than the per-request route values.
+ */
+export const maxDuration = 300;
+
 /** Reject a cron call whose Bearer token does not match a configured CRON_SECRET. */
 function authorized(request: NextRequest): boolean {
   const secret = (process.env.CRON_SECRET ?? "").trim();
