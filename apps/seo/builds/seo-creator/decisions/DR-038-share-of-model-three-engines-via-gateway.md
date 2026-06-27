@@ -24,3 +24,16 @@ P1.C.3 (PR 020 — separate SEO cost ledger + share-of-model instrumentation) an
 ## Links
 
 P1.C.3 / PR 020, P1.C.4 / PR 021; [[DR-013]] (Gateway-only metering corrective — prerequisite); journeys north-star feed.
+
+## Spike outcome + HYBRID channel decision (2026-06-26, James — supersedes the "method" detail above)
+
+The PR-021 measurement-feasibility spike (`som-feasibility-spike.md`) found that querying a **model API** (the original DR-038 "Gateway direct-query") is a **proxy**, not a consumer-answer-engine citation — weakest for ChatGPT-consumer + Google AI Overviews; only Claude's API **web-search tool** yields a genuine cited-sources signal. Real consumer-citation tracking needs a GEO-tracker vendor (Profound/AthenaHQ/Peec, ~$99–399/mo).
+
+**DECISION — HYBRID (James):**
+1. **Claude — real-citation channel:** activate via the Gateway + the Claude **web-search tool** (returns actual cited sources). `source_channel = 'direct-citation'`.
+2. **ChatGPT + Gemini — Gateway-API PROXY, explicitly LABELED:** model-answer mention, NOT a consumer-engine citation. `source_channel = 'direct-proxy'`; the per-hub rate must be reported as "API-answer mention rate (proxy)" for these engines, NEVER as universal share-of-model.
+3. **GEO-tracker vendor — DEFERRED (the real ChatGPT/AIO citations):** the `SomAdapter` vendor-fallback seam is pre-wired; James contracts a vendor later → flip those engines to `source_channel = 'vendor'` for the real signal. No code wasted (channel-agnostic adapters).
+
+**Load-bearing labeling requirement:** every `share_of_model` row records its `source_channel` so the proxy vs real-citation vs vendor signal is never conflated — the dashboard/rollup must qualify the metric by channel. This is the RFC's "degraded v1 metric, explicitly labeled" path, made honest per-engine.
+
+**Activation still needs (James):** provider API keys (via the Gateway) for the direct/proxy + Claude-web-search paths, and the `SOM_LIVE` flag — then real (labeled) rows land for the Whispering Willows hub, closing P1.C.4's DoD for the covered engines. The vendor upgrade is a later step.
