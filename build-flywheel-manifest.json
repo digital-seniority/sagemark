@@ -1391,6 +1391,12 @@
         "trigger_shape": "every engineering PR (spawned-agent worktree work)",
         "forced_output": "BASE-FRESHNESS: PASS|FAIL -- confirm the PR branch was based on (or rebased/ff-onto) current origin/preview HEAD and the diff shows ONLY this PRs intended changes (no stale-base phantom adds/deletes from a worktree cut behind preview -- the DR-036 hazard). Cite the base SHA vs origin/preview. A diff that reverts unrelated merged work -> FAIL.",
         "citation": "DR-036; Run #22 stale-compile-commit hazard; orchestrator Phase-0.5 ff-guard + Phase-5 base check"
+      },
+      {
+        "name": "live-side-effect-idempotency",
+        "trigger_shape": "Any run that performs an external write to a live/production data store OUTSIDE a merged-and-tested code path (manual ingest, backfill, seed, one-shot DoD-close).",
+        "forced_output": "STATE the idempotency key or dedup mechanism for these rows; if none exists, STATE the run-exactly-once operator guard AND why a DB-level UNIQUE/ON CONFLICT constraint is intentionally absent (e.g. append-only time series).",
+        "citation": "audit-006 (state-historian #72 re-judge); DR-041; share_of_model has no UNIQUE/ON CONFLICT and the manual P1.C.4 ingest wrote 30 rows with no row-level idempotency key."
       }
     ]
   },

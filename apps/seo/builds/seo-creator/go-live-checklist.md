@@ -64,3 +64,12 @@ from public.share_of_model group by 1,2 order by 1,2;
 Expect rows with `source_channel` ∈ {`direct-citation` (Claude), `direct-proxy` (ChatGPT/Gemini)} — `direct-citation` carries the real discovery citations; `direct-proxy` is reported separately (never summed as a citation). **When these rows exist, P1.C.4 is DoD-complete** for the covered engines (the GEO-tracker vendor upgrades the proxy engines later).
 
 Expected live pattern (from the smoke): Claude cites for discovery queries; the proxy engines only echo the brand when it's named — so a low `direct-proxy` cited-rate on discovery queries is correct, not a bug.
+
+---
+
+## ⚠ audit-006 (2026-06-27) — go-live FUNCTIONAL blocker (H1 / A.006.1)
+**The credentialed-release writer is not wired.** `recordCredentialedRelease` (the only writer of `credentialed_releases`, the sole record `canPublish()` accepts) and `isPilot()` have **zero non-test callers**. The publish route READS releases but no route WRITES one. **Consequence: even after the env flip + a real reviewer + `PUBLISH_ENABLED=1`, no YMYL piece can reach `published`** — the FSM requires a recorded release that nothing creates. This is fail-closed (safe), not a security hole, but it blocks publishing.
+**Fix:** A.006.1 (built in the harden block, HELD FOR HUMAN MERGE — it touches the publish/DR-037 path) wires `recordCredentialedRelease` into the review→release route with `pilot: isPilot()`. **Do not expect go-live publish to work until A.006.1 is merged.** (SoM ingest + live reads/review are unaffected — they don't depend on this.)
+
+## Note — freshness cron is scheduled but inert (audit-006 L5)
+The freshness cron is in `vercel.json` but is a structural no-op as built: `emitDraft` needs the internal `content_pieces.id`, which the public `PublishedPiece` projection does not expose (only the slug). It will run weekly doing nothing until the read-adapter surfaces the piece id. SoM **ingest** is fully wired; only **freshness** is pending the piece-id projection.
