@@ -36,6 +36,115 @@ import {
 /** A sink the emitter pushes coded events into (the relay provides one). */
 export type EventSink = (event: SseEvent) => void | Promise<void>;
 
+// ── Stdout marker transport (the cross-PROCESS streaming hop, P-J) ─────────────
+//
+// In the Sandbox deployment the worker is a SEPARATE process from the host relay,
+// so the only channel between them is the worker's stdout. The host dispatcher
+// (`live-dispatcher.parseWorkerLine`) tails that stdout and re-codes each marker
+// back into an `SseEvent`. This section is the WORKER half of that marker channel.
+//
+// THE INJECTION-SAFETY DISCIPLINE. A live model token can contain ANY bytes —
+// including the literal string `::worker-token::`, a newline, or a fake JSON
+// payload. If we wrote deltas verbatim the parser could be tricked into splitting
+// a line early or mis-reading a forged marker. So every marker payload is
+// `base64(JSON(payload))`: base64's alphabet (`A-Za-z0-9+/=`) contains NO space,
+// NO newline, and NO `:` — so the encoded payload can never contain the marker
+// prefix, can never break the newline framing, and round-trips losslessly. A
+// malformed (non-base64 / non-JSON) payload is DROPPED by the parser, never
+// forwarded as free text (the no-raw-prose-leak discipline holds end to end).
+
+/** The rich live-delta marker kinds the worker pushes to stdout (P-J). */
+export const WORKER_MARKER_KINDS = ["token", "tool", "thinking", "gate"] as const;
+export type WorkerMarkerKind = (typeof WORKER_MARKER_KINDS)[number];
+
+/** Base64-encode a UTF-8 string (Node `Buffer`, falling back to `btoa` shim). */
+function base64Encode(s: string): string {
+  if (typeof Buffer !== "undefined") return Buffer.from(s, "utf8").toString("base64");
+  // Isomorphic fallback (no Node Buffer): UTF-8 -> base64 via btoa.
+  return btoa(unescape(encodeURIComponent(s)));
+}
+
+/**
+ * Encode one rich-delta marker line for stdout. The payload is JSON-serialized
+ * then base64-encoded so it is injection-safe (cannot contain `::`, a space, or a
+ * newline) — see the discipline note above. The line is NOT newline-terminated;
+ * the caller / sink adds the framing newline.
+ */
+export function encodeWorkerMarker(kind: WorkerMarkerKind, payload: unknown): string {
+  return `::worker-${kind}:: ${base64Encode(JSON.stringify(payload))}`;
+}
+
+/** A line-writer the stdout sink emits marker lines through (default: process.stdout). */
+export type MarkerWriter = (line: string) => void;
+
+const defaultMarkerWriter: MarkerWriter = (line) => {
+  // The worker's ONLY stdout output is markers — never bare prose (no-raw-prose
+  // discipline). A trailing newline frames the line for the host's line buffer.
+  if (typeof process !== "undefined" && process.stdout?.write) {
+    process.stdout.write(line + "\n");
+  } else {
+    console.log(line);
+  }
+};
+
+/**
+ * Build an `EventSink` that serializes each coded `SseEvent` into a worker stdout
+ * MARKER line (the cross-process transport). This is the bridge that lets the
+ * existing `WorkerEventEmitter` + `emitFromSdkMessage` translation drive the
+ * stdout channel: the SDK loop yields raw messages -> `emitFromSdkMessage` codes
+ * them into `SseEvent`s -> this sink writes them as injection-safe markers ->
+ * `live-dispatcher.parseWorkerLine` decodes them back into the SAME `SseEvent`s.
+ *
+ * Only the rich live-delta event types are projected to markers here
+ * (`token-delta`/`thinking`/`tool-use`/`gate`). The run LIFECYCLE (session-id,
+ * result, terminal/fatal errors) keeps its existing dedicated markers in
+ * `entry.ts` — this sink does not duplicate them (a `done`/`error`/`heartbeat`/
+ * `snapshot` event is ignored, so wiring it in cannot disturb the lifecycle
+ * markers' content or ordering). The `seq`/`runId` envelope is dropped on the way
+ * out (the host dispatcher re-stamps a fresh per-source envelope), so only the
+ * event BODY needs to survive the hop.
+ */
+export function createStdoutMarkerSink(write: MarkerWriter = defaultMarkerWriter): EventSink {
+  return (event: SseEvent) => {
+    switch (event.type) {
+      case "token-delta":
+        write(encodeWorkerMarker("token", { delta: event.delta }));
+        return;
+      case "thinking":
+        write(encodeWorkerMarker("thinking", { delta: event.delta }));
+        return;
+      case "tool-use":
+        write(
+          encodeWorkerMarker("tool", {
+            code: event.code,
+            status: event.status,
+            label: event.label,
+          }),
+        );
+        return;
+      case "gate":
+        write(
+          encodeWorkerMarker("gate", {
+            stage: event.stage,
+            vetoes: event.vetoes,
+            score: event.score ?? null,
+            verdict: event.verdict ?? null,
+          }),
+        );
+        return;
+      // Lifecycle / transport-only frames are NOT marker-projected here — the
+      // entry's dedicated lifecycle markers own those (session-id/result/error).
+      case "done":
+      case "error":
+      case "heartbeat":
+      case "snapshot":
+        return;
+      default:
+        return;
+    }
+  };
+}
+
 /**
  * Distributive omit — applies `Omit` to EACH member of the union independently so
  * a `token-delta` partial keeps `delta`, a `tool-use` partial keeps `code`, etc.

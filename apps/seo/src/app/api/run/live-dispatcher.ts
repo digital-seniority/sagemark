@@ -45,7 +45,12 @@ import {
   type LaunchResult,
 } from "@/worker/sandbox-launch";
 import type { WorkerEventSource } from "@/lib/stream/sse-relay";
-import type { SseEvent } from "@/lib/stream/event-taxonomy";
+import {
+  type SseEvent,
+  type ToolUseStatus,
+  type GateStage,
+  isToolUseCode,
+} from "@/lib/stream/event-taxonomy";
 import type { WorkerDispatch, WorkerDispatcher } from "./route";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -154,16 +159,28 @@ export function buildLaunchProfile(args: {
 // ── Worker stdout-marker -> SseEvent parsing ──────────────────────────────────
 
 /**
- * The stdout markers the worker entrypoint (`worker/entry.ts`) emits, and how this
- * dispatcher maps each to a coded SSE event (or to nothing). The rich per-token /
- * tool-use markers are not yet emitted to stdout by the entrypoint, so the live
- * stream currently carries the run LIFECYCLE only (a clean `done` or a terminal
- * `error`); the relay still applies its heartbeat / stall discipline on top.
+ * The stdout markers the worker emits, and how this dispatcher maps each to a coded
+ * SSE event (or to nothing). Two families:
  *
+ * LIFECYCLE (from `worker/entry.ts`):
  *   ::worker-session-id:: <id>      -> (no downstream event; host-side resume key)
  *   ::worker-result:: {json}        -> `done` if status==="completed", else `error`
  *   ::worker-terminal-error:: {json}-> `error` (the worker's terminal failure)
  *   ::worker-fatal:: <message>      -> `error` (an unhandled crash in the entry)
+ *
+ * RICH LIVE DELTAS (P-J, from `worker/emit.ts` via the SDK loop in
+ * `agent-worker.ts`). The payload is `base64(JSON(body))` — injection-safe (a model
+ * token that looks like a marker, or contains a newline, cannot break the framing
+ * or forge a marker, because base64's alphabet has no `:`/space/newline). A
+ * non-base64 / non-JSON / schema-invalid payload is DROPPED (`{kind:"none"}`),
+ * never forwarded as free text (the no-raw-prose-leak discipline):
+ *   ::worker-token:: <b64>          -> `token-delta` (the article typing in)
+ *   ::worker-thinking:: <b64>       -> `thinking`    (agent reasoning, muted)
+ *   ::worker-tool:: <b64>           -> `tool-use`    (coded tool row; unknown code dropped)
+ *   ::worker-gate:: <b64>           -> `gate`        (Stage-A vetoes / Stage-B score+verdict)
+ *
+ * Lifecycle markers terminate the stream (`done`/`error`); rich-delta markers are
+ * intermediate frames that never terminate it.
  */
 /**
  * Distributive omit — applies `Omit` to EACH member of the `SseEvent` union so an
@@ -185,6 +202,35 @@ const RE_SESSION_ID = /^::worker-session-id::\s*(.*)$/;
 const RE_RESULT = /^::worker-result::\s*(.*)$/;
 const RE_TERMINAL_ERROR = /^::worker-terminal-error::\s*(.*)$/;
 const RE_FATAL = /^::worker-fatal::\s*(.*)$/;
+// Rich live-delta markers (P-J). The payload is a base64 blob (no `::`, space, or
+// newline), so the prefix match is unambiguous and the blob is decoded separately.
+const RE_TOKEN = /^::worker-token::\s*(.*)$/;
+const RE_THINKING = /^::worker-thinking::\s*(.*)$/;
+const RE_TOOL = /^::worker-tool::\s*(.*)$/;
+const RE_GATE = /^::worker-gate::\s*(.*)$/;
+
+/**
+ * Decode a rich-delta marker payload (`base64(JSON(body))`) back into a plain
+ * object, or null if it is not valid base64-of-JSON. FAIL-SAFE: any decode/parse
+ * failure returns null so the caller drops the marker (never crashes, never
+ * forwards raw bytes downstream).
+ */
+function decodeMarkerPayload(b64: string): Record<string, unknown> | null {
+  const trimmed = b64.trim();
+  if (!trimmed) return null;
+  // Reject anything outside the base64 alphabet up front (defence-in-depth: a
+  // forged payload with stray bytes can't sneak through as "JSON").
+  if (!/^[A-Za-z0-9+/=]+$/.test(trimmed)) return null;
+  let json: string;
+  try {
+    json = Buffer.from(trimmed, "base64").toString("utf8");
+  } catch {
+    return null;
+  }
+  const parsed = safeJson(json);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  return parsed as Record<string, unknown>;
+}
 
 /**
  * Parse ONE stdout line into a marker result. A non-marker line is `{kind:"none"}`
@@ -240,7 +286,71 @@ export function parseWorkerLine(line: string): MarkerParse {
     };
   }
 
+  // ── Rich live-delta markers (P-J). Decode base64(JSON), validate, map to the
+  //    taxonomy event. A malformed / schema-invalid payload is DROPPED (no crash,
+  //    no raw-prose forwarding). These are intermediate frames — never terminal.
+
+  m = RE_TOKEN.exec(trimmed);
+  if (m) {
+    const payload = decodeMarkerPayload(m[1] ?? "");
+    const delta = payload?.delta;
+    if (typeof delta === "string" && delta.length > 0) {
+      return { kind: "event", event: { type: "token-delta", delta } };
+    }
+    return { kind: "none" };
+  }
+
+  m = RE_THINKING.exec(trimmed);
+  if (m) {
+    const payload = decodeMarkerPayload(m[1] ?? "");
+    const delta = payload?.delta;
+    if (typeof delta === "string" && delta.length > 0) {
+      return { kind: "event", event: { type: "thinking", delta } };
+    }
+    return { kind: "none" };
+  }
+
+  m = RE_TOOL.exec(trimmed);
+  if (m) {
+    const payload = decodeMarkerPayload(m[1] ?? "");
+    const code = payload?.code;
+    const status = payload?.status;
+    // The CODE must be a stable taxonomy code and the STATUS a known lifecycle —
+    // an unknown/forged code is dropped (the acceptance-2 chokepoint, mirrored on
+    // the host side so a compromised worker still can't inject a free-text row).
+    if (isToolUseCode(code) && isToolUseStatus(status)) {
+      const label = typeof payload?.label === "string" ? payload.label : undefined;
+      return { kind: "event", event: { type: "tool-use", code, status, label } };
+    }
+    return { kind: "none" };
+  }
+
+  m = RE_GATE.exec(trimmed);
+  if (m) {
+    const payload = decodeMarkerPayload(m[1] ?? "");
+    const stage = payload?.stage;
+    if (isGateStage(stage)) {
+      const vetoes = Array.isArray(payload?.vetoes)
+        ? (payload.vetoes as unknown[]).filter((v): v is string => typeof v === "string")
+        : undefined;
+      const score = typeof payload?.score === "number" ? payload.score : null;
+      const verdict = typeof payload?.verdict === "string" ? payload.verdict : null;
+      return { kind: "event", event: { type: "gate", stage, vetoes, score, verdict } };
+    }
+    return { kind: "none" };
+  }
+
   return { kind: "none" };
+}
+
+/** Guard: a known tool-use lifecycle status. */
+function isToolUseStatus(value: unknown): value is ToolUseStatus {
+  return value === "running" || value === "ok" || value === "error";
+}
+
+/** Guard: a known deterministic-gate stage. */
+function isGateStage(value: unknown): value is GateStage {
+  return value === "stageA" || value === "stageB";
 }
 
 function safeJson(s: string): unknown {

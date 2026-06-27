@@ -55,6 +55,11 @@ import {
   type LoadedSuite,
   type SuiteSkillName,
 } from "./skills/load-suite";
+import {
+  WorkerEventEmitter,
+  emitFromSdkMessage,
+  createStdoutMarkerSink,
+} from "./emit";
 
 /** The skill the worker loads for the single-drafter slice (PR 008). */
 export const WORKER_SKILL_NAME = SINGLE_DRAFTER_SKILL;
@@ -241,6 +246,17 @@ export interface RunLoopOptions {
   onSessionId?: (sessionId: string) => void | Promise<void>;
   /** Called on terminal failure so the host can release the lease (acceptance #4). */
   onTerminalError?: (err: { code: string; message: string }) => void | Promise<void>;
+  /**
+   * Per-run RICH LIVE-STREAM emitter (P-J). Each raw SDK message is translated
+   * (`emitFromSdkMessage`) into coded `SseEvent`s and pushed through this emitter's
+   * sink. In production the sink writes injection-safe stdout MARKERS
+   * (`createStdoutMarkerSink`) the host dispatcher decodes into the live canvas
+   * stream (token deltas typing in, tool rows ticking). Injectable so the Tier-1
+   * test drives the translation with an in-memory sink and asserts the markers
+   * WITHOUT a live SDK. When omitted, a stdout-marker emitter is built from the
+   * run binding's `runId`; pass `null` to DISABLE rich streaming (lifecycle only).
+   */
+  streamEmitter?: WorkerEventEmitter | null;
 }
 
 export interface RunLoopResult {
@@ -270,6 +286,16 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
   });
 
   let sessionId: string | null = null;
+
+  // The rich live-stream emitter (P-J). Default: a stdout-marker emitter keyed on
+  // the run id — each SDK message becomes injection-safe `::worker-*::` markers the
+  // host dispatcher decodes into the live canvas stream. `null` disables it (the
+  // run still emits lifecycle markers from `entry.ts`); a custom emitter is the
+  // Tier-1 test seam.
+  const streamEmitter =
+    opts.streamEmitter === null
+      ? null
+      : (opts.streamEmitter ?? new WorkerEventEmitter(workerEnv.binding.runId, createStdoutMarkerSink()));
 
   const loop = async (): Promise<RunLoopResult> => {
     const toolServer = await buildWorkerToolServer({
@@ -337,6 +363,21 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       if (candidate && !sessionId) {
         sessionId = String(candidate);
         await opts.onSessionId?.(sessionId);
+      }
+
+      // RICH LIVE STREAM (P-J): translate the raw SDK message into coded events
+      // (token deltas / thinking / tool-use rows / gate frames) and push them
+      // through the emitter's sink (stdout markers in prod). A malformed/unknown
+      // message yields zero events (`emitFromSdkMessage` is conservative — no
+      // free-text passthrough). A translation throw must NEVER break the run, so it
+      // is isolated: streaming is best-effort UX fidelity, the draft/persist path
+      // is the deliverable and is independent of stdout fidelity (DR-044).
+      if (streamEmitter) {
+        try {
+          await emitFromSdkMessage(streamEmitter, message);
+        } catch {
+          // swallow — a stream-translation failure never wedges the loop.
+        }
       }
     }
 
