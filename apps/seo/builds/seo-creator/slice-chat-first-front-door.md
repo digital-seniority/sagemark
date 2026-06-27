@@ -41,8 +41,18 @@ Chat-first / agent-driven (Claude-Code-like): the user's message IS the brief �
 - ✅ **I0 (HUMAN):** James enabled Supabase Auth (email magic-link + `/auth/callback`) — 2026-06-27.
 - ✅ **P-B auth** ([#99](https://github.com/digital-seniority/sagemark/pull/99)) — Supabase magic-link; `getCurrentWorkspace` fail-closed (service-role member read, server-derived); `requireOperator` now redirects (THE gate flip); Next 16 `proxy.ts`. Judge 5/5·5/5. Inert until deployed.
 - ✅ **P-D conversation adapter** ([#100](https://github.com/digital-seniority/sagemark/pull/100)) — `ConversationDataAccess` seam + live adapter, tenancy-filtered, NOT_WIRED fail-closed. Judge 5/5·5/5. [[DR-046]].
-- **5/10 done.** **NEXT:** P-F (turn-aware `/api/run` — wire conversation adapter + composer + record turns) → P-G (conversation routes) → P-H (chat composer UI) → P-I (home/canvas wiring) → P-J (rich streaming). All deps now met (P-B/P-D/P-E done).
-- **RUNTIME steps (after build):** deploy (preview→main, James's go) → James first magic-link sign-in → **orchestrator seeds his `operators`/`workspaces`/`workspace_members`** linking his `auth.users.id` to the WW workspace (`81815c0a…`) → studio resolves his workspace → chat works. **WARNING:** an authed operator with NO seeded membership → null workspace → 401 on every studio surface, so seed promptly after the gate deploys.
+- ✅ **P-F turn-aware `/api/run`** ([#102](https://github.com/digital-seniority/sagemark/pull/102)) — conversation persistence + composer + record turns; one-shot path unchanged; agent-turn-on-done idempotent. Judge 5/5·5/5.
+- ✅ **P-G conversation routes** ([#103](https://github.com/digital-seniority/sagemark/pull/103)) — `/api/conversations` create/list/[id], tenancy-scoped (404 cross-tenant). Judge 5/5·5/5.
+- ✅ **P-H chat composer + transcript UI** ([#104](https://github.com/digital-seniority/sagemark/pull/104)) — POST-fetch-stream (shared reducer), persisted-is-truth reconcile, idle path intact. Judge 5/5·5/5.
+- ✅ **P-J rich streaming** ([#105](https://github.com/digital-seniority/sagemark/pull/105)) — worker base64(JSON) delta markers → taxonomy SSE; injection-safe, no raw-prose leak. Judge 5/5·5/5.
+- ✅ **P-I home + canvas wiring** ([#106](https://github.com/digital-seniority/sagemark/pull/106)) — chat-first mount (not idle), workspace→client bridge, cross-tenant redirect. Judge 5/5·5/5. [[DR-047]].
+
+## 🎉 SLICE COMPLETE — 10/10 PRs merged (code-complete on preview)
+Conventions: [[DR-044]]/[[DR-045]]/[[DR-046]]/[[DR-047]]. **RUNTIME / GO-LIVE steps remaining (not code):**
+1. **Deploy** preview→main (James's go — the production release).
+2. **James first magic-link sign-in** on the deployed `/sign-in` → creates his `auth.users.id`.
+3. **Orchestrator seeds** `operators` (his auth id) + `workspaces` + `workspace_members` linking him to the WW workspace (`81815c0a…`); ensure the WW `content_clients` row (`e84acf0f…`) is in that workspace. **WARNING:** an authed operator with NO seeded membership → null workspace → 401/redirect on every studio surface — seed promptly after the gate deploys.
+4. **Tier-3 live e2e:** sign-in → start a conversation → chat → the worker (Sandbox) drafts a real WW piece → gate → release → publish. (Also the live Sandbox dispatch e2e from the worker stand-up — still Tier-3.)
 
 ## Risks (Plan agent)
 - **P-B is the tenancy-boundary flip** — review like the publish path. **Multi-turn cost/latency** — every turn = a fresh microVM boot + full SKILL run (~90s ceiling); current draft injected so no re-research, but heavy for "make it warmer" (hence the `/api/edit` hedge). **`WORKER_PROMPT` env-size** — a big composed prompt (transcript+draft) may hit a Sandbox env limit; fall back to writing the brief to the workdir + passing a path. **Live e2e still pending** (DR-044 / the `runCommand` `as any`).
