@@ -56,7 +56,12 @@ import type {
   PersistedApprovalEvent,
   PublishedPiece,
   PublicClient,
+  DraftInsert,
+  PieceVersionInsert,
+  ClientSignoffInsert,
+  CredentialedReleaseInsert,
 } from "./context";
+import { DataAccessNotWiredError } from "./context";
 import type { Verdict, GeoFaqItem } from "@sagemark/core";
 
 // ── Service-role creds (shared shape with the image-resolver) ─────────────────
@@ -916,5 +921,458 @@ export async function makeLivePublicContentReadAccess(): Promise<PublicContentRe
     resolveClientByBlogSlug: (blogSlug) => adapter.resolveClientByBlogSlug(blogSlug),
     loadPublishedPiece: (clientId, slug) => adapter.loadPublishedPiece(clientId, slug),
     listPublishedPieces: (clientId) => adapter.listPublishedPieces(clientId),
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LIVE WRITE ADAPTER (DR-026, service-role, INERT)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// THE GAP THIS CLOSES. The READ adapter above loads pieces/versions/releases; the
+// content-kernel WRITE paths (draft insert, version snapshot, FSM transition,
+// comment-thread resolve, dual sign-off) still run on `NOT_WIRED_DATA_ACCESS`
+// (every writer throws). This is the live WRITE half of the same seam, the same
+// module + service-role discipline as the READ adapter.
+//
+// SECURITY — SERVICE ROLE BYPASSES RLS (load-bearing, the highest-stakes code in
+// the project — it persists YMYL releases + moves the FSM). RLS is NOT the tenancy
+// boundary here. The APP FILTER is the boundary:
+//   - every INSERT sets `workspace_id` + `client_id` from the BOUND args of the
+//     host-built payload (never request input). The seam's insert payloads carry
+//     the BOUND tenancy by construction (context.ts: "`clientId` is the BOUND
+//     client id (never request input)").
+//   - every UPDATE filters by the BOUND `client_id` (+ `id`/`piece_id`). A
+//     cross-tenant id therefore updates ZERO rows — never another tenant's row.
+//
+// NO GATE / FSM BYPASS (GATE-BYPASS). This is a PERSISTENCE layer: it persists what
+// the host logic ALREADY decided. It embeds NO publish shortcut.
+//   - `transitionPieceStatus` persists the status the caller passes. The FSM gate
+//     (`assertTransition` -> `canPublish`) is enforced UPSTREAM in `@sagemark/core`
+//     and the publish route (apps/seo/src/app/content/api/publish/route.ts:214 —
+//     `assertTransition(from, to, transitionCtx)` runs BEFORE the line-253
+//     `transitionPieceStatus` call). The adapter does NOT re-gate, and exposes NO
+//     publish path that skips the recorded `credentialed_releases` row: `published`
+//     is reachable only by the caller passing `to='published'` AFTER its own gate.
+//   - `insertCredentialedRelease` persists the record `signoff.ts` already built;
+//     the §11.5 active-authorization check + the DR-037 placeholder refusal already
+//     ran in `signoff.ts` (recordCredentialedRelease) — the adapter does NOT
+//     re-gate and does NOT weaken it: it persists the credential snapshot +
+//     authorization_id FAITHFULLY (no defaulting, no fabrication).
+//
+// IMMUTABILITY (DR-031, append-only). The adapter provides NO update/delete for a
+// credentialed release or a named sign-off version:
+//   - `credentialed_releases` is INSERT-only here (no update/delete method). The
+//     schema's UNIQUE(piece_id, version) makes a SECOND release per version fail at
+//     the DB — the duplicate INSERT returns an error and this throws (publish stays
+//     on the first release).
+//   - `nameVersion` / `setActiveVersion` mutate the DEFERRED-MIGRATION
+//     `name`/`is_active`/`is_signoff` columns that do NOT exist on
+//     `content_piece_versions` yet (no migration adds them — schema lane owns them).
+//     Per the seam contract they stay FAIL-CLOSED (throw `DataAccessNotWiredError`)
+//     until those columns + the Drizzle impl land. Because there is NO live write
+//     path for a named sign-off version at all, the undeletable-named-sign-off
+//     invariant (P1.U.4) holds trivially in this adapter.
+//
+// FAIL-LOUD on a write error (never fail-open / never silently succeed). A
+// PostgREST error (constraint violation, RLS, network) throws a clear error — a
+// caller NEVER reads a write that did not land.
+//
+// Clean ASCII / UTF-8. No `console.*`. `@supabase/supabase-js` is imported
+// dynamically by the shared `makeLiveContentReadAdapter` creds path.
+
+/**
+ * A terminal PostgREST WRITE builder. Awaitable to `{ error }` for a
+ * fire-and-forget write; `.select(cols)` narrows the returned columns and
+ * `.single()` returns the one written/updated row. `.eq()` chains the tenancy
+ * filters an UPDATE binds. Modelled minimally (only the methods used) so the fake
+ * client in the test can implement the same shape.
+ */
+interface WriterMutation {
+  /** Chain a tenancy/identity filter (UPDATE scope). */
+  eq(col: string, val: string | number): WriterMutation;
+  /** Narrow the returned columns (RETURNING ...). */
+  select(cols: string): WriterMutation;
+  /** Return exactly the one affected row (errors if not exactly one). */
+  single(): Promise<ReaderResult<Record<string, unknown> | null>>;
+  /** Return all affected rows (0..n). */
+  then<R>(
+    onfulfilled?: (v: ReaderResult<Record<string, unknown>[]>) => R,
+  ): PromiseLike<R>;
+}
+
+/** The minimal service-role Supabase surface this WRITE adapter uses. */
+export interface WriterSupabase {
+  from(table: string): {
+    insert(row: Record<string, unknown>): WriterMutation;
+    update(patch: Record<string, unknown>): WriterMutation;
+  };
+}
+
+/**
+ * Live, service-role-backed implementation of the WRITE surface of
+ * `ContentDataAccess`. Every INSERT carries the BOUND `workspace_id`/`client_id`
+ * from the host-built payload; every UPDATE filters by the BOUND tenancy (a
+ * cross-tenant id updates ZERO rows). It persists ONLY what the host logic already
+ * decided — it embeds no gate/FSM bypass.
+ */
+export class LiveContentWriteAccess {
+  constructor(private readonly supabase: WriterSupabase) {}
+
+  /**
+   * Insert a host-validated draft piece. The route NEVER passes caller tenancy —
+   * `client_id` is the BOUND client id from `DraftInsert` (context.ts). Status
+   * defaults to 'draft' (the DB column default); a draft can never be born
+   * published. Returns the new (id, slug). Fail-loud on a constraint error (e.g.
+   * the per-client unique-slug index).
+   */
+  async insertDraftPiece(insert: DraftInsert): Promise<{ id: string; slug: string }> {
+    const { data, error } = await this.supabase
+      .from("content_pieces")
+      .insert({
+        client_id: insert.clientId, // BOUND tenancy — never request input.
+        slug: insert.slug,
+        title: insert.title,
+        body: insert.body,
+        excerpt: insert.excerpt ?? null,
+        meta_description: insert.metaDescription ?? null,
+        is_ymyl: insert.isYmyl,
+        author_id: insert.authorId,
+        faq_data: insert.faqData,
+        brief_snapshot: insert.briefSnapshot,
+        // status / version intentionally OMITTED — the DB defaults ('draft', 1)
+        // apply. A draft is never born in a published/approved state.
+      })
+      .select("id, slug")
+      .single();
+    if (error) {
+      throw new Error(
+        `live-data-access: insertDraftPiece failed for client=${insert.clientId}: ${stringifyErr(error)}`,
+      );
+    }
+    const id = data ? reqString(data.id) : null;
+    const slug = data ? reqString(data.slug) : null;
+    if (!id || !slug) {
+      throw new Error(
+        `live-data-access: insertDraftPiece returned no id/slug for client=${insert.clientId}`,
+      );
+    }
+    return { id, slug };
+  }
+
+  /**
+   * APPEND-ONLY insert of a NEW `content_piece_versions` row (the edit flow). It
+   * NEVER mutates a prior version; the schema's UNIQUE(piece_id, version) makes a
+   * duplicate `version` for a piece fail at the DB (the INSERT errors → this
+   * throws). `client_id` is the BOUND client id from the payload. Returns the new
+   * (id, version).
+   */
+  async insertPieceVersion(
+    insert: PieceVersionInsert,
+  ): Promise<{ id: string; version: number }> {
+    const { data, error } = await this.supabase
+      .from("content_piece_versions")
+      .insert({
+        piece_id: insert.pieceId,
+        client_id: insert.clientId, // BOUND tenancy — never request input.
+        version: insert.version,
+        body: insert.body,
+        verdict: insert.verdict,
+        dimensions: insert.dimensions,
+      })
+      .select("id, version")
+      .single();
+    if (error) {
+      // A duplicate (piece_id, version) hits the unique index → fail-loud (the
+      // append-only history is never silently overwritten).
+      throw new Error(
+        `live-data-access: insertPieceVersion failed for piece=${insert.pieceId} version=${insert.version}: ${stringifyErr(error)}`,
+      );
+    }
+    const id = data ? reqString(data.id) : null;
+    const version = data ? asIntOrNull(data.version) : null;
+    if (!id || version === null) {
+      throw new Error(
+        `live-data-access: insertPieceVersion returned no id/version for piece=${insert.pieceId}`,
+      );
+    }
+    return { id, version };
+  }
+
+  /**
+   * Persist an FSM status transition (publish route only). PERSISTENCE ONLY — the
+   * FSM/`canPublish` gate is enforced UPSTREAM (`assertTransition` in the publish
+   * route runs BEFORE this call). The UPDATE filters by the BOUND (id, client_id);
+   * a cross-tenant piece id matches ZERO rows (no mutation, no leak). Sets
+   * `updated_at = now()`, and `published_at = now()` ONLY when transitioning to
+   * 'published' (so a published piece always carries a publish timestamp — the
+   * public read orders by it). This is NOT a publish shortcut: 'published' is only
+   * ever reached because the caller already passed `to='published'` past its gate.
+   */
+  async transitionPieceStatus(
+    pieceId: string,
+    clientId: string,
+    to: ContentPieceRow["status"],
+  ): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const patch: Record<string, unknown> = { status: to, updated_at: nowIso };
+    if (to === "published") {
+      patch.published_at = nowIso;
+    }
+    const { error } = await this.supabase
+      .from("content_pieces")
+      .update(patch)
+      .eq("id", pieceId)
+      .eq("client_id", clientId); // BOUND tenancy — a cross-tenant id → 0 rows.
+    if (error) {
+      throw new Error(
+        `live-data-access: transitionPieceStatus failed for piece=${pieceId} to=${to}: ${stringifyErr(error)}`,
+      );
+    }
+  }
+
+  /**
+   * Insert ONE ADVISORY `client_signoffs` row. This row can NEVER release a piece
+   * nor populate a byline — the payload (context.ts `ClientSignoffInsert`) carries
+   * NO credential / authorization_id by construction, and the table's CHECK pins
+   * `release_type = 'client_signoff'`. `workspace_id`/`client_id` are the BOUND
+   * pair. Returns the new id.
+   */
+  async insertClientSignoff(insert: ClientSignoffInsert): Promise<{ id: string }> {
+    const { data, error } = await this.supabase
+      .from("client_signoffs")
+      .insert({
+        workspace_id: insert.workspaceId, // BOUND tenancy.
+        client_id: insert.clientId, // BOUND tenancy.
+        piece_id: insert.pieceId,
+        version: insert.version,
+        actor_id: insert.actorId,
+        release_scope: insert.releaseScope,
+        // release_type intentionally OMITTED — the DB default + CHECK pin it to
+        // 'client_signoff' (an advisory row can NEVER masquerade as a release).
+      })
+      .select("id")
+      .single();
+    if (error) {
+      throw new Error(
+        `live-data-access: insertClientSignoff failed for piece=${insert.pieceId}: ${stringifyErr(error)}`,
+      );
+    }
+    const id = data ? reqString(data.id) : null;
+    if (!id) {
+      throw new Error(
+        `live-data-access: insertClientSignoff returned no id for piece=${insert.pieceId}`,
+      );
+    }
+    return { id };
+  }
+
+  /**
+   * Insert ONE `credentialed_releases` row — the ONLY record `canPublish()` reads
+   * as a human release. PERSISTENCE ONLY: the §11.5 active-authorization check + the
+   * DR-037 placeholder refusal already ran in `signoff.ts`
+   * (`recordCredentialedRelease`); this adapter does NOT re-gate and does NOT
+   * weaken it — it persists the `credential` snapshot + `authorization_id`
+   * FAITHFULLY (no defaulting, no fabrication). The schema's
+   * UNIQUE(piece_id, version) makes a SECOND release per version fail at the DB (the
+   * INSERT errors → this throws). IMMUTABLE / append-only: there is NO update or
+   * delete path for a credentialed release on this adapter. Tenancy is the BOUND
+   * pair. Returns the new id.
+   */
+  async insertCredentialedRelease(
+    insert: CredentialedReleaseInsert,
+  ): Promise<{ id: string }> {
+    const { data, error } = await this.supabase
+      .from("credentialed_releases")
+      .insert({
+        workspace_id: insert.workspaceId, // BOUND tenancy.
+        client_id: insert.clientId, // BOUND tenancy.
+        piece_id: insert.pieceId,
+        version: insert.version,
+        actor_id: insert.actorId,
+        // Persist the byline evidence FAITHFULLY (the snapshot signoff.ts took
+        // from the active authorization — never request input, never defaulted).
+        credential: insert.credential,
+        authorization_id: insert.authorizationId,
+        release_scope: insert.releaseScope,
+        // release_type OMITTED — the DB default + CHECK pin 'credentialed_release'.
+      })
+      .select("id")
+      .single();
+    if (error) {
+      // A duplicate (piece_id, version) hits the unique index → fail-loud (a second
+      // release per version is rejected; publish stays on the recorded release).
+      throw new Error(
+        `live-data-access: insertCredentialedRelease failed for piece=${insert.pieceId} version=${insert.version}: ${stringifyErr(error)}`,
+      );
+    }
+    const id = data ? reqString(data.id) : null;
+    if (!id) {
+      throw new Error(
+        `live-data-access: insertCredentialedRelease returned no id for piece=${insert.pieceId}`,
+      );
+    }
+    return { id };
+  }
+
+  /**
+   * Mark a `comment_threads` row RESOLVED + append a host-authored note that it was
+   * addressed in a given version. APPEND-ONLY w.r.t. the thread audit: it flips
+   * `status` open->resolved and APPENDS the "addressed in vN" note onto `body`
+   * (the table has no dedicated addressed-version column; the note is appended, the
+   * thread is NEVER deleted). The UPDATE filters by the BOUND (id, client_id) — a
+   * cross-tenant comment id matches ZERO rows → no mutation; we then fail-loud
+   * (the caller asked to resolve a thread that is not theirs / does not exist).
+   * Returns the mapped resolved thread.
+   */
+  async resolveCommentThread(input: {
+    commentId: string;
+    clientId: string;
+    addressedInVersion: number;
+  }): Promise<PersistedCommentThread> {
+    // Read the current body first (scoped to the BOUND tenancy) so the note is an
+    // APPEND, never a clobber. A cross-tenant / missing id resolves to no row.
+    const current = await this.readCommentBody(input.commentId, input.clientId);
+    const note = `[resolved: addressed in v${input.addressedInVersion}]`;
+    const nextBody = current.body ? `${current.body}\n${note}` : note;
+
+    const { data, error } = await this.supabase
+      .from("comment_threads")
+      .update({ status: "resolved", body: nextBody })
+      .eq("id", input.commentId)
+      .eq("client_id", input.clientId) // BOUND tenancy — cross-tenant → 0 rows.
+      .select(
+        "id, piece_id, client_id, version, kind, anchor, body, author, status, created_at",
+      )
+      .single();
+    if (error) {
+      throw new Error(
+        `live-data-access: resolveCommentThread failed for comment=${input.commentId}: ${stringifyErr(error)}`,
+      );
+    }
+    const mapped = data ? mapCommentThread(data) : null;
+    if (!mapped) {
+      throw new Error(
+        `live-data-access: resolveCommentThread updated no row for comment=${input.commentId} (cross-tenant or missing)`,
+      );
+    }
+    return mapped;
+  }
+
+  /**
+   * Read the current `body` of a comment thread scoped by the BOUND (id, client_id)
+   * so `resolveCommentThread` can APPEND its note (never clobber). The read
+   * companion is injected by the factory (same service-role client). Returns an
+   * empty body when the row does not resolve — the subsequent UPDATE then matches 0
+   * rows and the caller fails loud.
+   */
+  private async readCommentBody(
+    commentId: string,
+    clientId: string,
+  ): Promise<{ body: string }> {
+    if (!this.reader) return { body: "" };
+    const thread = await this.reader.loadCommentThread(commentId, clientId);
+    return { body: thread?.body ?? "" };
+  }
+
+  /** Optional read companion (injected by the factory) for the resolve-note append. */
+  private reader: Pick<LiveContentReadAccess, "loadCommentThread"> | null = null;
+  /** @internal Wire the read companion (factory only). */
+  attachReader(reader: Pick<LiveContentReadAccess, "loadCommentThread">): void {
+    this.reader = reader;
+  }
+
+  /**
+   * DEFERRED-MIGRATION (fail-closed). `nameVersion` writes the `name`/`is_signoff`
+   * columns on `content_piece_versions` that DO NOT EXIST yet (no migration adds
+   * them — the schema-tenancy lane owns them). Per the seam contract it stays
+   * NOT_WIRED until those columns + the Drizzle impl land. Because there is NO live
+   * write path for a named sign-off version, the undeletable-named-sign-off
+   * invariant (P1.U.4) holds trivially here (no update/delete path exists at all).
+   */
+  async nameVersion(_input: {
+    pieceId: string;
+    clientId: string;
+    version: number;
+    name: string;
+    asSignoff?: boolean;
+  }): Promise<PersistedPieceVersion> {
+    void _input;
+    throw new DataAccessNotWiredError("nameVersion (deferred-migration columns)");
+  }
+
+  /**
+   * DEFERRED-MIGRATION (fail-closed). `setActiveVersion` writes the `is_active`
+   * column on `content_piece_versions` that DOES NOT EXIST yet. NOT_WIRED until the
+   * schema lane lands the column + the Drizzle impl. (No live write path — no risk
+   * of mutating an immutable named sign-off.)
+   */
+  async setActiveVersion(_input: {
+    pieceId: string;
+    clientId: string;
+    version: number;
+  }): Promise<PersistedPieceVersion> {
+    void _input;
+    throw new DataAccessNotWiredError("setActiveVersion (deferred-migration columns)");
+  }
+}
+
+// ── Inert WRITE factory (built + injectable; NOT wired into any route) ──────────
+
+/** The WRITE subset of `ContentDataAccess` the live adapter implements. */
+export type ContentWriteAccess = Pick<
+  ContentDataAccess,
+  | "insertDraftPiece"
+  | "insertPieceVersion"
+  | "transitionPieceStatus"
+  | "insertClientSignoff"
+  | "insertCredentialedRelease"
+  | "resolveCommentThread"
+  | "nameVersion"
+  | "setActiveVersion"
+>;
+
+/**
+ * Build a `LiveContentWriteAccess` from a service-role Supabase client — but ONLY
+ * if the host creds are present. Returns null otherwise, so the caller leaves the
+ * seam on its fail-closed `NOT_WIRED_DATA_ACCESS` default (unchanged behavior).
+ *
+ * The SAME service-role client backs both the read and write surfaces; the write
+ * adapter gets a read companion (for the resolve-note append) wired in.
+ *
+ * INERT: this is NOT called by any route in this PR. A separate human-reviewed
+ * wiring PR will inject the returned write access into the kernel routes.
+ */
+export async function makeLiveContentWriteAdapter(): Promise<LiveContentWriteAccess | null> {
+  const creds = readReadAdapterCreds();
+  if (!creds) return null;
+  const { createClient } = await import("@supabase/supabase-js");
+  const client = createClient(creds.url, creds.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const writer = new LiveContentWriteAccess(client as unknown as WriterSupabase);
+  writer.attachReader(new LiveContentReadAccess(client as unknown as ReaderSupabase));
+  return writer;
+}
+
+/**
+ * Build the live WRITE subset of `ContentDataAccess`, or null when the host is not
+ * configured (-> leave the seam on `NOT_WIRED_DATA_ACCESS`). The returned object is
+ * typed to the WRITE methods only.
+ *
+ * INERT: not wired into any route in this PR (factory only).
+ */
+export async function makeLiveContentWriteAccess(): Promise<ContentWriteAccess | null> {
+  const adapter = await makeLiveContentWriteAdapter();
+  if (!adapter) return null;
+  return {
+    insertDraftPiece: (insert) => adapter.insertDraftPiece(insert),
+    insertPieceVersion: (insert) => adapter.insertPieceVersion(insert),
+    transitionPieceStatus: (pieceId, clientId, to) =>
+      adapter.transitionPieceStatus(pieceId, clientId, to),
+    insertClientSignoff: (insert) => adapter.insertClientSignoff(insert),
+    insertCredentialedRelease: (insert) => adapter.insertCredentialedRelease(insert),
+    resolveCommentThread: (input) => adapter.resolveCommentThread(input),
+    nameVersion: (input) => adapter.nameVersion(input),
+    setActiveVersion: (input) => adapter.setActiveVersion(input),
   };
 }
