@@ -25,6 +25,8 @@ import type { GateScorecard } from "@/lib/stream/use-ui-message-stream";
 import { BriefCard, type ContentBrief } from "./BriefCard";
 import { ModeTabs, type ArtifactMode } from "./ModeTabs";
 import { DraftPaper } from "./DraftPaper";
+import { PreviewFrame } from "./PreviewFrame";
+import { ExportMenu } from "./ExportMenu";
 
 export interface ArtifactZoneProps {
   /** The resolved content brief, or null before a run produces one. */
@@ -36,8 +38,6 @@ export interface ArtifactZoneProps {
   /** The latest gate scorecard projection (drives the verdict signal dot). */
   scorecard?: GateScorecard | null;
 }
-
-const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
 export function ArtifactZone({ brief, body, streaming = false, scorecard }: ArtifactZoneProps) {
   const [mode, setMode] = useState<ArtifactMode>("draft");
@@ -56,7 +56,10 @@ export function ArtifactZone({ brief, body, streaming = false, scorecard }: Arti
     >
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <ModeTabs active={mode} onChange={setMode} />
-        <ScoreSignalDot verdict={scorecard?.verdict ?? null} score={scorecard?.score ?? null} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <ExportMenu brief={brief} body={body} />
+          <ScoreSignalDot verdict={scorecard?.verdict ?? null} score={scorecard?.score ?? null} />
+        </div>
       </header>
 
       <BriefCard brief={brief} />
@@ -68,20 +71,9 @@ export function ArtifactZone({ brief, body, streaming = false, scorecard }: Arti
           // edit <-> view toggle + the edit -> re-gate loop land in Slice 3.
           <DraftPaper body={body} streaming={streaming} />
         ) : (
-          // PREVIEW mode — placeholder for the SSR reading view (Slice 4 wires the
-          // sandboxed iframe of the real /clients/[c]/blog/[slug] render).
-          <div
-            data-testid="artifact-preview-stub"
-            style={{
-              border: "1px dashed var(--line)",
-              borderRadius: 10,
-              padding: "1.25rem",
-              ...SUBTLE,
-            }}
-          >
-            The rendered page preview is wired in a later slice. Switch to{" "}
-            <strong>Draft</strong> to see the live body.
-          </div>
+          // PREVIEW mode — the rendered reading view: a SERP snippet + the article
+          // in a sandboxed iframe, built from the live body (PreviewFrame).
+          <PreviewFrame brief={brief} body={body} />
         )}
       </div>
 

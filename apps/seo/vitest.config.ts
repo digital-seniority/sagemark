@@ -126,6 +126,10 @@ export default defineConfig({
       // (NOT_WIRED default vs live-when-creds), and the live share_of_model store.
       // Tier-1, fully mocked (no DB, no provider key).
       "test/activation/**/*.test.ts",
+      // Slice 4 (studio UX overhaul): the article export core — standalone HTML /
+      // CMS fragment / markdown / meta builders + the dependency-free store-only
+      // ZIP writer. Pure, client-safe, no infra.
+      "test/export/**/*.test.ts",
     ],
   },
   // The PR 015 render suites import the `[client]/blog/[slug]/page.tsx` Server
