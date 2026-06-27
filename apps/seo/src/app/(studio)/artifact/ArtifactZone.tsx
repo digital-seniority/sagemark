@@ -24,7 +24,7 @@ import { ScoreSignalDot } from "@/components/ScoreSignalDot";
 import type { GateScorecard } from "@/lib/stream/use-ui-message-stream";
 import { BriefCard, type ContentBrief } from "./BriefCard";
 import { ModeTabs, type ArtifactMode } from "./ModeTabs";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { DraftPaper } from "./DraftPaper";
 
 export interface ArtifactZoneProps {
   /** The resolved content brief, or null before a run produces one. */
@@ -63,25 +63,55 @@ export function ArtifactZone({ brief, body, streaming = false, scorecard }: Arti
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {mode === "draft" ? (
-          // PR 011: the live editor the token-delta stream types into (was a
-          // read-only <pre> in P1.U.1). MarkdownEditor owns the empty state + caret.
-          <MarkdownEditor body={body} streaming={streaming} />
+          // The live reading view the token-delta stream materializes into — the
+          // article renders in serif as the agent writes it (DraftPaper). The
+          // edit <-> view toggle + the edit -> re-gate loop land in Slice 3.
+          <DraftPaper body={body} streaming={streaming} />
         ) : (
-          // PREVIEW mode — placeholder for the rendered reading view (PR 011/013).
+          // PREVIEW mode — placeholder for the SSR reading view (Slice 4 wires the
+          // sandboxed iframe of the real /clients/[c]/blog/[slug] render).
           <div
             data-testid="artifact-preview-stub"
             style={{
-              border: "1px dashed currentColor",
+              border: "1px dashed var(--line)",
               borderRadius: 10,
               padding: "1.25rem",
               ...SUBTLE,
             }}
           >
-            Rendered preview is wired in a later PR (PR 011/013). Switch to{" "}
+            The rendered page preview is wired in a later slice. Switch to{" "}
             <strong>Draft</strong> to see the live body.
           </div>
         )}
       </div>
+
+      {/* The live-stream footer from the mock — the gate re-runs once the draft settles. */}
+      {streaming && mode === "draft" && (
+        <div
+          data-testid="artifact-streaming-footer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 11,
+            color: "var(--accent-blue)",
+            borderTop: "1px solid var(--line)",
+            paddingTop: 10,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "var(--accent-blue)",
+              animation: "studio-pulse 1.2s ease-in-out infinite",
+            }}
+          />
+          streaming — the gate re-runs when the draft settles
+        </div>
+      )}
     </div>
   );
 }

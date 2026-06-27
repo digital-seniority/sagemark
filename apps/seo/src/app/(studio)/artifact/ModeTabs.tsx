@@ -32,7 +32,7 @@ export function ModeTabs({ active, onChange }: ModeTabsProps) {
       role="tablist"
       aria-label="Artifact view"
       data-testid="mode-tabs"
-      style={{ display: "inline-flex", gap: 4, border: "1px solid currentColor", borderRadius: 8, padding: 2 }}
+      style={{ display: "inline-flex", gap: 2 }}
     >
       {ARTIFACT_MODES.map((mode) => {
         const selected = mode === active;
@@ -50,15 +50,17 @@ export function ModeTabs({ active, onChange }: ModeTabsProps) {
               border: "none",
               cursor: "pointer",
               font: "inherit",
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: 600,
-              padding: "4px 12px",
-              borderRadius: 6,
-              color: "inherit",
-              background: selected
-                ? "color-mix(in srgb, currentColor 12%, transparent)"
-                : "transparent",
-              opacity: selected ? 1 : 0.55,
+              padding: "6px 10px",
+              // An underline tab (mock): the active view is marked by an accent
+              // bottom border, the rest read muted.
+              borderBottom: selected
+                ? "2px solid var(--accent-blue)"
+                : "2px solid transparent",
+              borderRadius: 0,
+              background: "transparent",
+              color: selected ? "var(--foreground)" : "var(--muted)",
             }}
           >
             {MODE_LABEL[mode]}
