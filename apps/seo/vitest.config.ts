@@ -25,6 +25,10 @@ export default defineConfig({
       "test/publish/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
+      // worker-runtime: the host model-proxy (verify bridge JWT -> forward to the
+      // metered Gateway with the host key -> stream SSE through). Tier-1, injected
+      // upstream fetch + injected secret (no live Gateway, no real key).
+      "test/model/**/*.test.ts",
       // PR 008 / P0.W.5 (DR-019 append-only carve-out): the golden-set regression
       // harness + the Stage-A/Stage-B acceptance spec.
       "test/golden/**/*.test.ts",
