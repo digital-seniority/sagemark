@@ -20,11 +20,30 @@ export default defineConfig({
     // built-in `node:test` runner (run via `node --test`), so it is intentionally
     // excluded here to avoid a runner clash.
     include: [
+      // DR-003 (lane auth): the operator-auth seam — getCurrentWorkspace's
+      // operator -> service-role membership -> workspace resolution + the
+      // fail-closed branches (no operator / no membership / unmappable row), and
+      // requireOperator's redirect-when-unauthenticated gate. Pure vitest with
+      // injected fakes for the operator + the service-role member read (no DB, no
+      // live Supabase). The live magic-link round-trip is Tier-3 NEEDS-INPUT.
+      "test/auth/**/*.test.ts",
       "test/content/**/*.test.ts",
       // PR 009 / P0.S.2: the fail-closed publish truth table (studio /api/publish).
       "test/publish/**/*.test.ts",
       "test/worker/**/*.test.ts",
       "test/stream/**/*.test.ts",
+      // Slice 5 / P-E (lane worker-runtime): the pure turn-prompt composer that
+      // builds the per-turn WORKER_PROMPT brief (first-turn generate vs revision,
+      // transcript size-cap, injection-hygiene fencing). Pure fn, no infra.
+      "test/conversation/**/*.test.ts",
+      // worker-runtime: the LIVE /api/run worker dispatcher (provisions the per-run
+      // Sandbox, starts the worker, relays its `::worker-*::` marker stream as coded
+      // SSE). Tier-1, injected fake launchSandbox + scripted worker logs (no live VM).
+      "test/run/**/*.test.ts",
+      // worker-runtime: the host model-proxy (verify bridge JWT -> forward to the
+      // metered Gateway with the host key -> stream SSE through). Tier-1, injected
+      // upstream fetch + injected secret (no live Gateway, no real key).
+      "test/model/**/*.test.ts",
       // PR 008 / P0.W.5 (DR-019 append-only carve-out): the golden-set regression
       // harness + the Stage-A/Stage-B acceptance spec.
       "test/golden/**/*.test.ts",
