@@ -29,3 +29,38 @@ Everything is staged + INERT on `preview` (Run #23 + the SoM/activation follow-u
 
 ## Recommended order
 B.1 (pilot workspace) → A (`SUPABASE_*`, `AI_GATEWAY_API_KEY`) → `SOM_LIVE=1` (start the north-star feed; cheap, no publishing) → verify real SoM rows land (closes P1.C.4 DoD for the covered engines) → B.2 (real reviewer) → `PUBLISH_ENABLED=1` (YMYL now legitimately publishable). Reverse any step by unsetting its env.
+
+---
+
+## P1.C.4 DoD close — the exact steps to turn the live-smoke into persisted rows
+The path is proven (`som-live-smoke-evidence.md`). To close the formal DoD (real labeled `share_of_model` rows for a provisioned client), run the cron **in the app's real runtime** (the smoke can't write rows — no client + standalone can't resolve the workspace modules). Pick local-dev OR deploy.
+
+**Prereqs (both paths):**
+1. **Provision a real pilot client** (Supabase SQL editor) — use a REAL workspace_id if you have one, else a generated one for the pilot:
+   ```sql
+   insert into public.content_clients (name, blog_slug, workspace_id)
+   values ('Whispering Willows of Mount Vernon','whispering-willows', gen_random_uuid())
+   on conflict (blog_slug) do nothing
+   returning id, workspace_id;
+   ```
+2. Env present: `SUPABASE_URL`(or `NEXT_PUBLIC_SUPABASE_URL`) + `SUPABASE_SERVICE_ROLE_KEY` + `AI_GATEWAY_API_KEY` + `SOM_LIVE=1` + `CRON_SECRET`.
+
+**Path A — local dev runtime:**
+```
+cd apps/seo && pnpm install && pnpm dev    # boots Next with proper workspace resolution
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/ingest-share-of-model
+```
+**Path B — Vercel deploy:** ensure the activation code is deployed; set the env above on the `sagemark-seo` project; then
+```
+curl -H "Authorization: Bearer $CRON_SECRET" https://<deploy-url>/api/cron/ingest-share-of-model
+```
+(or let the weekly schedule fire.)
+
+**Verify (read-only — Claude can run this):**
+```sql
+select engine, source_channel, count(*) n, sum((cited)::int) cited
+from public.share_of_model group by 1,2 order by 1,2;
+```
+Expect rows with `source_channel` ∈ {`direct-citation` (Claude), `direct-proxy` (ChatGPT/Gemini)} — `direct-citation` carries the real discovery citations; `direct-proxy` is reported separately (never summed as a citation). **When these rows exist, P1.C.4 is DoD-complete** for the covered engines (the GEO-tracker vendor upgrades the proxy engines later).
+
+Expected live pattern (from the smoke): Claude cites for discovery queries; the proxy engines only echo the brand when it's named — so a low `direct-proxy` cited-rate on discovery queries is correct, not a bug.
