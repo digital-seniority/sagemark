@@ -39,6 +39,11 @@ import {
 import { buildClusterMap, type ClusterMap } from "@/lib/render/hub-homepage";
 import { resolveHeroAsset } from "@/lib/tools/hero-image";
 import { resolvePublicContentDataAccess } from "@/lib/content/resolve-public-data-access";
+import { buildBrandStyleTag, parseBrandSpec } from "@/lib/render/brand-theme";
+import { buildOrgJsonLd } from "@/lib/render/build-org-jsonld";
+import { Topbar } from "./_hub/Topbar";
+import { Footer } from "./_hub/Footer";
+import { HubScripts } from "./_hub/HubScripts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -145,8 +150,19 @@ export async function renderHomePage(
   const { client, cluster, hero } = resolved;
   const totalGuides = cluster.allSpokes.length + (cluster.pillar ? 1 : 0);
 
+  // Brand theming (Slice 9): parse brand spec from the public client row.
+  const brand = parseBrandSpec(client.brandSpec);
+  const brandCss = buildBrandStyleTag(brand);
+  const orgLd = buildOrgJsonLd(brand, client.name);
+
   return (
-    <main data-role="resource-home">
+    <>
+      {/* Injection-safe brand theme vars */}
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: brandCss }} />
+      <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
+
+      <main data-role="resource-home">
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section data-role="hero">
         {/* Render the hero image ONLY when license-gated (DR-033). */}
@@ -245,6 +261,19 @@ export async function renderHomePage(
         </a>
       </section>
     </main>
+
+      <Footer brand={brand} clientName={client.name} clientSlug={clientSlug} />
+      <HubScripts />
+
+      {/* LocalBusiness JSON-LD (Slice 9 / schema.org) */}
+      {orgLd ? (
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }}
+        />
+      ) : null}
+    </>
   );
 }
 
