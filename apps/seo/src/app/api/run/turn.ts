@@ -79,6 +79,12 @@ export type PrepareTurnResult =
       prompt: string;
       /** The owned conversation (carries its current `pieceId`, may be null). */
       conversation: ConversationRow;
+      /**
+       * The raw project-context note (client brief + prior-piece facts), or null when
+       * the thread has no project or no project seam is wired. Exposed so callers that
+       * replace `prompt` (e.g. standalone-strategy dispatch) can still inject it.
+       */
+      projectContextNote: string | null;
     }
   | {
       // The conversation is not owned by the bound tenancy (forged/foreign id) — the
@@ -166,7 +172,7 @@ export async function prepareTurn(args: {
     projectContextNote,
   });
 
-  return { ok: true, prompt, conversation };
+  return { ok: true, prompt, conversation, projectContextNote };
 }
 
 /**
