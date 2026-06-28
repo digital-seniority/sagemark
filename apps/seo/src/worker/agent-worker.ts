@@ -415,15 +415,34 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       systemPrompt = writerSkill?.markdown;
     }
 
+    // Build the env the CLI subprocess will run under. The sandbox VM is created
+    // with a scrubbed env (ALLOWED_ENV_KEYS only) via buildWorkerEnv, so the
+    // Vercel Sandbox env parameter may replace — not merge — the base system env.
+    // process.env therefore may lack HOME and PATH. Providing explicit fallbacks
+    // ensures the CLI subprocess can:
+    //   • find its config dir (~/.claude)   → HOME
+    //   • resolve system binaries           → PATH
+    //   • read TLS certs                    → NODE_EXTRA_CA_CERTS / SSL_CERT_DIR
+    // We spread process.env first so any system-level vars that DO exist are kept.
+    const sdkEnv: Record<string, string> = {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          (e): e is [string, string] => typeof e[1] === "string",
+        ),
+      ),
+      // Explicit fallbacks: present iff the base env has them; otherwise set safe defaults.
+      HOME: process.env.HOME ?? "/home/worker",
+      PATH: process.env.PATH ?? "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      TMPDIR: process.env.TMPDIR ?? "/tmp",
+    };
+
     const iterator = queryImpl!({
       prompt: opts.prompt,
       options: {
-        // Route ALL model traffic through the Gateway bearer seam. The SDK uses
-        // `options.env ?? process.env` — if we pass a partial env it replaces
-        // process.env entirely (stripping PATH/HOME) and the CLI exits silently.
-        // ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN are already in process.env
-        // via buildWorkerEnv, so omitting `env` here is correct (SDK defaults to
-        // { ...process.env } which preserves PATH/HOME and the scrubbed creds).
+        // Explicit env with HOME/PATH fallbacks (see comment above). We do NOT
+        // omit `env` — if process.env lacks HOME the CLI subprocess can't find
+        // its config dir and exits silently with code 0 (no JSON on stdout).
+        env: sdkEnv,
         // The sandbox env lacks PATH so "node" by name fails with ENOENT.
         // process.execPath is the absolute path to the Node binary already running.
         executable: process.execPath,
@@ -441,6 +460,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // the actual capability control; permissionMode is the session gate.
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
+        // Capture CLI subprocess stderr so errors appear in the worker's stdout
+        // stream and are captured by sourceFromWorker's rawStderrLines logic.
+        stderr: (msg: string) => {
+          process.stdout.write(`::worker-cli-err:: ${msg.slice(0, 500)}\n`);
+        },
       },
     });
 
