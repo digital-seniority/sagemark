@@ -55,7 +55,6 @@ export function PageProgressList({ projectId, clientId, fetchImpl }: PageProgres
 
   useEffect(() => {
     const fetcher = fetchImpl ?? fetch;
-    setLoading(true);
     fetcher(`/api/projects/${encodeURIComponent(projectId)}/orchestrate?clientId=${encodeURIComponent(clientId)}`)
       .then(async (res) => {
         if (!res.ok) {
