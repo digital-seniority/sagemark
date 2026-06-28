@@ -146,6 +146,7 @@ describe("agent-worker — drives the draft route + uses the profile allowlist",
     expect(capturedOptions.allowedTools).toEqual([
       "mcp__seo-worker-host-tools__persistPiece",
       "mcp__seo-worker-host-tools__persistStrategy",
+      "mcp__seo-worker-host-tools__requestImages",
       "mcp__seo-worker-host-tools__readWorkdirFile",
     ]);
     // The skill content is passed as systemPrompt (not the `skills` option — DR-022

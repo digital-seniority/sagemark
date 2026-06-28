@@ -253,10 +253,35 @@ export async function buildWorkerToolServer(opts: {
     },
   );
 
+  const requestImages = tool(
+    "requestImages",
+    "Register a per-page image request for the current hub page. The host fetches a " +
+      "licensed Pexels photo matching the query and returns a `[photo:<slug>]` token to " +
+      "embed in the draft body — the SSR render path resolves the token to a signed URL. " +
+      "Call once per hub page before persisting the draft. Do NOT supply workspaceId or clientId.",
+    {
+      slug: z.string().min(1).max(100),
+      query: z.string().min(1).max(200),
+      alt: z.string().min(1).max(300),
+    },
+    async (args: Record<string, unknown>) => {
+      const result = await opts.bridge.requestImages(args as any);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Image registered for slug=${result.slug}. Embed the token \`${result.token}\` in the draft body where the hero image should appear.`,
+          },
+        ],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "seo-worker-host-tools",
     version: "1.0.0",
-    tools: [persistPiece, persistStrategy, readWorkdirFile],
+    tools: [persistPiece, persistStrategy, requestImages, readWorkdirFile],
   });
 }
 

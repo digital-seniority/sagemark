@@ -29,6 +29,25 @@ export interface ProjectContextPiece {
   excerpt?: string | null;
 }
 
+/** A compact roadmap item for context injection (avoids importing the full schema module). */
+export interface ProjectContextRoadmapItem {
+  slug: string;
+  title: string;
+  clusterRole: string;
+  funnelStage?: string | null;
+  primaryKeyword?: string | null;
+}
+
+/** An approved ContentStrategy reduced to the fields the context builder needs. */
+export interface ProjectContextStrategy {
+  objective?: string | null;
+  audience?: string | null;
+  gapAnalysis?: string | null;
+  eeatPlan?: string | null;
+  conversionArchitecture?: string | null;
+  roadmap: ProjectContextRoadmapItem[];
+}
+
 export interface ProjectContextInput {
   /** The project name (framing). */
   projectName: string;
@@ -36,6 +55,8 @@ export interface ProjectContextInput {
   brief?: string | null;
   /** The articles already in the project (most-recent first is fine). */
   pieces: ProjectContextPiece[];
+  /** The approved hub ContentStrategy (hub authoring only). */
+  strategy?: ProjectContextStrategy | null;
 }
 
 export interface BuildProjectContextOptions {
@@ -93,8 +114,31 @@ export function buildProjectContext(
     lines.push("", "Project brief (the operator's guidance):", brief);
   }
 
+  // Inject the approved hub strategy so the worker knows the full roadmap,
+  // E-E-A-T plan, and conversion architecture for this cluster.
+  const strategy = input.strategy;
+  if (strategy) {
+    lines.push("", "Approved hub content strategy:");
+    if (strategy.objective) lines.push(`Objective: ${truncate(strategy.objective, 300)}`);
+    if (strategy.audience) lines.push(`Audience: ${truncate(strategy.audience, 300)}`);
+    if (strategy.gapAnalysis) lines.push(`Gap analysis: ${truncate(strategy.gapAnalysis, 400)}`);
+    if (strategy.eeatPlan) lines.push(`E-E-A-T plan: ${truncate(strategy.eeatPlan, 400)}`);
+    if (strategy.conversionArchitecture) {
+      lines.push(`Conversion architecture: ${truncate(strategy.conversionArchitecture, 300)}`);
+    }
+    if (strategy.roadmap.length > 0) {
+      lines.push("", "Full hub roadmap (write only your assigned page):");
+      for (const item of strategy.roadmap) {
+        const tag = [item.clusterRole, item.funnelStage, item.primaryKeyword]
+          .filter(Boolean)
+          .join(" · ");
+        lines.push(`- [${item.slug}] "${item.title}"${tag ? ` [${tag}]` : ""}`);
+      }
+    }
+  }
+
   if (pieces.length > 0) {
-    lines.push("", "Articles already in this project:");
+    lines.push("", "Articles already authored in this project:");
     for (const p of pieces) {
       const title = truncate(p.title || p.slug || "Untitled", 120);
       const excerpt = p.excerpt ? ` — ${truncate(p.excerpt, opts.maxExcerpt)}` : "";

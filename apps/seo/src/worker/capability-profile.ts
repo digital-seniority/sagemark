@@ -91,6 +91,7 @@ export const MODEL_DISABLED_TOOLS = [
 export const WORKER_ALLOWED_TOOLS = [
   "mcp__seo-worker-host-tools__persistPiece",
   "mcp__seo-worker-host-tools__persistStrategy",
+  "mcp__seo-worker-host-tools__requestImages",
   "mcp__seo-worker-host-tools__readWorkdirFile",
 ] as const;
 

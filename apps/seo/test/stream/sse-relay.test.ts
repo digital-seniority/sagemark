@@ -106,6 +106,7 @@ describe("event-taxonomy — stable codes (AC2 wire contract)", () => {
       "draftBody",
       "persistPiece",
       "persistStrategy",
+      "requestImages",
       "runFaithfulnessGate",
       "runGate.stageA",
       "runGate.stageB",

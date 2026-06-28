@@ -140,7 +140,7 @@ describe("attack (a) — raw-curl an external host MUST fail", () => {
     const { tools } = await buildTools({ workdir: WORKDIR_A, bridge });
     const names = tools.map((t) => t.name);
     // Only the curated host tools exist; no Bash/WebFetch/curl tool.
-    expect(names.sort()).toEqual(["persistPiece", "persistStrategy", "readWorkdirFile"]);
+    expect(names.sort()).toEqual(["persistPiece", "persistStrategy", "readWorkdirFile", "requestImages"]);
     for (const banned of MODEL_DISABLED_TOOLS) {
       expect(names).not.toContain(banned);
     }
@@ -360,7 +360,7 @@ describe("hostile-brief integration — all four attacks fail; only typed paths 
     expect(MALICIOUS_SOURCE).toMatch(/evil\.example\.com/);
     // The model's ENTIRE reachable surface is the curated host tools.
     expect(server.name).toBe("seo-worker-host-tools");
-    expect(tools.map((t) => t.name).sort()).toEqual(["persistPiece", "persistStrategy", "readWorkdirFile"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["persistPiece", "persistStrategy", "readWorkdirFile", "requestImages"]);
   });
 
   it("the model tool allowlist (agent-worker) equals the profile's curated surface — no drift", () => {
@@ -370,6 +370,7 @@ describe("hostile-brief integration — all four attacks fail; only typed paths 
       "mcp__seo-worker-host-tools__persistPiece",
       "mcp__seo-worker-host-tools__persistStrategy",
       "mcp__seo-worker-host-tools__readWorkdirFile",
+      "mcp__seo-worker-host-tools__requestImages",
     ]);
     // No disabled built-in is on the allowlist.
     expect(scanToolSurfaceForViolations(WORKER_ALLOWED_TOOLS)).toEqual([]);

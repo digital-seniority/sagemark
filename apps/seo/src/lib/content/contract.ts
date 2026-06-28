@@ -53,6 +53,7 @@ export const KERNEL_ROUTES = {
   audit: "/content/api/audit",
   publish: "/content/api/publish",
   strategy: "/content/api/strategy",
+  images: "/content/api/images",
 } as const;
 
 export type KernelRouteName = keyof typeof KERNEL_ROUTES;
@@ -217,6 +218,30 @@ export const PersistStrategyRequestSchema = z
   .strict();
 
 export type PersistStrategyRequest = z.infer<typeof PersistStrategyRequestSchema>;
+
+// ── images route contract ─────────────────────────────────────────────────────
+
+/**
+ * Per-page image request emitted by the worker during hub authoring. The host
+ * enqueues a Pexels search for the slug (Slice 7) and returns a `[photo:slug]`
+ * token the worker embeds in the draft body so the SSR render path can resolve
+ * it once the image is persisted.
+ */
+export const RequestImagesSchema = z
+  .object({
+    contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
+    workspaceId: z.string().uuid(),
+    clientId: z.string().uuid(),
+    /** The content piece slug this image belongs to. */
+    slug: z.string().min(1).max(100),
+    /** Pexels search query for this page's hero image. */
+    query: z.string().min(1).max(200),
+    /** Alt-text for the image. */
+    alt: z.string().min(1).max(300),
+  })
+  .strict();
+
+export type RequestImagesRequest = z.infer<typeof RequestImagesSchema>;
 
 // ── Kernel-host-unreachable (criterion 3) ─────────────────────────────────────
 
