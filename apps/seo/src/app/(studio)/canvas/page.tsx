@@ -94,6 +94,7 @@ export default async function StudioCanvasPage({
       conversationId={state.conversationId}
       clientId={state.clientId}
       clientName={state.clientName}
+      clientBlogSlug={state.clientBlogSlug}
       operatorName={operator.email}
       pieceId={state.pieceId}
       brief={state.brief}

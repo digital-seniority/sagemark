@@ -21,9 +21,53 @@ import { buildStandaloneHtml, deriveMetaDescription } from "@/lib/export/article
 export interface PreviewFrameProps {
   brief: ContentBrief | null;
   body: string;
+  /** When set, the Hub tab shows an iframe pointing at the live hub homepage. */
+  hubBlogSlug?: string | null;
+  /** When true, render the live hub URL in the iframe (mode === "hub"). */
+  hubMode?: boolean;
 }
 
-export function PreviewFrame({ brief, body }: PreviewFrameProps) {
+export function PreviewFrame({ brief, body, hubBlogSlug, hubMode }: PreviewFrameProps) {
+  // Hub mode: show the live branded hub in an iframe (no srcdoc; same-origin).
+  if (hubMode && hubBlogSlug) {
+    const hubUrl = `/clients/${encodeURIComponent(hubBlogSlug)}`;
+    return (
+      <div data-testid="hub-preview-zone" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <p
+          style={{
+            margin: "0 0 7px",
+            fontSize: 10.5,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "var(--muted-2)",
+          }}
+        >
+          Live branded hub
+        </p>
+        <iframe
+          data-testid="hub-preview-frame"
+          title="Live hub preview"
+          src={hubUrl}
+          style={{
+            width: "100%",
+            height: 560,
+            border: "1px solid var(--line)",
+            borderRadius: 10,
+            background: "#ffffff",
+          }}
+        />
+        <a
+          href={hubUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 11, color: "var(--accent-blue)", textDecoration: "none", textAlign: "right" }}
+        >
+          Open in new tab ↗
+        </a>
+      </div>
+    );
+  }
+
   const hasBody = (body ?? "").trim().length > 0;
 
   if (!hasBody) {

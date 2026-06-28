@@ -119,6 +119,8 @@ export interface SeoStudioCanvasProps {
    */
   conversationId?: string | null;
   clientId?: string | null;
+  /** The client's public blog slug — drives the Hub preview tab URL (Slice 11). */
+  clientBlogSlug?: string | null;
   /** Server-passed prior turns for the transcript (omitted => transcript fetches on mount). */
   initialTranscript?: TranscriptTurn[];
   /** The client display name for the top bar (omitted => the pill is hidden). */
@@ -170,6 +172,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
     projectId = null,
     conversationId = null,
     clientId = null,
+    clientBlogSlug = null,
     initialTranscript,
     clientName = null,
     operatorName = null,
@@ -435,6 +438,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
           strategyStatus={strategyStatus}
           projectId={projectId}
           strategyClientId={clientId}
+          hubBlogSlug={clientBlogSlug}
           body={state.body}
           streaming={state.phase === "streaming"}
           scorecard={state.scorecard}

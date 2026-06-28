@@ -105,6 +105,8 @@ export type CanvasState =
       clientId: string;
       /** The client display name (top-bar pill); resolved server-side. */
       clientName: string;
+      /** The client's public hub blog slug (drives the Hub preview tab URL). */
+      clientBlogSlug: string;
       conversationId: string;
       /** The linked piece id (null before a draft exists); drives in-place edit. */
       pieceId: string | null;
@@ -211,6 +213,7 @@ export async function resolveCanvas(
     kind: "ready",
     clientId: client.id,
     clientName: client.name,
+    clientBlogSlug: client.blogSlug,
     conversationId: id,
     pieceId: conversation.pieceId,
     brief,

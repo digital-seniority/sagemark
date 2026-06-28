@@ -31,6 +31,7 @@ import { MarkdownEditor } from "./MarkdownEditor";
 import { PreviewFrame } from "./PreviewFrame";
 import { ExportMenu } from "./ExportMenu";
 import { ActivityFeed, type EditActivityItem, type EditVerdict } from "../agent/ActivityFeed";
+import { PageProgressList } from "./PageProgressList";
 
 /** The re-gated edit result the canvas folds back as the persisted truth. */
 export interface ApplyEditResult {
@@ -51,6 +52,8 @@ export interface ArtifactZoneProps {
   projectId?: string | null;
   /** The bound client id (needed for tenancy on the approve POST). */
   strategyClientId?: string | null;
+  /** The client's public blog slug — enables the Hub preview tab (Slice 11). */
+  hubBlogSlug?: string | null;
   /** The accumulated markdown body from the SSE `token-delta` stream / snapshot. */
   body: string;
   /** Whether the body is still actively streaming (drives the live caret hint). */
@@ -101,6 +104,7 @@ export function ArtifactZone({
   strategyStatus: initialStrategyStatus = null,
   projectId = null,
   strategyClientId = null,
+  hubBlogSlug = null,
   body,
   streaming = false,
   scorecard,
@@ -172,7 +176,7 @@ export function ArtifactZone({
       }}
     >
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <ModeTabs active={mode} onChange={setMode} />
+        <ModeTabs active={mode} onChange={setMode} hubEnabled={Boolean(hubBlogSlug && strategy)} />
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {mode === "draft" && canEdit && !editing && (
             <button type="button" data-testid="artifact-edit-toggle" style={TOOLBTN} onClick={startEditing}>
@@ -183,6 +187,11 @@ export function ArtifactZone({
           <ScoreSignalDot verdict={scorecard?.verdict ?? null} score={scorecard?.score ?? null} />
         </div>
       </header>
+
+      {/* Hub roadmap progress — visible when strategy approved + projectId bound. */}
+      {localStrategyStatus === "approved" && projectId && strategyClientId && (
+        <PageProgressList projectId={projectId} clientId={strategyClientId} fetchImpl={fetchImpl} />
+      )}
 
       {strategy && projectId && strategyClientId && localStrategyStatus && (
         <StrategyCard
@@ -206,7 +215,12 @@ export function ArtifactZone({
             <DraftPaper body={body} streaming={streaming} />
           )
         ) : (
-          <PreviewFrame brief={brief} body={body} />
+          <PreviewFrame
+            brief={brief}
+            body={body}
+            hubBlogSlug={hubBlogSlug}
+            hubMode={mode === "hub"}
+          />
         )}
 
         {/* In-place edit history — each row is a re-gated saved version. */}
