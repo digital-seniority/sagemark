@@ -79,13 +79,16 @@ describe("FAQPage JSON-LD (criterion 2)", () => {
     );
   });
 
-  it("emits NO JSON-LD script for a piece with no FAQ content", async () => {
+  it("emits no FAQPage JSON-LD for a piece with no FAQ content", async () => {
+    // Slice 10: Article pieces without faqData still emit Article+BreadcrumbList JSON-LD.
+    // The important invariant is that no invalid (empty) FAQPage block is emitted.
     const data = makePublicData({
       pieces: [publishedPiece({ slug: "no-faq", faqData: null })],
     });
     const element = await renderClientBlogPage(CLIENT_SLUG, "no-faq", { data });
     const html = renderToStaticMarkup(element);
-    expect(html).not.toContain("application/ld+json");
+    // No FAQPage structured data (an empty one would be an invalid rich-result signal).
+    expect(html).not.toContain('"FAQPage"');
   });
 
   it("neutralizes a </script> breakout attempt in an FAQ answer", () => {

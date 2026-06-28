@@ -60,6 +60,14 @@ export function HubScripts() {
       reveals.forEach((el) => io.observe(el));
       return () => io.disconnect();
     }
+
+    // Print CTA (checklist page)
+    const printBtn = document.querySelector<HTMLElement>('[data-role="print-cta"]');
+    if (printBtn) {
+      const handler = () => window.print();
+      printBtn.addEventListener("click", handler);
+      return () => printBtn.removeEventListener("click", handler);
+    }
   }, []);
 
   return null;
