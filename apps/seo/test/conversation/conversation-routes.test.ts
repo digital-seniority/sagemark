@@ -237,6 +237,7 @@ describe("POST /api/conversations — create (scoped to the bound workspace/clie
       workspaceId: WORKSPACE_A,
       clientId: CLIENT_A,
       title: "My new thread",
+      projectId: null,
     });
   });
 
@@ -245,7 +246,7 @@ describe("POST /api/conversations — create (scoped to the bound workspace/clie
     const res = await handleCreateConversation(postRequest({ clientId: CLIENT_A }), deps);
     expect(res.status).toBe(201);
     const created = (deps.conversations as ReturnType<typeof makeConversations>).created;
-    expect(created[0]).toEqual({ workspaceId: WORKSPACE_A, clientId: CLIENT_A, title: undefined });
+    expect(created[0]).toEqual({ workspaceId: WORKSPACE_A, clientId: CLIENT_A, title: undefined, projectId: null });
   });
 
   it("a forged/foreign clientId not owned by the workspace -> 404 (no create)", async () => {
