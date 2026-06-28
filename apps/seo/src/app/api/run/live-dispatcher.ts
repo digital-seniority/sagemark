@@ -435,32 +435,69 @@ async function startWorkerInSandbox(
  * lines, parse each marker, yield the mapped coded events, and end after the first
  * terminal frame (`done` / `error`). The sandbox is torn down in `finally` so no VM
  * is left holding a lease on completion, error, or early consumer cancel.
+ *
+ * STDERR LIFECYCLE MARKERS. `entry.ts` emits `::worker-terminal-error::` and
+ * `::worker-fatal::` to stderr (via console.error), not stdout. We also parse stderr
+ * for those lifecycle-only markers so the real error message (not the generic
+ * "worker run ended with status 'error'" from the stdout `::worker-result::`) reaches
+ * the client. Rich-delta markers (token/thinking/tool/gate) only ever appear on
+ * stdout, so we never forward raw stderr lines — the injection-surface discipline
+ * is preserved.
  */
 async function* sourceFromWorker(
   worker: StartedWorker,
   sandbox: SandboxHandle,
 ): AsyncGenerator<EventBody> {
   let stdoutBuf = "";
+  let stderrBuf = "";
   try {
     for await (const chunk of worker.logs()) {
-      if (chunk.stream !== "stdout") continue; // markers are on stdout
-      stdoutBuf += chunk.data;
-      let nl: number;
-      while ((nl = stdoutBuf.indexOf("\n")) >= 0) {
-        const line = stdoutBuf.slice(0, nl);
-        stdoutBuf = stdoutBuf.slice(nl + 1);
-        const parsed = parseWorkerLine(line);
-        if (parsed.kind === "event") {
-          yield parsed.event;
-          if (parsed.event.type === "done" || parsed.event.type === "error") return;
+      if (chunk.stream === "stdout") {
+        stdoutBuf += chunk.data;
+        let nl: number;
+        while ((nl = stdoutBuf.indexOf("\n")) >= 0) {
+          const line = stdoutBuf.slice(0, nl);
+          stdoutBuf = stdoutBuf.slice(nl + 1);
+          const parsed = parseWorkerLine(line);
+          if (parsed.kind === "event") {
+            yield parsed.event;
+            if (parsed.event.type === "done" || parsed.event.type === "error") return;
+          }
+          // session-id / none: nothing forwarded downstream.
         }
-        // session-id / none: nothing forwarded downstream.
+      } else {
+        // stderr: parse lifecycle terminal markers only (::worker-terminal-error::,
+        // ::worker-fatal::). Rich-delta markers never appear on stderr; raw lines
+        // are never forwarded as free text (injection-surface discipline).
+        stderrBuf += chunk.data;
+        let nl: number;
+        while ((nl = stderrBuf.indexOf("\n")) >= 0) {
+          const line = stderrBuf.slice(0, nl);
+          stderrBuf = stderrBuf.slice(nl + 1);
+          const parsed = parseWorkerLine(line);
+          if (
+            parsed.kind === "event" &&
+            (parsed.event.type === "done" || parsed.event.type === "error")
+          ) {
+            yield parsed.event;
+            return;
+          }
+        }
       }
     }
-    // Flush any final partial line (a marker not terminated by a newline).
+    // Flush stdout tail for a marker not terminated by a newline.
     const tail = parseWorkerLine(stdoutBuf);
     if (tail.kind === "event") {
       yield tail.event;
+      return;
+    }
+    // Flush stderr tail for a lifecycle marker not terminated by a newline.
+    const stderrTail = parseWorkerLine(stderrBuf);
+    if (
+      stderrTail.kind === "event" &&
+      (stderrTail.event.type === "done" || stderrTail.event.type === "error")
+    ) {
+      yield stderrTail.event;
       return;
     }
     // The log stream ended with no terminal marker — the relay will emit a clean
