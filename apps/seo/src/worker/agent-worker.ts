@@ -425,8 +425,31 @@ call it until the strategy is complete and all sections are filled.`;
       const parts = [strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
       systemPrompt = parts.join("\n\n---\n\n");
     } else if (mode === "standalone-author") {
-      // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
-      systemPrompt = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      // Runs 2+: seo-blog-writer (kernel-appropriate single-article authoring) plus
+      // a hub-context addendum that scopes the model to persistPiece and the hub
+      // cluster role/funnel stage provided in the turn prompt.
+      //
+      // The parent seo-copywriter SKILL.md intentionally NOT used here — it describes
+      // the standalone static-site workflow (build HTML/CSS/JS, deploy to Vercel) which
+      // is invalid in the kernel context and causes the model to hang for the full run
+      // ceiling trying to execute unavailable steps. seo-blog-writer is kernel-backed
+      // and correctly drives persistPiece.
+      const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
+      const hubAuthorAddendum = `## Hub authoring context
+
+You are authoring ONE page of a multi-page content hub inside the SEO Creator web
+app. The turn prompt specifies the page title, slug, clusterRole, funnelStage, and
+target keyword. The approved ContentStrategy and client brand context are in the
+prompt — use them to write on-brief, on-brand content.
+
+**Delivery**: when the article body is complete, call \`persistPiece\` ONCE with:
+- \`title\`, \`slug\`, \`body\` (Markdown, NOT HTML), \`excerpt\`, \`metaDescription\`
+- \`clusterRole\` and \`funnelStage\` exactly as given in the turn prompt
+
+Do NOT create HTML or CSS files. Do NOT use git or Vercel. Do NOT call persistStrategy.
+One \`persistPiece\` call ends the run.`;
+      const parts = [writerSkill?.markdown, hubAuthorAddendum].filter(Boolean) as string[];
+      systemPrompt = parts.join("\n\n---\n\n");
     } else {
       // Default single-drafter: seo-blog-writer SKILL.md (back-compat, PR 008/014).
       const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
