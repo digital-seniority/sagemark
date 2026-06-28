@@ -349,6 +349,12 @@ export interface DraftInsert {
   authorId: string | null;
   faqData: GeoFaqItem[] | null;
   briefSnapshot: PersistedBriefSnapshot | null;
+  /** Hub program — topic-cluster role (pillar/cornerstone/spoke/faq/checklist). Null = single-drafter. */
+  clusterRole?: string | null;
+  /** Hub program — funnel stage this page targets. */
+  funnelStage?: string | null;
+  /** Hub program — the project this page belongs to. BOUND by the server; never from model input. */
+  projectId?: string | null;
 }
 
 /**

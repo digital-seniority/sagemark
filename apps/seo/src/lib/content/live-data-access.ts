@@ -1043,6 +1043,9 @@ export class LiveContentWriteAccess {
         author_id: insert.authorId,
         faq_data: insert.faqData,
         brief_snapshot: insert.briefSnapshot,
+        cluster_role: insert.clusterRole ?? null,
+        funnel_stage: insert.funnelStage ?? null,
+        project_id: insert.projectId ?? null,
         // status / version intentionally OMITTED — the DB defaults ('draft', 1)
         // apply. A draft is never born in a published/approved state.
       })

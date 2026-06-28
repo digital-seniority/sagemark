@@ -38,7 +38,7 @@ import { z } from "zod";
  * handshake is the WHOLE string — a worker on `content-engine/1.0` and a host on
  * `content-engine/1.1` is a mismatch the build must catch.
  */
-export const CONTENT_CONTRACT_VERSION = "content-engine/1.0" as const;
+export const CONTENT_CONTRACT_VERSION = "content-engine/1.1" as const;
 
 /** The header a caller MAY send to assert its expected contract version. */
 export const CONTRACT_VERSION_HEADER = "x-content-contract-version";
@@ -130,6 +130,20 @@ export type BriefRequest = z.infer<typeof BriefRequestSchema>;
 
 // ── draft route contract ──────────────────────────────────────────────────────
 
+export const CLUSTER_ROLE_VALUES = [
+  "pillar",
+  "cornerstone",
+  "spoke",
+  "faq",
+  "checklist",
+] as const;
+export const FUNNEL_STAGE_VALUES = [
+  "awareness",
+  "consideration",
+  "decision",
+  "retention",
+] as const;
+
 export const DraftRequestSchema = z
   .object({
     contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
@@ -151,6 +165,12 @@ export const DraftRequestSchema = z
     isYmyl: z.boolean().optional(),
     briefSnapshot: z.unknown().optional(),
     faqData: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+    /** Hub program — the page's topic-cluster role (pillar/cornerstone/spoke/faq/checklist). */
+    clusterRole: z.enum(CLUSTER_ROLE_VALUES).optional(),
+    /** Hub program — the funnel stage this page targets. */
+    funnelStage: z.enum(FUNNEL_STAGE_VALUES).optional(),
+    /** Hub program — the project this page belongs to (UUID; must belong to the bound client). */
+    projectId: z.string().uuid().optional(),
   })
   .strict();
 

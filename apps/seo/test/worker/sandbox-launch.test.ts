@@ -266,7 +266,7 @@ describe("host-tool-bridge — acceptance #3 token scopes exactly one (workspace
       const body = JSON.parse(String(init.body));
       seen.push({ workspaceId: body.workspaceId, clientId: body.clientId });
       return new Response(
-        JSON.stringify({ contractVersion: "content-engine/1.0", pieceId: "p1", slug: "s", status: "draft" }),
+        JSON.stringify({ contractVersion: "content-engine/1.1", pieceId: "p1", slug: "s", status: "draft" }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
     });
@@ -288,7 +288,7 @@ describe("host-tool-bridge — acceptance #3 token scopes exactly one (workspace
     const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
       headers = new Headers(init.headers);
       return new Response(
-        JSON.stringify({ contractVersion: "content-engine/1.0", pieceId: "p1", slug: "s", status: "draft" }),
+        JSON.stringify({ contractVersion: "content-engine/1.1", pieceId: "p1", slug: "s", status: "draft" }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
     });
@@ -300,7 +300,7 @@ describe("host-tool-bridge — acceptance #3 token scopes exactly one (workspace
     });
     await bridge.persistPiece({ title: "T", slug: "t", body: "## H\n\nbody\n" });
     expect(headers!.get("authorization")).toBe("Bearer jwt-A");
-    expect(headers!.get("x-content-contract-version")).toBe("content-engine/1.0");
+    expect(headers!.get("x-content-contract-version")).toBe("content-engine/1.1");
     expect(headers!.get("x-client-id")).toBe(BINDING_A.clientId);
   });
 

@@ -157,8 +157,9 @@ export async function buildWorkerToolServer(opts: {
   const persistPiece = tool(
     "persistPiece",
     "Persist the grounded draft as a content_pieces row via the host. This is the " +
-      "ONLY way to save work. Tenancy is fixed by the run; do not supply workspace " +
-      "or client ids.",
+      "ONLY way to save work. Tenancy and projectId are fixed by the run binding; " +
+      "do not supply workspace/client/project ids. For hub pages, supply clusterRole " +
+      "and funnelStage so the orchestrator can track the roadmap.",
     {
       title: z.string().min(1).max(300),
       slug: z
@@ -170,6 +171,12 @@ export async function buildWorkerToolServer(opts: {
       excerpt: z.string().max(600).optional(),
       metaDescription: z.string().max(320).optional(),
       isYmyl: z.boolean().optional(),
+      clusterRole: z
+        .enum(["pillar", "cornerstone", "spoke", "faq", "checklist"])
+        .optional(),
+      funnelStage: z
+        .enum(["awareness", "consideration", "decision", "retention"])
+        .optional(),
     },
     async (args: Record<string, unknown>) => {
       const result = await opts.bridge.persistPiece(args as any);

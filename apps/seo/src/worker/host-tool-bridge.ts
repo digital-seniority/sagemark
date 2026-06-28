@@ -101,9 +101,13 @@ export interface PersistPieceResult {
   status: string;
 }
 
-/** What the model-facing `persistPiece` tool accepts. Tenancy is NOT taken from
- *  here — it is injected from the frozen binding so the model can never widen it. */
-export type PersistPieceInput = Omit<DraftRequest, "contractVersion" | "workspaceId" | "clientId">;
+/** What the model-facing `persistPiece` tool accepts. Tenancy and the project id
+ *  are NOT taken from here — injected from the frozen binding so the model can
+ *  never widen them. The model MAY supply clusterRole/funnelStage (content decisions). */
+export type PersistPieceInput = Omit<
+  DraftRequest,
+  "contractVersion" | "workspaceId" | "clientId" | "projectId"
+>;
 
 /** The host's response from the strategy persist route. */
 export interface PersistStrategyResult {
@@ -197,6 +201,8 @@ export class HostToolBridge {
       contractVersion: CONTENT_CONTRACT_VERSION,
       workspaceId: this.binding.workspaceId,
       clientId: this.binding.clientId,
+      // projectId is BOUND, never model-supplied (same principle as workspaceId/clientId).
+      ...(this.binding.projectId ? { projectId: this.binding.projectId } : {}),
       ...input,
     };
 

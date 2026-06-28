@@ -20,7 +20,7 @@ import {
  * runtime as a silently-skipped call (criterion 8). When the worker lands
  * (PR 006), this literal moves into the worker's source and the test imports it.
  */
-const WORKER_PINNED_CONTRACT_VERSION = "content-engine/1.0";
+const WORKER_PINNED_CONTRACT_VERSION = "content-engine/1.1";
 
 describe("criterion 8 — contract-version handshake", () => {
   it("host and worker agree on the contract version (mismatch FAILS THE BUILD)", () => {
