@@ -69,11 +69,11 @@ export const DEFAULT_WORKER_WORKDIR = "/home/worker/run";
 export const WORKER_ENTRY = "dist/worker/entry.js";
 
 /**
- * The run-budget ceiling (ms) the VM is provisioned with. ~90s matches the
+ * The run-budget ceiling (ms) the VM is provisioned with. ~270s matches the
  * single-piece generation cap + the bridge-JWT expiry. The host relay carries the
  * same stall ceiling, so a wedged worker surfaces as a terminal error either way.
  */
-export const DEFAULT_RUN_TIMEOUT_MS = 90_000;
+export const DEFAULT_RUN_TIMEOUT_MS = 270_000;
 
 // ── Host-URL resolution (documented precedence, fail-closed) ──────────────────
 
