@@ -423,7 +423,7 @@ describe("createLiveDispatcher — provisions, starts, relays, tears down", () =
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
-  it("closes cleanly (relay emits `done`) when the worker stream ends with no terminal marker", async () => {
+  it("emits WORKER_LOOP_FAILED when the worker stream ends with no terminal marker", async () => {
     const { result } = fakeLaunch();
     const dispatcher = createLiveDispatcher({
       resolveHostBaseUrl: () => HOST,
@@ -431,9 +431,10 @@ describe("createLiveDispatcher — provisions, starts, relays, tears down", () =
       startWorker: async () => scriptedWorker(["::worker-session-id:: s", "noise"]),
     });
 
-    // No terminal marker -> the dispatcher source ends with no events; the relay
-    // (not under test here) then synthesizes a clean `done`. Assert empty + no throw.
+    // No terminal marker and no event markers -> dispatcher surfaces a loud error
+    // rather than silently yielding empty (which would look like success to the relay).
     const events = await drain(await dispatcher(DISPATCH));
-    expect(events).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "error", code: "WORKER_LOOP_FAILED" });
   });
 });

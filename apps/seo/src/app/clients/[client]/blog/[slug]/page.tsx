@@ -17,6 +17,8 @@
  *   - Placeholder directives (`[photo:]`/`[cta:]`) are stripped before render —
  *     none leak (criterion 3).
  *   - FAQ content emits valid FAQPage JSON-LD (criterion 2).
+ *   - clusterRole branches rendering: article (Article+BreadcrumbList JSON-LD),
+ *     faq (FAQPage JSON-LD), checklist (print-sheet, no JSON-LD).
  *
  * The body is rendered to injection-safe HTML by `renderArticleBody` (escape-
  * first) and embedded via `dangerouslySetInnerHTML` — safe by construction.
@@ -37,6 +39,11 @@ import {
 } from "@/lib/content/context";
 import { renderArticleBody } from "@/lib/render/client-blog";
 import { serializeFaqJsonLd } from "@/lib/render/build-faq-jsonld";
+import { buildBrandStyleTag, parseBrandSpec } from "@/lib/render/brand-theme";
+import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/render/build-article-jsonld";
+import { Topbar } from "../../_hub/Topbar";
+import { Footer } from "../../_hub/Footer";
+import { HubScripts } from "../../_hub/HubScripts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +51,8 @@ export const dynamic = "force-dynamic";
 /** Injectable deps so SSR tests render with a fixture seam (no live DB). */
 export interface RenderDeps {
   data: PublicContentDataAccess;
+  /** Optional: base URL for JSON-LD canonical + breadcrumb (injected in tests; live = request.url origin). */
+  origin?: string;
 }
 
 const DEFAULT_DEPS: RenderDeps = { data: NOT_WIRED_PUBLIC_DATA_ACCESS };
@@ -86,6 +95,9 @@ export async function generateMetadata({
 /**
  * Render the published article (Server Component). The returned JSX is what
  * Next serializes into the INITIAL HTML response.
+ *
+ * Slice 10: branched on `clusterRole` — article, faq, checklist.
+ * Wrapped in hub chrome (Topbar/Footer/brand style).
  */
 export async function renderClientBlogPage(
   clientSlug: string,
@@ -97,32 +109,130 @@ export async function renderClientBlogPage(
     // Fail-closed: a non-published / unknown slug is a 404, never the content.
     notFound();
   }
-  const { piece } = resolved;
+  const { client, piece } = resolved;
 
-  // Body: placeholder-stripped, injection-safe HTML — embedded in the SSR markup.
+  // Brand theming (Slice 9/10)
+  const brand = parseBrandSpec(client.brandSpec);
+  const brandCss = buildBrandStyleTag(brand);
+
+  // Body: placeholder-stripped, injection-safe HTML.
   const bodyHtml = renderArticleBody(piece.body);
-  // FAQ JSON-LD (empty string when the piece has no FAQ — then we emit nothing).
+
+  // Branch on clusterRole to choose the page shape + JSON-LD.
+  const role = piece.clusterRole ?? "article";
+
+  // Article / BreadcrumbList JSON-LD (for non-faq, non-checklist).
+  const isChecklist = role === "checklist";
+  const isFaq = role === "faq";
+
+  const origin = deps.origin ?? "";
+  const pageUrl = origin
+    ? `${origin}/clients/${encodeURIComponent(clientSlug)}/blog/${encodeURIComponent(piece.slug)}`
+    : undefined;
+  const hubUrl = origin ? `${origin}/clients/${encodeURIComponent(clientSlug)}` : undefined;
+
+  const articleLd =
+    !isFaq && !isChecklist
+      ? buildArticleJsonLd(piece.title, {
+          excerpt: piece.excerpt,
+          publishedAt: piece.publishedAt,
+          updatedAt: piece.updatedAt,
+          pageUrl,
+        })
+      : null;
+
+  const breadcrumbLd =
+    !isFaq && !isChecklist && hubUrl
+      ? buildBreadcrumbJsonLd(hubUrl, client.name, piece.title, pageUrl)
+      : null;
+
+  // FAQ JSON-LD: emit whenever faqData is non-empty, regardless of clusterRole.
+  // (The clusterRole only controls the visual template, not whether faqData is emitted.)
   const faqJsonLd = serializeFaqJsonLd(piece.faqData);
 
   return (
-    <main>
-      <article>
-        <h1>{piece.title}</h1>
-        {piece.excerpt ? <p data-role="excerpt">{piece.excerpt}</p> : null}
-        <div
-          data-role="article-body"
-          // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
-          dangerouslySetInnerHTML={{ __html: bodyHtml }}
-        />
-      </article>
-      {faqJsonLd ? (
+    <>
+      {/* Injection-safe brand theme vars */}
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: brandCss }} />
+      <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
+
+      <main data-role={isChecklist ? "checklist-page" : isFaq ? "faq-page" : "article-page"}>
+        {isChecklist ? (
+          // Printable checklist: simple, no JSON-LD, print CTA.
+          <>
+            <article data-role="checklist">
+              <h1>{piece.title}</h1>
+              {piece.excerpt ? <p data-role="excerpt">{piece.excerpt}</p> : null}
+              <div
+                data-role="article-body"
+                // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
+                dangerouslySetInnerHTML={{ __html: bodyHtml }}
+              />
+            </article>
+            {/* Print behaviour wired by HubScripts via data-role="print-cta" */}
+            <button
+              data-role="print-cta"
+              style={{
+                display: "block",
+                margin: "1.5rem auto",
+                padding: "0.75rem 1.5rem",
+                background: "var(--brand-accent, #c08a4e)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "1rem",
+                fontWeight: 600,
+              }}
+            >
+              Print this checklist
+            </button>
+          </>
+        ) : (
+          // Article or FAQ: standard article chrome.
+          <article>
+            <h1>{piece.title}</h1>
+            {piece.excerpt ? <p data-role="excerpt">{piece.excerpt}</p> : null}
+            <div
+              data-role="article-body"
+              // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
+              dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            />
+          </article>
+        )}
+
+        {/* FAQPage JSON-LD */}
+        {faqJsonLd ? (
+          <script
+            type="application/ld+json"
+            // Safe: serializeFaqJsonLd is JSON.stringify + closing-tag neutralized.
+            dangerouslySetInnerHTML={{ __html: faqJsonLd }}
+          />
+        ) : null}
+      </main>
+
+      <Footer brand={brand} clientName={client.name} clientSlug={clientSlug} />
+      <HubScripts />
+
+      {/* Article JSON-LD */}
+      {articleLd ? (
         <script
           type="application/ld+json"
-          // Safe: serializeFaqJsonLd is JSON.stringify + closing-tag neutralized.
-          dangerouslySetInnerHTML={{ __html: faqJsonLd }}
+          // Safe: buildArticleJsonLd is JSON.stringify + closing-tag neutralized.
+          dangerouslySetInnerHTML={{ __html: articleLd }}
         />
       ) : null}
-    </main>
+
+      {/* BreadcrumbList JSON-LD */}
+      {breadcrumbLd ? (
+        <script
+          type="application/ld+json"
+          // Safe: buildBreadcrumbJsonLd is JSON.stringify + closing-tag neutralized.
+          dangerouslySetInnerHTML={{ __html: breadcrumbLd }}
+        />
+      ) : null}
+    </>
   );
 }
 

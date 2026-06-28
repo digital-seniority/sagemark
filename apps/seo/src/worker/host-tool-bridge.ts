@@ -35,6 +35,8 @@ import {
   KERNEL_ROUTES,
   assertKernelReachable,
   type DraftRequest,
+  type PersistStrategyRequest,
+  type RequestImagesRequest,
   type KernelRouteName,
 } from "../lib/content/contract";
 
@@ -48,6 +50,8 @@ export interface RunBinding {
   workspaceId: string;
   clientId: string;
   runId: string;
+  /** Non-null for strategy + authoring runs; absent for the legacy single-drafter path. */
+  projectId?: string;
 }
 
 /**
@@ -98,9 +102,38 @@ export interface PersistPieceResult {
   status: string;
 }
 
-/** What the model-facing `persistPiece` tool accepts. Tenancy is NOT taken from
- *  here — it is injected from the frozen binding so the model can never widen it. */
-export type PersistPieceInput = Omit<DraftRequest, "contractVersion" | "workspaceId" | "clientId">;
+/** What the model-facing `persistPiece` tool accepts. Tenancy and the project id
+ *  are NOT taken from here — injected from the frozen binding so the model can
+ *  never widen them. The model MAY supply clusterRole/funnelStage (content decisions). */
+export type PersistPieceInput = Omit<
+  DraftRequest,
+  "contractVersion" | "workspaceId" | "clientId" | "projectId"
+>;
+
+/** The host's response from the strategy persist route. */
+export interface PersistStrategyResult {
+  contractVersion: string;
+  projectId: string;
+  strategyStatus: "proposed";
+}
+
+/** What the model-facing `persistStrategy` tool accepts. Tenancy + projectId are
+ *  NOT taken from here — injected from the frozen binding. */
+export type PersistStrategyInput = { strategy: Record<string, unknown> };
+
+/** The host's response from the images request route. */
+export interface RequestImagesResult {
+  contractVersion: string;
+  /** The render token to embed in the draft body (e.g. `[photo:my-slug]`). */
+  token: string;
+  slug: string;
+}
+
+/** What the model-facing `requestImages` tool accepts. Tenancy is injected. */
+export type RequestImagesInput = Omit<
+  RequestImagesRequest,
+  "contractVersion" | "workspaceId" | "clientId"
+>;
 
 /** Construction config for a run-scoped bridge. */
 export interface HostToolBridgeConfig {
@@ -183,6 +216,8 @@ export class HostToolBridge {
       contractVersion: CONTENT_CONTRACT_VERSION,
       workspaceId: this.binding.workspaceId,
       clientId: this.binding.clientId,
+      // projectId is BOUND, never model-supplied (same principle as workspaceId/clientId).
+      ...(this.binding.projectId ? { projectId: this.binding.projectId } : {}),
       ...input,
     };
 
@@ -206,6 +241,100 @@ export class HostToolBridge {
 
     const result = (await res.json()) as PersistPieceResult;
     return result;
+  }
+
+  /**
+   * Persist the strategy for the bound project (acceptance #2 analogue for strategy
+   * runs). Tenancy + projectId are injected from the frozen binding — the model
+   * cannot supply or widen them. The host verifies project ∈ (workspaceId, clientId)
+   * server-side before writing.
+   */
+  async persistStrategy(input: PersistStrategyInput): Promise<PersistStrategyResult> {
+    if (!this.binding.projectId) {
+      throw new Error(
+        "persistStrategy: no projectId in the run binding — set RUN_PROJECT_ID before dispatching a strategy run",
+      );
+    }
+
+    const sneaky = input as Record<string, unknown>;
+    if ("workspaceId" in sneaky || "clientId" in sneaky || "projectId" in sneaky) {
+      throw new TenancyScopeError(
+        this.binding,
+        {
+          workspaceId: sneaky.workspaceId as string | undefined,
+          clientId: sneaky.clientId as string | undefined,
+        },
+        "model-supplied tenancy/projectId is not permitted — all scope comes from the run binding",
+      );
+    }
+
+    const payload: PersistStrategyRequest = {
+      contractVersion: CONTENT_CONTRACT_VERSION,
+      workspaceId: this.binding.workspaceId,
+      clientId: this.binding.clientId,
+      projectId: this.binding.projectId,
+      strategy: input.strategy,
+    };
+
+    const res = await assertKernelReachable("strategy", this.baseUrl, () =>
+      this.fetchImpl(`${this.baseUrl}${KERNEL_ROUTES.strategy}`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(payload),
+      }),
+    );
+
+    if (res.status === 401 || res.status === 403) {
+      throw new HostToolAuthError("strategy", res.status);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`host tool strategy failed (status ${res.status}): ${body.slice(0, 300)}`);
+    }
+
+    return (await res.json()) as PersistStrategyResult;
+  }
+
+  /**
+   * Request a Pexels image for a hub page. The worker calls this during authoring
+   * to register a per-page image request; the host enqueues the actual Pexels
+   * search + download (Slice 7) and returns a `[photo:slug]` render token that
+   * the worker embeds in the draft body. Tenancy is injected from the binding.
+   */
+  async requestImages(input: RequestImagesInput): Promise<RequestImagesResult> {
+    const sneaky = input as Record<string, unknown>;
+    if ("workspaceId" in sneaky || "clientId" in sneaky) {
+      throw new TenancyScopeError(
+        this.binding,
+        { workspaceId: sneaky.workspaceId as string, clientId: sneaky.clientId as string },
+        "model-supplied tenancy is not permitted in requestImages",
+      );
+    }
+
+    const payload: RequestImagesRequest = {
+      contractVersion: CONTENT_CONTRACT_VERSION,
+      workspaceId: this.binding.workspaceId,
+      clientId: this.binding.clientId,
+      ...input,
+    };
+
+    const res = await assertKernelReachable("images", this.baseUrl, () =>
+      this.fetchImpl(`${this.baseUrl}${KERNEL_ROUTES.images}`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(payload),
+      }),
+    );
+
+    if (res.status === 401 || res.status === 403) {
+      throw new HostToolAuthError("images", res.status);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`host tool images failed (status ${res.status}): ${body.slice(0, 300)}`);
+    }
+
+    return (await res.json()) as RequestImagesResult;
   }
 }
 

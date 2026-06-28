@@ -50,6 +50,7 @@ import { pathWithinWorkdir } from "./sandbox-launch";
 import { WORKER_ALLOWED_TOOLS } from "./capability-profile";
 import {
   loadSuite,
+  loadParentSkillMarkdown,
   SINGLE_DRAFTER_SKILL,
   SUITE_CHAIN,
   type LoadedSuite,
@@ -85,6 +86,8 @@ export interface WorkerEnv {
   hostBaseUrl: string;
   workdir: string;
   binding: RunBinding;
+  /** Optional hub run mode (absent → single-drafter default). */
+  workerMode?: string;
 }
 
 export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
@@ -100,6 +103,8 @@ export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
         "(DR-013 worker invariant). Refusing to run.",
     );
   }
+  const projectId = env.RUN_PROJECT_ID?.trim() || undefined;
+  const workerMode = env.WORKER_MODE?.trim() || undefined;
   return {
     gatewayBaseUrl: required("ANTHROPIC_BASE_URL"),
     bridgeJwt: required("ANTHROPIC_AUTH_TOKEN"),
@@ -109,7 +114,9 @@ export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
       runId: required("RUN_ID"),
       workspaceId: required("RUN_WORKSPACE_ID"),
       clientId: required("RUN_CLIENT_ID"),
+      ...(projectId ? { projectId } : {}),
     },
+    ...(workerMode ? { workerMode } : {}),
   };
 }
 
@@ -150,8 +157,9 @@ export async function buildWorkerToolServer(opts: {
   const persistPiece = tool(
     "persistPiece",
     "Persist the grounded draft as a content_pieces row via the host. This is the " +
-      "ONLY way to save work. Tenancy is fixed by the run; do not supply workspace " +
-      "or client ids.",
+      "ONLY way to save work. Tenancy and projectId are fixed by the run binding; " +
+      "do not supply workspace/client/project ids. For hub pages, supply clusterRole " +
+      "and funnelStage so the orchestrator can track the roadmap.",
     {
       title: z.string().min(1).max(300),
       slug: z
@@ -163,6 +171,12 @@ export async function buildWorkerToolServer(opts: {
       excerpt: z.string().max(600).optional(),
       metaDescription: z.string().max(320).optional(),
       isYmyl: z.boolean().optional(),
+      clusterRole: z
+        .enum(["pillar", "cornerstone", "spoke", "faq", "checklist"])
+        .optional(),
+      funnelStage: z
+        .enum(["awareness", "consideration", "decision", "retention"])
+        .optional(),
     },
     async (args: Record<string, unknown>) => {
       const result = await opts.bridge.persistPiece(args as any);
@@ -216,10 +230,58 @@ export async function buildWorkerToolServer(opts: {
     },
   );
 
+  const persistStrategy = tool(
+    "persistStrategy",
+    "Persist the completed ContentStrategy for the bound project via the host. The " +
+      "project enters 'proposed' status pending human approval. Call this ONCE after " +
+      "finalising the strategy; do NOT supply workspaceId, clientId, or projectId — " +
+      "those are fixed by the run binding.",
+    {
+      strategy: z.record(z.string(), z.unknown()),
+    },
+    async (args: Record<string, unknown>) => {
+      const result = await opts.bridge.persistStrategy(args as any);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Strategy persisted for project ${result.projectId} (status=${result.strategyStatus}). Awaiting operator approval before authoring begins.`,
+          },
+        ],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  const requestImages = tool(
+    "requestImages",
+    "Register a per-page image request for the current hub page. The host fetches a " +
+      "licensed Pexels photo matching the query and returns a `[photo:<slug>]` token to " +
+      "embed in the draft body — the SSR render path resolves the token to a signed URL. " +
+      "Call once per hub page before persisting the draft. Do NOT supply workspaceId or clientId.",
+    {
+      slug: z.string().min(1).max(100),
+      query: z.string().min(1).max(200),
+      alt: z.string().min(1).max(300),
+    },
+    async (args: Record<string, unknown>) => {
+      const result = await opts.bridge.requestImages(args as any);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Image registered for slug=${result.slug}. Embed the token \`${result.token}\` in the draft body where the hero image should appear.`,
+          },
+        ],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "seo-worker-host-tools",
     version: "1.0.0",
-    tools: [persistPiece, readWorkdirFile],
+    tools: [persistPiece, persistStrategy, requestImages, readWorkdirFile],
   });
 }
 
@@ -331,23 +393,56 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       }
     }
 
-    // The writer skill's SKILL.md is the methodology the model follows. The SDK's
-    // `skills` option is not wired in the CLI subprocess path (0 refs in sdk.mjs)
-    // and settingSources:["project"] would look in /home/worker/run/.claude/skills/
-    // which doesn't exist in the Sandbox image. Pass the content as systemPrompt
-    // so the real authored methodology reaches the model verbatim (DR-022).
-    const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
-    const systemPrompt = writerSkill?.markdown;
+    // The SKILL.md drives the model as systemPrompt (DR-022). The SDK's `skills`
+    // option is not wired in the CLI subprocess path (0 refs in sdk.mjs) and
+    // settingSources:["project"] won't resolve in the Sandbox image. Branch on
+    // workerMode: standalone hub modes use the parent + sub-skill methodology;
+    // the default single-drafter path uses seo-blog-writer as before.
+    const mode = workerEnv.workerMode ?? "single-drafter";
+    let systemPrompt: string | undefined;
+    if (mode === "standalone-strategy") {
+      // Run 1: parent methodology + seo-strategist sub-skill (DR-022 standalone path).
+      const parentMd = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      const strategistSkill = suite.skills.find((s) => s.name === "seo-strategist");
+      const parts = [parentMd, strategistSkill?.markdown].filter(Boolean) as string[];
+      systemPrompt = parts.join("\n\n---\n\n");
+    } else if (mode === "standalone-author") {
+      // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
+      systemPrompt = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+    } else {
+      // Default single-drafter: seo-blog-writer SKILL.md (back-compat, PR 008/014).
+      const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
+      systemPrompt = writerSkill?.markdown;
+    }
+
+    // Build the env the CLI subprocess will run under. The sandbox VM is created
+    // with a scrubbed env (ALLOWED_ENV_KEYS only) via buildWorkerEnv, so the
+    // Vercel Sandbox env parameter may replace — not merge — the base system env.
+    // process.env therefore may lack HOME and PATH. Providing explicit fallbacks
+    // ensures the CLI subprocess can:
+    //   • find its config dir (~/.claude)   → HOME
+    //   • resolve system binaries           → PATH
+    //   • read TLS certs                    → NODE_EXTRA_CA_CERTS / SSL_CERT_DIR
+    // We spread process.env first so any system-level vars that DO exist are kept.
+    const sdkEnv: Record<string, string> = {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          (e): e is [string, string] => typeof e[1] === "string",
+        ),
+      ),
+      // Explicit fallbacks: present iff the base env has them; otherwise set safe defaults.
+      HOME: process.env.HOME ?? "/home/worker",
+      PATH: process.env.PATH ?? "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      TMPDIR: process.env.TMPDIR ?? "/tmp",
+    };
 
     const iterator = queryImpl!({
       prompt: opts.prompt,
       options: {
-        // Route ALL model traffic through the Gateway bearer seam — the SDK reads
-        // ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN from the scrubbed env.
-        env: {
-          ANTHROPIC_BASE_URL: workerEnv.gatewayBaseUrl,
-          ANTHROPIC_AUTH_TOKEN: workerEnv.bridgeJwt,
-        },
+        // Explicit env with HOME/PATH fallbacks (see comment above). We do NOT
+        // omit `env` — if process.env lacks HOME the CLI subprocess can't find
+        // its config dir and exits silently with code 0 (no JSON on stdout).
+        env: sdkEnv,
         // The sandbox env lacks PATH so "node" by name fails with ENOENT.
         // process.execPath is the absolute path to the Node binary already running.
         executable: process.execPath,
@@ -360,7 +455,16 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // truth — spread the imported constant (no string literals here).
         allowedTools: [...WORKER_ALLOWED_TOOLS],
         ...(systemPrompt ? { systemPrompt } : {}),
-        permissionMode: "default",
+        // bypassPermissions is required for headless sandbox execution — no TTY
+        // is present to accept prompts. The curated allowedTools list (above) is
+        // the actual capability control; permissionMode is the session gate.
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        // Capture CLI subprocess stderr so errors appear in the worker's stdout
+        // stream and are captured by sourceFromWorker's rawStderrLines logic.
+        stderr: (msg: string) => {
+          process.stdout.write(`::worker-cli-err:: ${msg.slice(0, 500)}\n`);
+        },
       },
     });
 

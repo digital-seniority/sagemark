@@ -38,7 +38,7 @@ import { z } from "zod";
  * handshake is the WHOLE string — a worker on `content-engine/1.0` and a host on
  * `content-engine/1.1` is a mismatch the build must catch.
  */
-export const CONTENT_CONTRACT_VERSION = "content-engine/1.0" as const;
+export const CONTENT_CONTRACT_VERSION = "content-engine/1.1" as const;
 
 /** The header a caller MAY send to assert its expected contract version. */
 export const CONTRACT_VERSION_HEADER = "x-content-contract-version";
@@ -52,6 +52,8 @@ export const KERNEL_ROUTES = {
   draft: "/content/api/draft",
   audit: "/content/api/audit",
   publish: "/content/api/publish",
+  strategy: "/content/api/strategy",
+  images: "/content/api/images",
 } as const;
 
 export type KernelRouteName = keyof typeof KERNEL_ROUTES;
@@ -129,6 +131,20 @@ export type BriefRequest = z.infer<typeof BriefRequestSchema>;
 
 // ── draft route contract ──────────────────────────────────────────────────────
 
+export const CLUSTER_ROLE_VALUES = [
+  "pillar",
+  "cornerstone",
+  "spoke",
+  "faq",
+  "checklist",
+] as const;
+export const FUNNEL_STAGE_VALUES = [
+  "awareness",
+  "consideration",
+  "decision",
+  "retention",
+] as const;
+
 export const DraftRequestSchema = z
   .object({
     contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
@@ -150,6 +166,12 @@ export const DraftRequestSchema = z
     isYmyl: z.boolean().optional(),
     briefSnapshot: z.unknown().optional(),
     faqData: z.array(z.object({ question: z.string(), answer: z.string() })).optional(),
+    /** Hub program — the page's topic-cluster role (pillar/cornerstone/spoke/faq/checklist). */
+    clusterRole: z.enum(CLUSTER_ROLE_VALUES).optional(),
+    /** Hub program — the funnel stage this page targets. */
+    funnelStage: z.enum(FUNNEL_STAGE_VALUES).optional(),
+    /** Hub program — the project this page belongs to (UUID; must belong to the bound client). */
+    projectId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -182,6 +204,44 @@ export const PublishRequestSchema = z
   .strict();
 
 export type PublishRequest = z.infer<typeof PublishRequestSchema>;
+
+// ── strategy route contract ───────────────────────────────────────────────────
+
+export const PersistStrategyRequestSchema = z
+  .object({
+    contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
+    workspaceId: z.string().uuid(),
+    clientId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    strategy: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export type PersistStrategyRequest = z.infer<typeof PersistStrategyRequestSchema>;
+
+// ── images route contract ─────────────────────────────────────────────────────
+
+/**
+ * Per-page image request emitted by the worker during hub authoring. The host
+ * enqueues a Pexels search for the slug (Slice 7) and returns a `[photo:slug]`
+ * token the worker embeds in the draft body so the SSR render path can resolve
+ * it once the image is persisted.
+ */
+export const RequestImagesSchema = z
+  .object({
+    contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
+    workspaceId: z.string().uuid(),
+    clientId: z.string().uuid(),
+    /** The content piece slug this image belongs to. */
+    slug: z.string().min(1).max(100),
+    /** Pexels search query for this page's hero image. */
+    query: z.string().min(1).max(200),
+    /** Alt-text for the image. */
+    alt: z.string().min(1).max(300),
+  })
+  .strict();
+
+export type RequestImagesRequest = z.infer<typeof RequestImagesSchema>;
 
 // ── Kernel-host-unreachable (criterion 3) ─────────────────────────────────────
 

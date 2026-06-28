@@ -35,6 +35,7 @@ import { requireOperator, getCurrentWorkspace } from "@/lib/auth";
 import { resolveWorkspaceClient } from "@/lib/content/resolve-workspace-client";
 import { resolveConversationDataAccess } from "@/lib/conversation/resolve-conversation-access";
 import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
+import { resolveProjectDataAccess } from "@/lib/projects/resolve-project-access";
 import { SeoStudioCanvas } from "../SeoStudioCanvas";
 import { resolveCanvas } from "../studio-resolve";
 
@@ -65,9 +66,10 @@ export default async function StudioCanvasPage({
 
   // Live-resolve the seams behind the creds gate (NOT_WIRED defaults with no creds;
   // resolveWorkspaceClient returns null -> resolveCanvas redirects home).
-  const [conversations, content] = await Promise.all([
+  const [conversations, content, projects] = await Promise.all([
     resolveConversationDataAccess(),
     resolveContentDataAccess(),
+    resolveProjectDataAccess().catch(() => null),
   ]);
 
   const state = await resolveCanvas(conversationId, {
@@ -75,6 +77,7 @@ export default async function StudioCanvasPage({
     resolveClient: resolveWorkspaceClient,
     conversations,
     content,
+    ...(projects ? { projects } : {}),
   });
 
   // Fail-closed: no owned conversation (absent / blank / not-owned / no workspace or
@@ -91,9 +94,13 @@ export default async function StudioCanvasPage({
       conversationId={state.conversationId}
       clientId={state.clientId}
       clientName={state.clientName}
+      clientBlogSlug={state.clientBlogSlug}
       operatorName={operator.email}
       pieceId={state.pieceId}
       brief={state.brief}
+      strategy={state.strategy}
+      strategyStatus={state.strategyStatus}
+      projectId={state.projectId}
       initialTranscript={state.transcript}
       streamUrl={null}
     />

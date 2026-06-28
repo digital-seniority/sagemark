@@ -765,7 +765,7 @@ export class LiveContentReadAccess {
   async resolveClientByBlogSlug(blogSlug: string): Promise<PublicClient | null> {
     const { data, error } = await this.supabase
       .from("content_clients")
-      .select("id, blog_slug, name")
+      .select("id, blog_slug, name, brand_spec")
       .eq("blog_slug", blogSlug)
       .maybeSingle();
     if (error) {
@@ -778,7 +778,7 @@ export class LiveContentReadAccess {
     const slug = reqString(data.blog_slug);
     const name = reqString(data.name);
     if (!id || !slug || !name) return null;
-    return { id, blogSlug: slug, name };
+    return { id, blogSlug: slug, name, brandSpec: data.brand_spec ?? null };
   }
 
   /**
@@ -1043,6 +1043,9 @@ export class LiveContentWriteAccess {
         author_id: insert.authorId,
         faq_data: insert.faqData,
         brief_snapshot: insert.briefSnapshot,
+        cluster_role: insert.clusterRole ?? null,
+        funnel_stage: insert.funnelStage ?? null,
+        project_id: insert.projectId ?? null,
         // status / version intentionally OMITTED — the DB defaults ('draft', 1)
         // apply. A draft is never born in a published/approved state.
       })

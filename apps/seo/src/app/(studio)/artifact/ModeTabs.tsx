@@ -13,20 +13,24 @@
  * active mode. Colour from `currentColor` + opacity. Clean ASCII / UTF-8.
  */
 
-export const ARTIFACT_MODES = ["draft", "preview"] as const;
+export const ARTIFACT_MODES = ["draft", "preview", "hub"] as const;
 export type ArtifactMode = (typeof ARTIFACT_MODES)[number];
 
 const MODE_LABEL: Record<ArtifactMode, string> = {
   draft: "Draft",
   preview: "Preview",
+  hub: "Hub",
 };
 
 export interface ModeTabsProps {
   active: ArtifactMode;
   onChange: (mode: ArtifactMode) => void;
+  /** When false, the "hub" tab is hidden (only shown for hub projects). */
+  hubEnabled?: boolean;
 }
 
-export function ModeTabs({ active, onChange }: ModeTabsProps) {
+export function ModeTabs({ active, onChange, hubEnabled = false }: ModeTabsProps) {
+  const visibleModes = ARTIFACT_MODES.filter((m) => m !== "hub" || hubEnabled);
   return (
     <div
       role="tablist"
@@ -34,7 +38,7 @@ export function ModeTabs({ active, onChange }: ModeTabsProps) {
       data-testid="mode-tabs"
       style={{ display: "inline-flex", gap: 2 }}
     >
-      {ARTIFACT_MODES.map((mode) => {
+      {visibleModes.map((mode) => {
         const selected = mode === active;
         return (
           <button

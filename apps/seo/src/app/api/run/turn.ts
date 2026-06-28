@@ -190,6 +190,27 @@ async function loadProjectContextNote(
     bound.workspaceId,
     bound.clientId,
   );
+  // If the project has an approved strategy, inject the roadmap + E-E-A-T plan
+  // so the worker knows the full hub architecture and can write its assigned page
+  // with continuity.
+  const strategy =
+    project.strategyStatus === "approved" && project.strategy
+      ? (project.strategy as {
+          objective?: string | null;
+          audience?: string | null;
+          gapAnalysis?: string | null;
+          eeatPlan?: string | null;
+          conversionArchitecture?: string | null;
+          roadmap: Array<{
+            slug: string;
+            title: string;
+            clusterRole: string;
+            funnelStage?: string | null;
+            primaryKeyword?: string | null;
+          }>;
+        })
+      : null;
+
   return buildProjectContext({
     projectName: project.name,
     brief: project.brief,
@@ -201,6 +222,7 @@ async function loadProjectContextNote(
       primaryKeyword: p.primaryKeyword,
       excerpt: p.excerpt,
     })),
+    strategy,
   });
 }
 

@@ -575,7 +575,7 @@ describe("live-data-access: public reads filter status='published'", () => {
     });
     const data = new LiveContentReadAccess(supabase);
     const got = await data.resolveClientByBlogSlug("acme");
-    expect(got).toEqual({ id: CLIENT_A, blogSlug: "acme", name: "Acme" });
+    expect(got).toEqual({ id: CLIENT_A, blogSlug: "acme", name: "Acme", brandSpec: null });
     assertEqFilters(filters, "content_clients", [["blog_slug", "acme"]]);
   });
 

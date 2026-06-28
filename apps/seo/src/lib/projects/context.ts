@@ -26,6 +26,11 @@ export interface ProjectRow {
   brief: string;
   /** The auto-facts cache (jsonb), or null. */
   summary: unknown | null;
+  /** The proposed or approved ContentStrategy JSON blob, or null. */
+  strategy: unknown | null;
+  /** 'proposed' | 'approved' | 'archived' | null (null = no strategy yet). */
+  strategyStatus: "proposed" | "approved" | "archived" | null;
+  strategyApprovedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +77,25 @@ export interface ProjectDataAccess {
     workspaceId: string,
     clientId: string,
   ): Promise<ProjectPieceFact[]>;
+  /**
+   * Persist a proposed ContentStrategy (strategy_status → 'proposed').
+   * Replaces any prior draft. Scoped by bound tenancy.
+   */
+  persistStrategy(
+    id: string,
+    strategy: unknown,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void>;
+  /**
+   * Flip strategy_status 'proposed' → 'approved' and stamp strategy_approved_at.
+   * Scoped by bound tenancy.
+   */
+  approveStrategy(
+    id: string,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void>;
 }
 
 /** Fail-closed default error (mirrors the content/conversation seams). */
@@ -105,5 +129,11 @@ export const NOT_WIRED_PROJECT_ACCESS: ProjectDataAccess = {
   },
   listProjectPieces: () => {
     throw new ProjectAccessNotWiredError("listProjectPieces");
+  },
+  persistStrategy: () => {
+    throw new ProjectAccessNotWiredError("persistStrategy");
+  },
+  approveStrategy: () => {
+    throw new ProjectAccessNotWiredError("approveStrategy");
   },
 };
