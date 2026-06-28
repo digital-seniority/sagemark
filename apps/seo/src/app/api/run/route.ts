@@ -55,6 +55,11 @@ import {
 } from "@/lib/conversation/context";
 import { resolveConversationDataAccess } from "@/lib/conversation/resolve-conversation-access";
 import {
+  NOT_WIRED_PROJECT_ACCESS,
+  type ProjectDataAccess,
+} from "@/lib/projects/context";
+import { resolveProjectDataAccess } from "@/lib/projects/resolve-project-access";
+import {
   prepareTurn,
   wrapSourceRecordingAgentTurn,
   makeDefaultTruthReader,
@@ -167,6 +172,9 @@ export interface RunDeps {
   data: ContentDataAccess;
   /** The chat-turn persistence seam (Slice 5 / P-F). Inert (NOT_WIRED) one-shot. */
   conversations: ConversationDataAccess;
+  /** The Projects seam (Slice 5b). When a turn's conversation has a project, its
+   *  cross-article context is injected into the worker brief. Inert by default. */
+  projects: ProjectDataAccess;
   resolveWorkspace: () => Promise<Workspace | null>;
   dispatcher: WorkerDispatcher;
   truthReader: TruthSnapshotReader;
@@ -197,6 +205,7 @@ export interface RunDeps {
 const DEFAULT_DEPS: RunDeps = {
   data: NOT_WIRED_DATA_ACCESS,
   conversations: NOT_WIRED_CONVERSATION_ACCESS,
+  projects: NOT_WIRED_PROJECT_ACCESS,
   resolveWorkspace: getCurrentWorkspace,
   // The LIVE dispatcher (replaces NOT_WIRED_DISPATCHER). The injection seam is
   // preserved: tests pass a fake `dispatcher` via RunDeps, and NOT_WIRED_DISPATCHER
@@ -221,13 +230,14 @@ const DEFAULT_DEPS: RunDeps = {
 async function resolveLiveRunDeps(): Promise<RunDeps> {
   const data = await resolveContentDataAccess();
   const conversations = await resolveConversationDataAccess();
+  const projects = await resolveProjectDataAccess();
   // The default reader is built from the live read adapter, but stays fail-soft for
   // the one-shot path (no run->piece link). When creds are absent, `data` is the
   // NOT_WIRED stub; building the reader does NOT touch it (it only closes over the
   // read methods), so this is safe + inert.
   const truthReader: TruthSnapshotReader =
     data === NOT_WIRED_DATA_ACCESS ? NOT_WIRED_TRUTH_READER : makeDefaultTruthReader();
-  return { ...DEFAULT_DEPS, data, conversations, truthReader };
+  return { ...DEFAULT_DEPS, data, conversations, projects, truthReader };
 }
 
 function json(body: unknown, status: number): NextResponse {
@@ -295,6 +305,7 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       bound: ctx,
       conversations: deps.conversations,
       data: deps.data,
+      projects: deps.projects,
     });
     if (!turn.ok) {
       return json({ error: turn.code, code: turn.code }, turn.status);

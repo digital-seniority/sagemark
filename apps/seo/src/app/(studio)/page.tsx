@@ -32,8 +32,10 @@ import { requireOperator, getCurrentWorkspace } from "@/lib/auth";
 import { resolveWorkspaceClient } from "@/lib/content/resolve-workspace-client";
 import { resolveConversationDataAccess } from "@/lib/conversation/resolve-conversation-access";
 import type { ConversationRow } from "@/lib/conversation/context";
+import { resolveProjectDataAccess } from "@/lib/projects/resolve-project-access";
 import { resolveHome } from "./studio-resolve";
 import { StartConversationButton } from "./StartConversationButton";
+import { ProjectsPanel } from "./ProjectsPanel";
 
 /** A live, per-operator list — never cached. */
 export const dynamic = "force-dynamic";
@@ -109,12 +111,16 @@ export default async function StudioHome() {
   // Live-resolve the conversation seam behind the creds gate (NOT_WIRED default
   // with no creds — then `resolveWorkspaceClient` returns null and we show the
   // "no client" state, never throwing on the home surface).
-  const conversations = await resolveConversationDataAccess();
+  const [conversations, projects] = await Promise.all([
+    resolveConversationDataAccess(),
+    resolveProjectDataAccess(),
+  ]);
 
   const state = await resolveHome({
     resolveWorkspace: getCurrentWorkspace,
     resolveClient: resolveWorkspaceClient,
     conversations,
+    projects,
   });
 
   if (state.kind === "no-workspace") {
@@ -154,6 +160,17 @@ export default async function StudioHome() {
 
       <section style={{ marginTop: 28 }}>
         <StartConversationButton clientId={state.client.id} />
+      </section>
+
+      <section style={{ marginTop: 36 }}>
+        <ProjectsPanel
+          clientId={state.client.id}
+          initialProjects={state.projects.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+          }))}
+        />
       </section>
 
       <section style={{ marginTop: 36 }}>

@@ -128,6 +128,10 @@ export const contentPieces = pgTable(
     // D7 — cluster_role + funnel_stage promoted to first-class columns.
     clusterRole: text("cluster_role"),
     funnelStage: text("funnel_stage"),
+    // Slice 5 — the article's project home (nullable; ON DELETE set null).
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
     dimensions: jsonb("dimensions"),
     faqData: jsonb("faq_data"),
     briefSnapshot: jsonb("brief_snapshot"),
@@ -151,6 +155,7 @@ export const contentPieces = pgTable(
       t.clusterRole,
       t.funnelStage,
     ),
+    index("content_pieces_project_idx").on(t.projectId),
     check(
       "content_pieces_cluster_role_check",
       sql`${t.clusterRole} IN ('pillar','cornerstone','spoke','faq','checklist')`,
@@ -789,6 +794,11 @@ export const conversations = pgTable(
     pieceId: uuid("piece_id").references(() => contentPieces.id, {
       onDelete: "set null",
     }),
+    // Slice 5 — the thread's project (nullable; ON DELETE set null). Read by the
+    // run pre-amble to inject the project's cross-article context.
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
     title: text("title"),
     status: text("status").default("active").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -801,11 +811,38 @@ export const conversations = pgTable(
   (t) => [
     index("conversations_workspace_client_idx").on(t.workspaceId, t.clientId),
     index("conversations_client_piece_idx").on(t.clientId, t.pieceId),
+    index("conversations_project_idx").on(t.projectId),
     check(
       "conversations_status_check",
       sql`${t.status} IN ('active','archived')`,
     ),
   ],
+);
+
+// Slice 5 — the Projects organizational layer: an operator-created container that
+// groups many content pieces for ONE client. `brief` is the operator-editable
+// narrative carried into new articles; `summary` is the auto-facts cache. Bound to
+// (workspace, client); RLS fail-closed (migration 0042).
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id").notNull(),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => contentClients.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    brief: text("brief").default("").notNull(),
+    summary: jsonb("summary"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("projects_workspace_client_idx").on(t.workspaceId, t.clientId)],
 );
 
 export const conversationTurns = pgTable(

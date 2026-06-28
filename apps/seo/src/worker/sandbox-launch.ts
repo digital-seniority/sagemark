@@ -123,14 +123,20 @@ interface SandboxStatic {
 // ── SDK loading + credentials (ported from the spike) ─────────────────────────
 
 function sandboxCredentials(): Partial<SandboxCreateParams> {
-  if (process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID) {
-    return {
-      token: process.env.VERCEL_TOKEN,
-      teamId: process.env.VERCEL_TEAM_ID,
-      projectId: process.env.VERCEL_PROJECT_ID,
-    };
+  // Vercel RESERVES the `VERCEL_` env prefix (VERCEL_TOKEN et al. cannot be set as
+  // project env vars), and on a deployment the Sandbox SDK otherwise authenticates
+  // via OIDC — which CANNOT restore a snapshot created with a personal token (the
+  // restore 404s). So we ALSO accept non-reserved `SEO_SANDBOX_VERCEL_*` aliases:
+  // set those on the project and the SDK authenticates with the TOKEN (which can
+  // read the snapshot) instead of OIDC. Local dev keeps using the bare VERCEL_* vars.
+  const token = process.env.VERCEL_TOKEN ?? process.env.SEO_SANDBOX_VERCEL_TOKEN;
+  const teamId = process.env.VERCEL_TEAM_ID ?? process.env.SEO_SANDBOX_VERCEL_TEAM_ID;
+  const projectId =
+    process.env.VERCEL_PROJECT_ID ?? process.env.SEO_SANDBOX_VERCEL_PROJECT_ID;
+  if (token && teamId && projectId) {
+    return { token, teamId, projectId };
   }
-  return {}; // On Vercel the SDK falls back to VERCEL_OIDC_TOKEN.
+  return {}; // No explicit creds → the SDK falls back to VERCEL_OIDC_TOKEN.
 }
 
 export async function loadSandbox(): Promise<SandboxStatic> {

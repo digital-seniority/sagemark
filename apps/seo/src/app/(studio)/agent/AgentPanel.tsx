@@ -33,6 +33,7 @@ import {
   type TranscriptTurn,
 } from "./ConversationTranscript";
 import { ChatComposer } from "./ChatComposer";
+import { StudioWelcome } from "./StudioWelcome";
 
 /** The chat handle the canvas lifts down so the composer drives the run. */
 export interface AgentChatHandle {
@@ -72,6 +73,16 @@ const PHASE_LABEL: Record<StreamPhase, string> = {
 const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
 export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps) {
+  // First-run: a chat-driven canvas whose transcript is KNOWN-empty (a server-passed
+  // empty array, not the undefined fetch-on-mount case) AND no live feed yet -> show
+  // the warm guidance instead of the bare empty strings. When initialTranscript is
+  // undefined the transcript must still mount to fetch, so the welcome stays hidden.
+  const showWelcome =
+    chat != null &&
+    chat.initialTranscript != null &&
+    chat.initialTranscript.length === 0 &&
+    feed.length === 0;
+
   return (
     <div
       data-zone-body="agent"
@@ -98,18 +109,25 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
         </span>
       </header>
 
-      {/* The scrollable thread: prior turns (transcript) then the live turn (feed). */}
+      {/* The scrollable thread: prior turns (transcript) then the live turn (feed),
+          or the first-run welcome when the conversation is brand new. */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
-        {chat && (
-          <ConversationTranscript
-            conversationId={chat.conversationId}
-            clientId={chat.clientId}
-            initialTranscript={chat.initialTranscript}
-            fetchImpl={chat.fetchImpl}
-          />
+        {showWelcome && chat ? (
+          <StudioWelcome onPick={chat.onSend} />
+        ) : (
+          <>
+            {chat && (
+              <ConversationTranscript
+                conversationId={chat.conversationId}
+                clientId={chat.clientId}
+                initialTranscript={chat.initialTranscript}
+                fetchImpl={chat.fetchImpl}
+              />
+            )}
+            {/* The IN-FLIGHT live turn — reused verbatim (thinking + tool-use rows). */}
+            <AgentMessageStream feed={feed} />
+          </>
         )}
-        {/* The IN-FLIGHT live turn — reused verbatim (thinking + tool-use rows). */}
-        <AgentMessageStream feed={feed} />
       </div>
 
       {phase === "error" && error && (

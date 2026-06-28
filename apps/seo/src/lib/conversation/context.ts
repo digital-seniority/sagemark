@@ -40,6 +40,8 @@ export interface ConversationRow {
   clientId: string;
   /** Null until the first draft links the thread to a content piece. */
   pieceId: string | null;
+  /** The project this thread belongs to (Slice 5), or null. Drives context injection. */
+  projectId: string | null;
   title: string | null;
   status: ConversationStatus;
   createdAt: string;
@@ -81,6 +83,8 @@ export interface CreateConversationInput {
   workspaceId: string;
   clientId: string;
   title?: string;
+  /** Optional project the new thread belongs to (Slice 5). */
+  projectId?: string | null;
 }
 
 /**

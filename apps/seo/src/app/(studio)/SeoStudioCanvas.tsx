@@ -119,6 +119,12 @@ export interface SeoStudioCanvasProps {
   /** The signed-in operator's display name/email for the top bar (omitted => hidden). */
   operatorName?: string | null;
   /**
+   * The linked piece id at mount (null before a draft exists). The canvas also
+   * learns/refreshes it after each completed turn (the transcript read carries the
+   * conversation's current pieceId). Drives the in-place edit save (Slice 3).
+   */
+  pieceId?: string | null;
+  /**
    * The ON-DONE reconcile read (chat path). After a turn completes cleanly the canvas
    * calls this to read the conversation's PERSISTED current draft (body + scorecard) —
    * the persisted row is the truth, not the stream accumulation — and folds it back in
@@ -157,6 +163,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
     initialTranscript,
     clientName = null,
     operatorName = null,
+    pieceId: initialPieceId = null,
     reconcileDraft,
     injectedState,
     eventSourceFactory,
@@ -165,6 +172,11 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
 
   // CHAT-DRIVEN when both ids are present (and no explicit injected state overrides).
   const chatActive = Boolean(conversationId && clientId) && injectedState == null;
+
+  // The current linked piece id. Seeded from the page (the conversation's pieceId at
+  // mount) and refreshed after each completed turn from the transcript read — so an
+  // in-place edit always targets the live draft, even one just created this session.
+  const [pieceId, setPieceId] = useState<string | null>(initialPieceId);
 
   // The transcript the agent zone renders. The canvas re-reads it on each clean turn
   // completion (the persisted log is the truth); until then the server-passed
@@ -196,8 +208,15 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
             { headers: { accept: "application/json" } },
           );
           if (res.ok) {
-            const body = (await res.json()) as { turns?: TranscriptTurn[] };
+            const body = (await res.json()) as {
+              turns?: TranscriptTurn[];
+              conversation?: { pieceId?: string | null };
+            };
             if (Array.isArray(body.turns)) setRefreshed(body.turns);
+            // Learn the (possibly newly-created) draft's piece id so an in-place
+            // edit can target it without a page reload.
+            const pid = body.conversation?.pieceId;
+            if (typeof pid === "string" && pid) setPieceId(pid);
           }
         } catch {
           // A failed transcript refresh leaves the prior transcript in place.
@@ -405,6 +424,33 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
           body={state.body}
           streaming={state.phase === "streaming"}
           scorecard={state.scorecard}
+          clientId={clientId}
+          pieceId={state.pieceId ?? pieceId}
+          fetchImpl={fetchImpl as unknown as typeof fetch | undefined}
+          onApplyEdit={
+            chatActive
+              ? (result) =>
+                  // Fold the re-gated edit back as the persisted truth: the snapshot
+                  // rule swaps the body + scorecard so the inspector verdict updates
+                  // and the next edit re-bases on this body.
+                  turn.dispatch(
+                    snapshotFromPersisted(conversationId ?? "", lastSeqRef.current, {
+                      piece: {
+                        pieceId: state.pieceId ?? pieceId ?? "",
+                        slug: brief?.slug ?? "",
+                        title: brief?.title ?? "",
+                        body: result.body,
+                        status: "draft",
+                      },
+                      scorecard: {
+                        stageAVetoes: result.vetoes,
+                        score: result.score,
+                        verdict: result.verdict,
+                      },
+                    }),
+                  )
+              : undefined
+          }
         />
       </section>
 

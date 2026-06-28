@@ -24,6 +24,12 @@ import { useRouter } from "next/navigation";
 export interface StartConversationButtonProps {
   /** The SERVER-RESOLVED client id (from the operator's workspace; never user input). */
   clientId: string;
+  /** Optional project to open the new thread inside (Slice 5b). */
+  projectId?: string | null;
+  /** Button label (default "Start a new piece"). */
+  label?: string;
+  /** Compact styling for in-list use (e.g. inside a project card). */
+  compact?: boolean;
   /** Injectable fetch (tests). Defaults to the global `fetch`. */
   fetchImpl?: typeof fetch;
   /** Injectable navigation (tests). Defaults to the App Router `router.push`. */
@@ -37,6 +43,9 @@ type Status =
 
 export function StartConversationButton({
   clientId,
+  projectId = null,
+  label = "Start a new piece",
+  compact = false,
   fetchImpl,
   onNavigate,
 }: StartConversationButtonProps) {
@@ -53,8 +62,8 @@ export function StartConversationButton({
       const res = await doFetch("/api/conversations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        // EXACTLY the bound client id — the server binds workspace + creates the row.
-        body: JSON.stringify({ clientId }),
+        // The bound client id (+ optional project) — the server binds workspace + creates the row.
+        body: JSON.stringify(projectId ? { clientId, projectId } : { clientId }),
       });
       if (!res.ok) {
         setStatus({
@@ -95,19 +104,19 @@ export function StartConversationButton({
         aria-disabled={starting}
         style={{
           alignSelf: "flex-start",
-          fontSize: 15,
+          fontSize: compact ? 12 : 15,
           fontWeight: 600,
           letterSpacing: "0.01em",
-          padding: "0.6rem 1.1rem",
+          padding: compact ? "5px 11px" : "0.6rem 1.1rem",
           borderRadius: 999,
-          color: "var(--background)",
-          background: "var(--foreground)",
-          border: "1px solid currentColor",
+          color: compact ? "var(--foreground)" : "var(--background)",
+          background: compact ? "transparent" : "var(--foreground)",
+          border: compact ? "1px solid var(--line)" : "1px solid currentColor",
           cursor: starting ? "default" : "pointer",
           opacity: starting ? 0.6 : 1,
         }}
       >
-        {starting ? "Starting..." : "Start a new piece"}
+        {starting ? "Starting…" : label}
       </button>
       {status.kind === "error" ? (
         <p role="alert" data-testid="start-error" style={{ fontSize: 13, opacity: 0.85, margin: 0 }}>

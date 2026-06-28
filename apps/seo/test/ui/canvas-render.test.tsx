@@ -61,7 +61,7 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     expect(html).toContain("Researching the topic.");
     expect(html).toContain('data-tool-code="serpFetch"');
     expect(html).toContain('data-status="ok"');
-    expect(html).toContain("Fetching live sources"); // the code -> phrase map
+    expect(html).toContain("Read the latest sources"); // the code -> plain done-phrase map
     expect(html).toContain("3 sources"); // the sanitized label
 
     // Artifact zone: the accumulated token-delta body, rendered to serif prose

@@ -28,6 +28,7 @@ import type {
   ConversationTurnRow,
 } from "@/lib/conversation/context";
 import type { ContentDataAccess } from "@/lib/content/context";
+import type { ProjectDataAccess, ProjectRow } from "@/lib/projects/context";
 import type { ContentBrief } from "./artifact/BriefCard";
 import type { TranscriptTurn } from "./agent/ConversationTranscript";
 
@@ -51,6 +52,8 @@ export type HomeState =
       workspace: Workspace;
       client: WorkspaceClient;
       conversations: ConversationRow[];
+      /** The client's projects (Slice 5b); empty when no projects seam is wired. */
+      projects: ProjectRow[];
     };
 
 /** The injectable deps the home resolution consumes (fakes in tests). */
@@ -58,6 +61,8 @@ export interface HomeResolveDeps {
   resolveWorkspace: () => Promise<Workspace | null>;
   resolveClient: (workspaceId: string) => Promise<WorkspaceClient | null>;
   conversations: Pick<ConversationDataAccess, "listConversations">;
+  /** Optional projects seam (Slice 5b). Omitted => an empty project list. */
+  projects?: Pick<ProjectDataAccess, "listProjects">;
 }
 
 /**
@@ -77,7 +82,10 @@ export async function resolveHome(deps: HomeResolveDeps): Promise<HomeState> {
     workspace.id,
     client.id,
   );
-  return { kind: "ready", workspace, client, conversations };
+  const projects = deps.projects
+    ? await deps.projects.listProjects(workspace.id, client.id)
+    : [];
+  return { kind: "ready", workspace, client, conversations, projects };
 }
 
 // ── Canvas resolution ──────────────────────────────────────────────────────────
@@ -97,6 +105,8 @@ export type CanvasState =
       /** The client display name (top-bar pill); resolved server-side. */
       clientName: string;
       conversationId: string;
+      /** The linked piece id (null before a draft exists); drives in-place edit. */
+      pieceId: string | null;
       brief: ContentBrief | null;
       transcript: TranscriptTurn[];
     };
@@ -190,6 +200,7 @@ export async function resolveCanvas(
     clientId: client.id,
     clientName: client.name,
     conversationId: id,
+    pieceId: conversation.pieceId,
     brief,
     transcript: turns
       .slice()
