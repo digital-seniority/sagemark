@@ -94,6 +94,8 @@ export type CanvasState =
   | {
       kind: "ready";
       clientId: string;
+      /** The client display name (top-bar pill); resolved server-side. */
+      clientName: string;
       conversationId: string;
       brief: ContentBrief | null;
       transcript: TranscriptTurn[];
@@ -186,6 +188,7 @@ export async function resolveCanvas(
   return {
     kind: "ready",
     clientId: client.id,
+    clientName: client.name,
     conversationId: id,
     brief,
     transcript: turns
