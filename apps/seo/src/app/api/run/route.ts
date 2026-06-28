@@ -366,9 +366,110 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       }
       dispatchPrompt = strategyPrompt;
     } else if (dispatchWorkerMode === "standalone-author") {
-      // For authoring runs the composed brief is correct (it carries the project
-      // context + draft body), but the tool name must be persistPiece not persistStrategy.
-      // composeTurnPrompt already says persistPiece — no override needed here.
+      // composeTurnPrompt generates a REVISION brief when the conversation is linked
+      // to an existing piece (e.g. the pillar after the first authoring run). That
+      // brief tells the model to REVISE the linked piece — wrong for hub authoring
+      // where each run must write the NEXT PENDING page. Override with an explicit
+      // "write next pending page" brief so the model drafts the correct article.
+      //
+      // We query listProjectPieces (one extra read) to identify the first roadmap
+      // page whose slug is not yet authored, then generate a page-specific prompt.
+      let nextPage: {
+        slug: string;
+        title: string;
+        clusterRole: string;
+        funnelStage?: string | null;
+        primaryKeyword?: string | null;
+      } | null = null;
+      try {
+        if (dispatchProjectId) {
+          const [proj, existingPieces] = await Promise.all([
+            deps.projects.getProject(dispatchProjectId, ctx.workspaceId, ctx.clientId),
+            deps.projects.listProjectPieces(dispatchProjectId, ctx.workspaceId, ctx.clientId),
+          ]);
+          if (proj?.strategy && proj.strategyStatus === "approved") {
+            const rawStrategy = proj.strategy as Record<string, unknown>;
+            const rawRoadmap = (
+              Array.isArray(rawStrategy.roadmap)
+                ? rawStrategy.roadmap
+                : Array.isArray(rawStrategy.prioritized_roadmap)
+                  ? rawStrategy.prioritized_roadmap
+                  : []
+            ) as Record<string, unknown>[];
+            const authoredSlugs = new Set(existingPieces.map((p) => p.slug));
+            for (const item of rawRoadmap) {
+              const title = typeof item.title === "string" ? item.title : null;
+              if (!title) continue;
+              const slug =
+                typeof item.slug === "string"
+                  ? item.slug
+                  : title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+              if (!authoredSlugs.has(slug)) {
+                nextPage = {
+                  slug,
+                  title,
+                  clusterRole:
+                    typeof item.clusterRole === "string"
+                      ? item.clusterRole
+                      : typeof item.cluster_role === "string"
+                        ? item.cluster_role
+                        : "spoke",
+                  funnelStage:
+                    typeof item.funnelStage === "string"
+                      ? item.funnelStage
+                      : typeof item.funnel_stage === "string"
+                        ? item.funnel_stage
+                        : null,
+                  primaryKeyword:
+                    typeof item.primaryKeyword === "string"
+                      ? item.primaryKeyword
+                      : typeof item.target_keyword === "string"
+                        ? item.target_keyword
+                        : null,
+                };
+                break;
+              }
+            }
+          }
+        }
+      } catch {
+        // DB error or missing project — fall through to the generic brief below.
+      }
+
+      let authorPrompt: string;
+      if (nextPage) {
+        authorPrompt =
+          `You are the SEO Copywriter worker in hub-authoring mode. ` +
+          `Your assignment is to write the following hub page as a complete, grounded ` +
+          `SEO article (1500-2500 words). Cite real sources for every statistic. ` +
+          `Open with a self-contained quick-answer for AI answer engines. ` +
+          `YMYL-safe framing throughout.\n\n` +
+          `PAGE ASSIGNMENT:\n` +
+          `- Title: "${nextPage.title}"\n` +
+          `- Slug: ${nextPage.slug}\n` +
+          `- clusterRole: ${nextPage.clusterRole}\n` +
+          (nextPage.funnelStage ? `- funnelStage: ${nextPage.funnelStage}\n` : "") +
+          (nextPage.primaryKeyword ? `- Primary keyword: ${nextPage.primaryKeyword}\n` : "") +
+          `- projectId: ${dispatchProjectId}\n\n` +
+          `This is a NEW article — do NOT revise any existing draft. ` +
+          `Draft immediately, then call persistPiece ONCE with the exact slug, ` +
+          `clusterRole, funnelStage, and projectId listed above.`;
+      } else {
+        // Fallback: no pending page found (all authored, or DB error). Give the model
+        // a generic instruction so it can at least try via the project context.
+        authorPrompt =
+          `You are the SEO Copywriter worker in hub-authoring mode. ` +
+          `Look at the "Full hub roadmap" in the project context below. ` +
+          `Find the FIRST roadmap page not in "Articles already authored" and write it ` +
+          `as a complete, grounded SEO article. Call persistPiece once with the exact ` +
+          `slug, clusterRole, funnelStage, and projectId '${dispatchProjectId ?? ""}'. ` +
+          `Do NOT revise any existing draft.`;
+      }
+      if (turn.projectContextNote) {
+        authorPrompt +=
+          `\n\n=== PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END PROJECT CONTEXT ===`;
+      }
+      dispatchPrompt = authorPrompt;
     }
   }
 
