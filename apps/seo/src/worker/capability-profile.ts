@@ -134,6 +134,11 @@ export interface LaunchProfile {
   workdir: string;
   /** Wedge ceiling — the launcher provisions the VM with this hard timeout. */
   timeoutMs: number;
+  /**
+   * Optional run mode threaded from the host to the worker. Controls which skill(s)
+   * are loaded as the model's systemPrompt. Absent = single-drafter (back-compat).
+   */
+  workerMode?: string;
 }
 
 // ── Env scrub (acceptance #2) ──────────────────────────────────────────────────
@@ -160,6 +165,9 @@ export function buildWorkerEnv(profile: LaunchProfile): Record<string, string> {
     RUN_ID: profile.binding.runId,
     RUN_WORKSPACE_ID: profile.binding.workspaceId,
     RUN_CLIENT_ID: profile.binding.clientId,
+    // Non-secret project + mode (present for hub strategy/authoring runs only).
+    ...(profile.binding.projectId ? { RUN_PROJECT_ID: profile.binding.projectId } : {}),
+    ...(profile.workerMode ? { WORKER_MODE: profile.workerMode } : {}),
     // The jail root ([[DR-011]]).
     WORKER_WORKDIR: profile.workdir,
   };
@@ -194,6 +202,7 @@ export const ALLOWED_ENV_KEYS: ReadonlySet<string> = new Set([
   "RUN_WORKSPACE_ID",
   "RUN_CLIENT_ID",
   "RUN_PROJECT_ID", // non-secret: the project the strategy/authoring run belongs to
+  "WORKER_MODE", // non-secret: standalone-strategy | standalone-author | single-drafter
   "WORKER_WORKDIR",
 ]);
 

@@ -114,7 +114,15 @@ export {
 
 /** What the dispatcher receives: the bound run + its minted credential. */
 export interface WorkerDispatch {
-  scope: { workspaceId: string; clientId: string; runId: string };
+  scope: {
+    workspaceId: string;
+    clientId: string;
+    runId: string;
+    /** The project this run belongs to (absent for one-shot/single-drafter runs). */
+    projectId?: string;
+    /** The skill mode to activate in the worker (absent → single-drafter default). */
+    workerMode?: string;
+  };
   bridgeJwt: string;
   prompt: string;
 }
@@ -298,6 +306,9 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
   // The pre-turn conversation row the agent-turn recorder closes over (its `pieceId`
   // distinguishes a first draft from a revision). Null on the one-shot path.
   let turnConversation: ConversationRow | null = null;
+  // Hub run-mode fields resolved from the conversation's project (absent on the one-shot path).
+  let dispatchProjectId: string | undefined;
+  let dispatchWorkerMode: string | undefined;
   if (conversationId) {
     const turn = await prepareTurn({
       conversationId,
@@ -319,6 +330,24 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       conversations: deps.conversations,
       data: deps.data,
     });
+    // Resolve hub run-mode from the conversation's project (if one is linked).
+    // NOT_WIRED_PROJECT_ACCESS throws — catch and fall through to single-drafter.
+    if (turnConversation.projectId) {
+      dispatchProjectId = turnConversation.projectId;
+      try {
+        const project = await deps.projects.getProject(
+          turnConversation.projectId,
+          ctx.workspaceId,
+          ctx.clientId,
+        );
+        if (project) {
+          dispatchWorkerMode =
+            project.strategyStatus === "approved" ? "standalone-author" : "standalone-strategy";
+        }
+      } catch {
+        // NOT_WIRED or project not found — fall through to single-drafter (back-compat).
+      }
+    }
   }
 
   // 2. COST PRE-FLIGHT (acceptance 3): reserve BEFORE any dispatch. Over-cap =>
@@ -344,7 +373,13 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
   // 3. PER-RUN JWT (acceptance 6): mint scoped to EXACTLY (workspace, client, run),
   //    expiring at the run-budget ceiling (~90s). The worker's only host credential.
   const runId = deps.newRunId();
-  const scope = { workspaceId: ctx.workspaceId, clientId: ctx.clientId, runId };
+  const scope: WorkerDispatch["scope"] = {
+    workspaceId: ctx.workspaceId,
+    clientId: ctx.clientId,
+    runId,
+    ...(dispatchProjectId ? { projectId: dispatchProjectId } : {}),
+    ...(dispatchWorkerMode ? { workerMode: dispatchWorkerMode } : {}),
+  };
   let bridgeJwt: string;
   try {
     bridgeJwt = mintBridgeToken(scope, { secret: deps.jwtSecret, nowMs: nowMs() });

@@ -144,6 +144,7 @@ export function buildLaunchProfile(args: {
       runId: dispatch.scope.runId,
       workspaceId: dispatch.scope.workspaceId,
       clientId: dispatch.scope.clientId,
+      ...(dispatch.scope.projectId ? { projectId: dispatch.scope.projectId } : {}),
     },
     // HOST-ONLY egress: the model door + the tool bridge are both on the host.
     egressAllowlist: [hostDomainFor(hostBaseUrl)],
@@ -153,6 +154,7 @@ export function buildLaunchProfile(args: {
     hostBaseUrl,
     workdir,
     timeoutMs,
+    ...(dispatch.scope.workerMode ? { workerMode: dispatch.scope.workerMode } : {}),
   };
 }
 

@@ -50,6 +50,7 @@ import { pathWithinWorkdir } from "./sandbox-launch";
 import { WORKER_ALLOWED_TOOLS } from "./capability-profile";
 import {
   loadSuite,
+  loadParentSkillMarkdown,
   SINGLE_DRAFTER_SKILL,
   SUITE_CHAIN,
   type LoadedSuite,
@@ -85,6 +86,8 @@ export interface WorkerEnv {
   hostBaseUrl: string;
   workdir: string;
   binding: RunBinding;
+  /** Optional hub run mode (absent → single-drafter default). */
+  workerMode?: string;
 }
 
 export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
@@ -100,6 +103,8 @@ export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
         "(DR-013 worker invariant). Refusing to run.",
     );
   }
+  const projectId = env.RUN_PROJECT_ID?.trim() || undefined;
+  const workerMode = env.WORKER_MODE?.trim() || undefined;
   return {
     gatewayBaseUrl: required("ANTHROPIC_BASE_URL"),
     bridgeJwt: required("ANTHROPIC_AUTH_TOKEN"),
@@ -109,7 +114,9 @@ export function readWorkerEnv(env: NodeJS.ProcessEnv = process.env): WorkerEnv {
       runId: required("RUN_ID"),
       workspaceId: required("RUN_WORKSPACE_ID"),
       clientId: required("RUN_CLIENT_ID"),
+      ...(projectId ? { projectId } : {}),
     },
+    ...(workerMode ? { workerMode } : {}),
   };
 }
 
@@ -354,13 +361,27 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       }
     }
 
-    // The writer skill's SKILL.md is the methodology the model follows. The SDK's
-    // `skills` option is not wired in the CLI subprocess path (0 refs in sdk.mjs)
-    // and settingSources:["project"] would look in /home/worker/run/.claude/skills/
-    // which doesn't exist in the Sandbox image. Pass the content as systemPrompt
-    // so the real authored methodology reaches the model verbatim (DR-022).
-    const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
-    const systemPrompt = writerSkill?.markdown;
+    // The SKILL.md drives the model as systemPrompt (DR-022). The SDK's `skills`
+    // option is not wired in the CLI subprocess path (0 refs in sdk.mjs) and
+    // settingSources:["project"] won't resolve in the Sandbox image. Branch on
+    // workerMode: standalone hub modes use the parent + sub-skill methodology;
+    // the default single-drafter path uses seo-blog-writer as before.
+    const mode = workerEnv.workerMode ?? "single-drafter";
+    let systemPrompt: string | undefined;
+    if (mode === "standalone-strategy") {
+      // Run 1: parent methodology + seo-strategist sub-skill (DR-022 standalone path).
+      const parentMd = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      const strategistSkill = suite.skills.find((s) => s.name === "seo-strategist");
+      const parts = [parentMd, strategistSkill?.markdown].filter(Boolean) as string[];
+      systemPrompt = parts.join("\n\n---\n\n");
+    } else if (mode === "standalone-author") {
+      // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
+      systemPrompt = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+    } else {
+      // Default single-drafter: seo-blog-writer SKILL.md (back-compat, PR 008/014).
+      const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
+      systemPrompt = writerSkill?.markdown;
+    }
 
     const iterator = queryImpl!({
       prompt: opts.prompt,
