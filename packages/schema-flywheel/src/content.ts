@@ -98,6 +98,8 @@ export const contentClients = pgTable(
     blogSlug: text("blog_slug").notNull().unique(),
     // Owning workspace — the layer-3 workspace_id->client_id tenancy bridge.
     workspaceId: uuid("workspace_id").notNull(),
+    // Hub — the client's brand specification (palette, typography, NAP, logo).
+    brandSpec: jsonb("brand_spec"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -835,6 +837,10 @@ export const projects = pgTable(
     description: text("description"),
     brief: text("brief").default("").notNull(),
     summary: jsonb("summary"),
+    // Hub — the human-gated ContentStrategy (proposed → approved → archived).
+    strategy: jsonb("strategy"),
+    strategyStatus: text("strategy_status"),
+    strategyApprovedAt: timestamp("strategy_approved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -842,7 +848,13 @@ export const projects = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("projects_workspace_client_idx").on(t.workspaceId, t.clientId)],
+  (t) => [
+    index("projects_workspace_client_idx").on(t.workspaceId, t.clientId),
+    check(
+      "projects_strategy_status_check",
+      sql`${t.strategyStatus} IN ('proposed','approved','archived')`,
+    ),
+  ],
 );
 
 export const conversationTurns = pgTable(
@@ -948,6 +960,60 @@ export const workspaceMembers = pgTable(
     index("workspace_members_operator_idx").on(t.operatorId),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Hub skill — shared TS interfaces (defined once here; import in brand-theme.ts,
+// strategy route, and studio surfaces rather than redefining).
+// ---------------------------------------------------------------------------
+
+export interface BrandSpec {
+  name?: string;
+  logo?: { url?: string; alt?: string; treatment?: "light" | "dark" };
+  palette?: {
+    brand?: string;
+    brandDark?: string;
+    accent?: string;
+    ink?: string;
+    bg?: string;
+    surface?: string;
+    [token: string]: string | undefined;
+  };
+  typography?: { headingFamily?: string; bodyFamily?: string; googleFonts?: string[] };
+  nap?: {
+    legalName?: string;
+    phone?: string;
+    email?: string;
+    streetAddress?: string;
+    locality?: string;
+    region?: string;
+    postalCode?: string;
+    country?: string;
+    url?: string;
+  };
+  tagline?: string;
+}
+
+export interface ContentStrategyRoadmapItem {
+  slug: string;
+  title: string;
+  clusterRole: ClusterRole;
+  funnelStage?: FunnelStage;
+  primaryKeyword?: string;
+  intent?: string;
+  linksTo?: string[];
+  priority?: number;
+}
+
+export interface ContentStrategy {
+  objective?: string;
+  audience?: string;
+  market?: string;
+  roadmap: ContentStrategyRoadmapItem[];
+  gapAnalysis?: string;
+  eeatPlan?: string;
+  conversionArchitecture?: string;
+  [key: string]: unknown;
+}
 
 // ---------------------------------------------------------------------------
 // Relations.
@@ -1141,3 +1207,5 @@ export type Workspace = typeof workspaces.$inferSelect;
 export type NewWorkspace = typeof workspaces.$inferInsert;
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type NewWorkspaceMember = typeof workspaceMembers.$inferInsert;
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;

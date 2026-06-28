@@ -175,9 +175,19 @@ async function main() {
   // The loader (skills/load-suite.ts) resolves these relative to process.cwd()
   // (= /home/worker/app) as: skills/seo-copywriter-skill-package/seo-copywriter/
   // Matches the SUITE_PACKAGE_REL_ROOT constant and the Dockerfile COPY (A.011.9).
-  // Only the four skill subdirectories are needed — examples/, scripts/, and other
-  // tooling files are excluded to keep the snapshot lean.
-  console.log(`Writing skill SKILL.md files (${SKILL_NAMES.join(", ")})...`);
+  // Write both the parent SKILL.md (used by standalone-strategy + standalone-author
+  // modes via loadParentSkillMarkdown) and the four kernel-backed sub-skill SKILL.mds.
+  console.log(`Writing skill SKILL.md files (parent + ${SKILL_NAMES.join(", ")})...`);
+  // Parent seo-copywriter/SKILL.md (standalone hub methodology).
+  const parentSkillLocal = path.join(SKILLS_SRC, "SKILL.md");
+  const parentSkillRemote = `/home/worker/app/skills/seo-copywriter-skill-package/seo-copywriter/SKILL.md`;
+  if (fs.existsSync(parentSkillLocal)) {
+    process.stdout.write(`  seo-copywriter/SKILL.md\n`);
+    await writeToSandbox(sandbox, parentSkillLocal, parentSkillRemote);
+  } else {
+    console.warn(`  WARN: parent SKILL.md not found at ${parentSkillLocal} — standalone modes won't work`);
+  }
+  // Four kernel-backed sub-skill SKILL.mds.
   for (const name of SKILL_NAMES) {
     const localPath = path.join(SKILLS_SRC, name, "SKILL.md");
     const remotePath = `/home/worker/app/skills/seo-copywriter-skill-package/seo-copywriter/${name}/SKILL.md`;

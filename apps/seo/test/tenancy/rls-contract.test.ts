@@ -100,7 +100,17 @@ const M0041 = readFileSync(
   join(DRIZZLE_DIR, "0041_operators_workspaces.sql"),
   "utf8",
 );
-const ALL = [M0030, M0031, M0032, M0033, M0035, M0037, M0040, M0041].join("\n");
+// 0042 — projects table (operator-created article container, RLS fail-closed,
+// NO anon policy). Adds project_id FK columns to conversations + content_pieces.
+const M0042 = readFileSync(join(DRIZZLE_DIR, "0042_projects.sql"), "utf8");
+// 0043 — hub skill Slice 1: additive columns on projects (strategy jsonb,
+// strategy_status text CHECK proposed|approved|archived, strategy_approved_at
+// timestamptz) and content_clients (brand_spec jsonb). No new tables.
+const M0043 = readFileSync(
+  join(DRIZZLE_DIR, "0043_project_strategy_client_brand.sql"),
+  "utf8",
+);
+const ALL = [M0030, M0031, M0032, M0033, M0035, M0037, M0040, M0041, M0042, M0043].join("\n");
 const flat = (s: string) => s.replace(/\s+/g, " ");
 const FLAT = flat(ALL);
 
@@ -156,6 +166,8 @@ test("[T1] RLS is ENABLED on every content + release table (fail-closed)", () =>
     "operators",
     "workspaces",
     "workspace_members",
+    // Hub projects layer (0042): projects are private operator state — fail-closed.
+    "projects",
   ]) {
     assert.match(
       FLAT,
@@ -188,6 +200,8 @@ test("[T1] the ONLY anon policy is published-only on content_pieces", () => {
     "operators",
     "workspaces",
     "workspace_members",
+    // Hub projects (0042): private operator state — no anon policy.
+    "projects",
   ]) {
     assert.ok(
       !new RegExp(`CREATE\\s+POLICY[^;]*ON\\s+public\\.${t}\\b`, "i").test(ALL),
@@ -556,6 +570,68 @@ test("[T1] 0040 + 0041 are additive, idempotent, public-schema-only (pooled-role
   }
 });
 
+test("[T1] 0043 adds strategy columns to projects + brand_spec to content_clients (additive, idempotent, public-only)", () => {
+  const code = stripComments(M0043);
+  const flatCode = flat(code);
+  // strategy columns on projects (all three with IF NOT EXISTS).
+  assert.match(
+    flatCode,
+    /ALTER TABLE public\.projects\s+ADD COLUMN IF NOT EXISTS strategy\s+jsonb/i,
+    "0043 must add strategy jsonb to projects",
+  );
+  assert.match(
+    flatCode,
+    /ADD COLUMN IF NOT EXISTS strategy_status\s+text/i,
+    "0043 must add strategy_status text to projects",
+  );
+  assert.match(
+    flatCode,
+    /ADD COLUMN IF NOT EXISTS strategy_approved_at\s+timestamptz/i,
+    "0043 must add strategy_approved_at timestamptz to projects",
+  );
+  // brand_spec on content_clients.
+  assert.match(
+    flatCode,
+    /ALTER TABLE public\.content_clients\s+ADD COLUMN IF NOT EXISTS brand_spec\s+jsonb/i,
+    "0043 must add brand_spec jsonb to content_clients",
+  );
+  // strategy_status CHECK in the guarded DO $$ block.
+  assert.match(
+    code,
+    /strategy_status IN \('proposed','approved','archived'\)/i,
+    "0043 must assert projects_strategy_status_check",
+  );
+  // The CHECK guard mirrors 0031 exactly (DO $$ + pg_constraint lookup).
+  assert.match(code, /DO \$\$/i, "0043 must use a DO $$ block for the CHECK guard");
+  assert.match(
+    code,
+    /pg_constraint WHERE conname = 'projects_strategy_status_check'/i,
+    "0043 DO block must guard on the constraint name",
+  );
+  // Idempotent + additive.
+  assert.ok(/ADD COLUMN IF NOT EXISTS/i.test(code), "0043 must use IF NOT EXISTS guards");
+  assert.ok(!/\bDROP\b/i.test(code), "0043 live SQL must not DROP anything");
+  assert.ok(
+    !/\bALTER COLUMN\b|\bDROP COLUMN\b|\bRENAME\b/i.test(code),
+    "0043 must not ALTER/DROP/RENAME existing columns",
+  );
+  // Public-schema only.
+  assert.ok(
+    !/\bauth\.|\bstorage\./i.test(code),
+    "0043 must touch only the public schema",
+  );
+  for (const banned of [
+    /CREATE\s+EVENT\s+TRIGGER/i,
+    /\bSET\s+ROLE\b/i,
+    /\bALTER\s+.*OWNER\s+TO\b/i,
+    /\bGRANT\b/i,
+    /\bCREATE\s+EXTENSION\b/i,
+    /SECURITY\s+DEFINER/i,
+  ]) {
+    assert.ok(!banned.test(code), `0043 must not use a superuser-only construct: ${banned}`);
+  }
+});
+
 // ===========================================================================
 // TIER 2 — live Postgres behavioral assertions (anon, cross-tenant, FK, CHECK).
 // Engine auto-detect: DATABASE_URL (Supabase branch / CI) OR a docker pg
@@ -664,6 +740,10 @@ before(() => {
   run(M0040);
   // 0041 — operators + workspaces + workspace_members (tenancy root).
   run(M0041);
+  // 0042 — projects table (article container, RLS fail-closed, no anon policy).
+  run(M0042);
+  // 0043 — project strategy columns + content_clients.brand_spec (additive).
+  run(M0043);
   // Grant anon SELECT on all tables so RLS — not a missing table grant — is the
   // thing under test. (Supabase grants anon SELECT on public by default; a bare
   // postgres does not. With RLS enabled + fail-closed policies, a table grant
@@ -796,6 +876,8 @@ test(
       "operators",
       "workspaces",
       "workspace_members",
+      // Hub projects (0042 + 0043): private operator state — anon must never reach.
+      "projects",
     ]) {
       const c = run(`SELECT count(*) FROM ${t};`, { role: "anon" });
       assert.equal(c, "0", `anon must read ZERO rows from ${t}, got ${c}`);

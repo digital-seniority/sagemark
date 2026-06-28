@@ -51,7 +51,7 @@ interface ProjectSupabase {
 }
 
 const PROJECT_COLS =
-  "id, workspace_id, client_id, name, description, brief, summary, created_at, updated_at";
+  "id, workspace_id, client_id, name, description, brief, summary, strategy, strategy_status, strategy_approved_at, created_at, updated_at";
 
 function reqString(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
@@ -72,6 +72,11 @@ function mapProject(row: Record<string, unknown>): ProjectRow | null {
   const createdAt = reqString(row.created_at);
   const updatedAt = reqString(row.updated_at);
   if (!id || !workspaceId || !clientId || !name || !createdAt || !updatedAt) return null;
+  const rawStatus = asStringOrNull(row.strategy_status);
+  const strategyStatus: "proposed" | "approved" | "archived" | null =
+    rawStatus === "proposed" || rawStatus === "approved" || rawStatus === "archived"
+      ? rawStatus
+      : null;
   return {
     id,
     workspaceId,
@@ -80,6 +85,9 @@ function mapProject(row: Record<string, unknown>): ProjectRow | null {
     description: asStringOrNull(row.description),
     brief: asStringOrNull(row.brief) ?? "",
     summary: row.summary ?? null,
+    strategy: row.strategy ?? null,
+    strategyStatus,
+    strategyApprovedAt: asStringOrNull(row.strategy_approved_at),
     createdAt,
     updatedAt,
   };
@@ -164,6 +172,44 @@ export class LiveProjectDataAccess implements ProjectDataAccess {
       .eq("workspace_id", workspaceId)
       .eq("client_id", clientId);
     if (error) throw new Error(`live-project: updateProjectBrief failed: ${stringifyErr(error)}`);
+  }
+
+  async persistStrategy(
+    id: string,
+    strategy: unknown,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from("projects")
+      .update({
+        strategy: strategy as Record<string, unknown>,
+        strategy_status: "proposed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("workspace_id", workspaceId)
+      .eq("client_id", clientId);
+    if (error) throw new Error(`live-project: persistStrategy failed: ${stringifyErr(error)}`);
+  }
+
+  async approveStrategy(
+    id: string,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const { error } = await this.supabase
+      .from("projects")
+      .update({
+        strategy_status: "approved",
+        strategy_approved_at: now,
+        updated_at: now,
+      })
+      .eq("id", id)
+      .eq("workspace_id", workspaceId)
+      .eq("client_id", clientId);
+    if (error) throw new Error(`live-project: approveStrategy failed: ${stringifyErr(error)}`);
   }
 
   async listProjectPieces(

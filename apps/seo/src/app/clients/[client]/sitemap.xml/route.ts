@@ -56,8 +56,8 @@ export function buildSitemapXml(
 ): string {
   const base = `${origin}/clients/${encodeURIComponent(clientSlug)}`;
   const urls: string[] = [];
-  // The client hub root.
-  urls.push(`  <url>\n    <loc>${xmlEscape(base)}/blog</loc>\n  </url>`);
+  // The client hub root (the branded homepage, not /blog).
+  urls.push(`  <url>\n    <loc>${xmlEscape(base)}</loc>\n  </url>`);
   for (const p of pieces) {
     const loc = `${base}/blog/${encodeURIComponent(p.slug)}`;
     const lastmod = (p.updatedAt ?? p.publishedAt ?? "").slice(0, 10);

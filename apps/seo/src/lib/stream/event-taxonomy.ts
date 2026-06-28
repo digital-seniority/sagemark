@@ -57,6 +57,8 @@ export const TOOL_USE_CODES = [
   "serpFetch", // live SERP / source fetch (the brief's first tool call)
   "draftBody", // body drafting in progress (streaming...)
   "persistPiece", // the host-validated content_pieces write (the only mutation)
+  "persistStrategy", // the host-validated projects.strategy write (hub skill, Slice 2)
+  "requestImages", // per-page image request emitted during hub authoring (hub skill, Slice 6)
   "runFaithfulnessGate", // the drafter!=verifier faithfulness check
   "runGate.stageA", // deterministic Stage-A veto pass
   "runGate.stageB", // deterministic Stage-B 8-dimension scoring pass

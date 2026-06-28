@@ -255,6 +255,53 @@ export function loadSuite(opts: LoadSuiteOptions): LoadedSuite {
   };
 }
 
+// ── Standalone parent skill loader (DR-022 standalone path) ───────────────────
+
+export interface LoadParentSkillOptions {
+  /**
+   * The apps/seo host base URL — threaded to the parent skill so it can orient
+   * itself toward the host bridge (mirrors `loadSuite`'s `kernelBaseUrl`).
+   * Currently informational; the parent SKILL.md is loaded verbatim regardless.
+   */
+  kernelBaseUrl: string;
+  /** App root the `SUITE_PACKAGE_REL_ROOT` is resolved against (default: `process.cwd()`). */
+  appRoot?: string;
+  /** Injectable file reader (default: `node:fs.readFileSync`). For unit tests. */
+  readFileImpl?: (absPath: string) => string;
+  /** Injectable existence check (default: `node:fs.existsSync`). For unit tests. */
+  existsImpl?: (absPath: string) => boolean;
+  /** Injectable path joiner. */
+  joinImpl?: (...segments: string[]) => string;
+}
+
+/**
+ * Load the PARENT `seo-copywriter/SKILL.md` verbatim (DR-022 standalone path).
+ * This is the top-level skill that describes the hub authoring methodology and is
+ * NOT a kernel-backed sub-skill (it drives no kernel route; no kernel-route
+ * assertion is applied here). Used as the `systemPrompt` for standalone hub runs:
+ *   - `standalone-strategy`: prepended to `seo-strategist/SKILL.md`
+ *   - `standalone-author`: used alone (the hub authoring methodology)
+ *
+ * Fail-closed: throws if the file is not found (the Dockerfile COPY must include it).
+ */
+export function loadParentSkillMarkdown(opts: LoadParentSkillOptions): string {
+  const join =
+    opts.joinImpl ??
+    ((...segments: string[]) => segments.join("/").replace(/\/{2,}/g, "/"));
+  const readFileImpl = opts.readFileImpl ?? ((absPath: string) => readFileSync(absPath, "utf8"));
+  const existsImpl = opts.existsImpl ?? ((absPath: string) => existsSync(absPath));
+
+  const appRoot = opts.appRoot ?? inferAppRoot();
+  const skillPath = join(appRoot, SUITE_PACKAGE_REL_ROOT, "SKILL.md");
+  if (!existsImpl(skillPath)) {
+    throw new Error(
+      `loadParentSkillMarkdown: parent SKILL.md not found at '${skillPath}'. ` +
+        "The vendored suite (DR-022) must be present (in the worktree/CI, and COPY'd into the Sandbox image).",
+    );
+  }
+  return readFileImpl(skillPath);
+}
+
 /**
  * Assert a loaded suite is kernel-backed: it points at the canonical apps/seo
  * `/content/api/*` routes (the kernel the skills drive) and did NOT swallow the

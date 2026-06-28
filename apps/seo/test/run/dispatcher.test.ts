@@ -302,6 +302,32 @@ describe("createLiveDispatcher — provisions, starts, relays, tears down", () =
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it("surfaces a terminal-error on STDERR (entry.ts console.error path) with the real message", async () => {
+    const { result, stop } = fakeLaunch();
+    const dispatcher = createLiveDispatcher({
+      resolveHostBaseUrl: () => HOST,
+      launchSandboxImpl: async () => result,
+      // entry.ts emits ::worker-terminal-error:: to stderr, then ::worker-result:: to stdout.
+      // The dispatcher must surface the real error (from stderr), not the generic result message.
+      startWorker: async () =>
+        scriptedWorker(
+          ['::worker-result:: {"status":"error"}'],
+          ['::worker-terminal-error:: {"code":"WORKER_LOOP_FAILED","message":"real error: loadSuite failed"}'],
+        ),
+    });
+
+    const events = await drain(await dispatcher(DISPATCH));
+    // The stderr terminal-error marker should arrive first and carry the real message.
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "error",
+      code: "WORKER_LOOP_FAILED",
+      message: "real error: loadSuite failed",
+      runId: SCOPE.runId,
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces a BootRefusedError as a SINGLE terminal SSE error (never empty)", async () => {
     const dispatcher = createLiveDispatcher({
       resolveHostBaseUrl: () => HOST,
@@ -397,7 +423,7 @@ describe("createLiveDispatcher — provisions, starts, relays, tears down", () =
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
-  it("closes cleanly (relay emits `done`) when the worker stream ends with no terminal marker", async () => {
+  it("emits WORKER_LOOP_FAILED when the worker stream ends with no terminal marker", async () => {
     const { result } = fakeLaunch();
     const dispatcher = createLiveDispatcher({
       resolveHostBaseUrl: () => HOST,
@@ -405,9 +431,10 @@ describe("createLiveDispatcher — provisions, starts, relays, tears down", () =
       startWorker: async () => scriptedWorker(["::worker-session-id:: s", "noise"]),
     });
 
-    // No terminal marker -> the dispatcher source ends with no events; the relay
-    // (not under test here) then synthesizes a clean `done`. Assert empty + no throw.
+    // No terminal marker and no event markers -> dispatcher surfaces a loud error
+    // rather than silently yielding empty (which would look like success to the relay).
     const events = await drain(await dispatcher(DISPATCH));
-    expect(events).toEqual([]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "error", code: "WORKER_LOOP_FAILED" });
   });
 });

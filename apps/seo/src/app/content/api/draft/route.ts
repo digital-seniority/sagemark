@@ -40,12 +40,19 @@ import {
   type PersistedBriefSnapshot,
 } from "@/lib/content/context";
 import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
+import {
+  NOT_WIRED_PROJECT_ACCESS,
+  type ProjectDataAccess,
+} from "@/lib/projects/context";
+import { resolveProjectDataAccess } from "@/lib/projects/resolve-project-access";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export interface DraftDeps {
   data: ContentDataAccess;
+  /** Optional projects seam (Slice 5): used to check strategy_status before authoring. */
+  projects?: Pick<ProjectDataAccess, "getProject">;
   resolveWorkspace: () => Promise<Workspace | null>;
   /** Bridge-JWT signing secret override (default: host env). Test-injectable. */
   jwtSecret?: string;
@@ -55,6 +62,7 @@ export interface DraftDeps {
 
 const DEFAULT_DEPS: DraftDeps = {
   data: NOT_WIRED_DATA_ACCESS,
+  projects: NOT_WIRED_PROJECT_ACCESS,
   resolveWorkspace: getCurrentWorkspace,
 };
 
@@ -132,12 +140,36 @@ export async function handleDraft(
     );
   }
 
+  // 4b. Hub program gate — if the request carries a projectId, the project's
+  //     strategy must be 'approved' before any page is authored. The projectId
+  //     is REQUEST-supplied here (the worker sends it) but it is VERIFIED against
+  //     the bound tenancy before the gate check; a cross-tenant or non-existent
+  //     projectId yields 409 (not 403, so it's indistinguishable from "not approved").
+  if (body.projectId && deps.projects) {
+    const project = await deps.projects
+      .getProject(body.projectId, ctx.workspaceId, ctx.clientId)
+      .catch(() => null);
+    if (!project || project.strategyStatus !== "approved") {
+      return json(
+        {
+          error: "hub project strategy must be approved before authoring pages",
+          code: "strategy-not-approved",
+        },
+        409,
+      );
+    }
+  }
+
   // 5. Resolve the byline author SERVER-side from the approved spec; write the row
   //    scoped by the BOUND client id (never the request's).
   const authorId = voiceSpec.spec.authors?.[0]?.id ?? null;
   const faqData = (body.faqData ?? null) as GeoFaqItem[] | null;
   const briefSnapshot = asBriefSnapshot(body.briefSnapshot);
 
+  // The hub fields (clusterRole, funnelStage, projectId) are passed through from
+  // the request body. The projectId was already verified above (bound-tenancy match);
+  // clusterRole + funnelStage are validated by the Zod enum — the DB CHECK constraint
+  // is the final arbiter.
   let inserted: { id: string; slug: string };
   try {
     inserted = await deps.data.insertDraftPiece({
@@ -151,6 +183,9 @@ export async function handleDraft(
       authorId,
       faqData,
       briefSnapshot,
+      clusterRole: body.clusterRole ?? null,
+      funnelStage: body.funnelStage ?? null,
+      projectId: body.projectId ?? null,
     });
   } catch (err) {
     console.error("[content/draft] persist failed", {
@@ -182,6 +217,9 @@ export async function POST(request: Request): Promise<Response> {
   // service-role creds gate. With no creds set this returns NOT_WIRED_DATA_ACCESS —
   // the route behaves EXACTLY as before (every write throws loudly). The draft
   // insert is scoped by the BOUND client id (never request input) by the adapter.
-  const data = await resolveContentDataAccess();
-  return handleDraft(request, { ...DEFAULT_DEPS, data });
+  const [data, projects] = await Promise.all([
+    resolveContentDataAccess(),
+    resolveProjectDataAccess().catch(() => NOT_WIRED_PROJECT_ACCESS),
+  ]);
+  return handleDraft(request, { ...DEFAULT_DEPS, data, projects });
 }

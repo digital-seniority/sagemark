@@ -25,8 +25,9 @@
  *
  * URL CANONICALIZATION. The set is a set of ABSOLUTE URLs built with the SAME
  * convention the sitemap uses (`buildSitemapXml`): `{origin}/clients/{client}/
- * blog/{slug}` per piece, plus the client hub root `{origin}/clients/{client}/
- * blog`. The gate compares THIS set against the URLs parsed out of the rendered
+ * blog/{slug}` per piece, plus the client hub root `{origin}/clients/{client}`
+ * (the branded homepage, not /blog). The gate compares THIS set against the URLs
+ * parsed out of the rendered
  * sitemap XML — if the route ever diverged from this convention, the gate fails.
  *
  * Pure + deterministic; no React, no network, no `server-only` marker (imported
@@ -57,7 +58,7 @@ export function isIndexable(_piece: PublishedPiece): boolean {
 
 /** Build the absolute client-hub-root URL (mirrors `buildSitemapXml`). */
 export function clientHubUrl(origin: string, clientSlug: string): string {
-  return `${origin}/clients/${encodeURIComponent(clientSlug)}/blog`;
+  return `${origin}/clients/${encodeURIComponent(clientSlug)}`;
 }
 
 /** Build the absolute URL for one published piece (mirrors `buildSitemapXml`). */
@@ -66,7 +67,7 @@ export function pieceUrl(
   clientSlug: string,
   pieceSlug: string,
 ): string {
-  return `${clientHubUrl(origin, clientSlug)}/${encodeURIComponent(pieceSlug)}`;
+  return `${origin}/clients/${encodeURIComponent(clientSlug)}/blog/${encodeURIComponent(pieceSlug)}`;
 }
 
 /**
