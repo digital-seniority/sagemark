@@ -331,6 +331,14 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       }
     }
 
+    // The writer skill's SKILL.md is the methodology the model follows. The SDK's
+    // `skills` option is not wired in the CLI subprocess path (0 refs in sdk.mjs)
+    // and settingSources:["project"] would look in /home/worker/run/.claude/skills/
+    // which doesn't exist in the Sandbox image. Pass the content as systemPrompt
+    // so the real authored methodology reaches the model verbatim (DR-022).
+    const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
+    const systemPrompt = writerSkill?.markdown;
+
     const iterator = queryImpl!({
       prompt: opts.prompt,
       options: {
@@ -340,6 +348,9 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
           ANTHROPIC_BASE_URL: workerEnv.gatewayBaseUrl,
           ANTHROPIC_AUTH_TOKEN: workerEnv.bridgeJwt,
         },
+        // The sandbox env lacks PATH so "node" by name fails with ENOENT.
+        // process.execPath is the absolute path to the Node binary already running.
+        executable: process.execPath,
         cwd: workerEnv.workdir,
         // No raw built-in tools at all (Bash/Read/Write/WebFetch removed) —
         // only the curated host-tool MCP surface is reachable ([[DR-011]]).
@@ -348,11 +359,7 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // A.011.1: the allowlist is the capability-profile's single source of
         // truth — spread the imported constant (no string literals here).
         allowedTools: [...WORKER_ALLOWED_TOOLS],
-        // Load the REAL seo-blog-writer SKILL.md from the vendored suite (DR-022)
-        // — COPY'd into the Sandbox image by the Dockerfile (A.011.9), so we no
-        // longer rely on settingSources:["project"] resolving in the VM.
-        settingSources: ["project"],
-        skills: suite.skillNames,
+        ...(systemPrompt ? { systemPrompt } : {}),
         permissionMode: "default",
       },
     });
