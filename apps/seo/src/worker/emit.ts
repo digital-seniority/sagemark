@@ -301,6 +301,16 @@ export class WorkerEventEmitter {
  * IGNORES anything it does not understand (no free-text passthrough). The shapes
  * are matched defensively because the SDK message schema is loosely typed.
  *
+ * The SDK (current) wraps streaming events as:
+ *   {type:"stream_event", event: RawMessageStreamEvent, ...}
+ * where RawMessageStreamEvent is the raw Anthropic API streaming event shape:
+ *   content_block_delta → delta.text_delta / delta.thinking_delta
+ *   content_block_start → content_block.tool_use (tool begin)
+ *
+ * Legacy (pre-current SDK) format emitted message properties directly:
+ *   {type:"text_delta", text:"..."} / {delta:{text:"..."}} etc.
+ * Both paths are handled so the emitter is forward- and backward-compatible.
+ *
  * Returns the count of events emitted (for test assertions).
  */
 export async function emitFromSdkMessage(
@@ -310,6 +320,42 @@ export async function emitFromSdkMessage(
 ): Promise<number> {
   if (!message || typeof message !== "object") return 0;
   let emitted = 0;
+
+  // ── Current SDK format: {type:"stream_event", event: RawMessageStreamEvent} ──
+  // The SDK wraps every Anthropic API streaming event inside this envelope.
+  // Handle it here and return early so the legacy path below is not run.
+  if (message.type === "stream_event" && message.event && typeof message.event === "object") {
+    const evt = message.event as Record<string, unknown>;
+
+    if (evt.type === "content_block_delta") {
+      const delta = evt.delta as Record<string, unknown> | null;
+      // Text delta → token-delta event.
+      if (delta?.type === "text_delta" && typeof delta.text === "string" && delta.text.length > 0) {
+        await emitter.tokenDelta(delta.text as string);
+        emitted++;
+      }
+      // Thinking delta → thinking event.
+      if (
+        delta?.type === "thinking_delta" &&
+        typeof delta.thinking === "string" &&
+        delta.thinking.length > 0
+      ) {
+        await emitter.thinking(delta.thinking as string);
+        emitted++;
+      }
+    } else if (evt.type === "content_block_start") {
+      // Tool-use block start → coded `running` row.
+      const block = evt.content_block as Record<string, unknown> | null;
+      if (block?.type === "tool_use" && typeof block.name === "string") {
+        const seq = await emitter.toolUseFromRawName(block.name as string, "running");
+        if (seq !== null) emitted++;
+      }
+    }
+
+    return emitted; // handled; skip legacy path
+  }
+
+  // ── Legacy format (older SDK versions or direct event shapes) ──────────────
 
   // 1. A streamed assistant text delta (the body typing in).
   const textDelta: unknown =
