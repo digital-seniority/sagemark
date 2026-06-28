@@ -138,7 +138,7 @@ describe("SeoStudioCanvas — chat composer dispatches a turn", () => {
     });
     expect(screen.getByText("Researching the topic.")).toBeInTheDocument(); // feed: thinking
     expect(document.querySelector('[data-tool-code="serpFetch"]')).toBeInTheDocument(); // feed: tool-use
-    expect(screen.getByTestId("artifact-body").textContent).toContain("# Memory care basics"); // artifact body
+    expect(screen.getByTestId("artifact-body").textContent).toContain("Memory care basics"); // artifact body (rendered serif prose, not raw markdown)
     expect(screen.getByTestId("gate-scorecard")).toBeInTheDocument(); // inspector scorecard
     expect(document.querySelector('[data-verdict="PUBLISH"]')).toBeInTheDocument();
   });

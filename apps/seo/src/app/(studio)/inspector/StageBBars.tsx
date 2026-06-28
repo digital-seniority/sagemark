@@ -54,6 +54,14 @@ export function StageBBars({ content, hasBody }: StageBBarsProps) {
           </div>
           {content.dimensions.map((d) => {
             const pct = Math.max(0, Math.min(100, d.percentage));
+            // Bar fill keyed on the live-preview percentage: green at/above the
+            // publish band, amber in the review range, red when it's trending low.
+            const fill =
+              pct >= 80
+                ? "var(--accent-green)"
+                : pct >= 60
+                  ? "var(--accent-amber)"
+                  : "var(--accent-red)";
             return (
               <div key={d.name} data-testid="stage-b-bar" data-dimension={d.name}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
@@ -76,8 +84,8 @@ export function StageBBars({ content, hasBody }: StageBBarsProps) {
                     style={{
                       width: `${pct}%`,
                       height: "100%",
-                      background: "currentColor",
-                      opacity: 0.55,
+                      background: fill,
+                      opacity: 0.85,
                     }}
                   />
                 </div>

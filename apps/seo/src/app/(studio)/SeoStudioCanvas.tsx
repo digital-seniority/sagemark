@@ -60,8 +60,36 @@ import type { TranscriptTurn } from "./agent/ConversationTranscript";
 const INSPECTOR_COLLAPSED_KEY = "seo.inspectorCollapsed";
 /** The narrow rail width (px) the inspector column shrinks to when collapsed. */
 const INSPECTOR_RAIL_WIDTH = "48px";
-/** The docked-open inspector column track (matches the agent column). */
-const INSPECTOR_OPEN_TRACK = "minmax(260px, 320px)";
+/** The left agent column track (the mock's 322px). */
+const AGENT_TRACK = "322px";
+/** The docked-open inspector column track (the mock's 300px). */
+const INSPECTOR_OPEN_TRACK = "300px";
+
+/** The top-bar status dot colour per run phase (idle/streaming/done/error). */
+const PHASE_DOT: Record<string, string> = {
+  idle: "var(--muted)",
+  streaming: "var(--accent-blue)",
+  done: "var(--accent-green)",
+  error: "var(--accent-red)",
+};
+
+/** The short top-bar phase caption. */
+const PHASE_CAPTION: Record<string, string> = {
+  idle: "Idle",
+  streaming: "Drafting…",
+  done: "Ready",
+  error: "Error",
+};
+
+/** A small top-bar pill (client / phase). */
+const TOPBAR_PILL: React.CSSProperties = {
+  fontSize: 11,
+  color: "var(--muted)",
+  border: "1px solid var(--line)",
+  borderRadius: 999,
+  padding: "3px 9px",
+  whiteSpace: "nowrap",
+};
 
 export interface SeoStudioCanvasProps {
   /**
@@ -86,6 +114,16 @@ export interface SeoStudioCanvasProps {
   clientId?: string | null;
   /** Server-passed prior turns for the transcript (omitted => transcript fetches on mount). */
   initialTranscript?: TranscriptTurn[];
+  /** The client display name for the top bar (omitted => the pill is hidden). */
+  clientName?: string | null;
+  /** The signed-in operator's display name/email for the top bar (omitted => hidden). */
+  operatorName?: string | null;
+  /**
+   * The linked piece id at mount (null before a draft exists). The canvas also
+   * learns/refreshes it after each completed turn (the transcript read carries the
+   * conversation's current pieceId). Drives the in-place edit save (Slice 3).
+   */
+  pieceId?: string | null;
   /**
    * The ON-DONE reconcile read (chat path). After a turn completes cleanly the canvas
    * calls this to read the conversation's PERSISTED current draft (body + scorecard) —
@@ -123,6 +161,9 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
     conversationId = null,
     clientId = null,
     initialTranscript,
+    clientName = null,
+    operatorName = null,
+    pieceId: initialPieceId = null,
     reconcileDraft,
     injectedState,
     eventSourceFactory,
@@ -131,6 +172,11 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
 
   // CHAT-DRIVEN when both ids are present (and no explicit injected state overrides).
   const chatActive = Boolean(conversationId && clientId) && injectedState == null;
+
+  // The current linked piece id. Seeded from the page (the conversation's pieceId at
+  // mount) and refreshed after each completed turn from the transcript read — so an
+  // in-place edit always targets the live draft, even one just created this session.
+  const [pieceId, setPieceId] = useState<string | null>(initialPieceId);
 
   // The transcript the agent zone renders. The canvas re-reads it on each clean turn
   // completion (the persisted log is the truth); until then the server-passed
@@ -162,8 +208,15 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
             { headers: { accept: "application/json" } },
           );
           if (res.ok) {
-            const body = (await res.json()) as { turns?: TranscriptTurn[] };
+            const body = (await res.json()) as {
+              turns?: TranscriptTurn[];
+              conversation?: { pieceId?: string | null };
+            };
             if (Array.isArray(body.turns)) setRefreshed(body.turns);
+            // Learn the (possibly newly-created) draft's piece id so an in-place
+            // edit can target it without a page reload.
+            const pid = body.conversation?.pieceId;
+            if (typeof pid === "string" && pid) setPieceId(pid);
           }
         } catch {
           // A failed transcript refresh leaves the prior transcript in place.
@@ -276,9 +329,11 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
       data-inspector-collapsed={inspectorCollapsed}
       style={{
         display: "grid",
-        // When collapsed the inspector track shrinks to a narrow rail so the
-        // center artifact (`1fr`) widens for reading. Purely a layout change.
-        gridTemplateColumns: `${INSPECTOR_OPEN_TRACK} 1fr ${
+        // Row 1 = the top bar (spans all columns); row 2 = the three zones. When
+        // collapsed the inspector track shrinks to a narrow rail so the center
+        // artifact (`1fr`) widens for reading. Purely a layout change.
+        gridTemplateRows: "auto 1fr",
+        gridTemplateColumns: `${AGENT_TRACK} 1fr ${
           inspectorCollapsed ? INSPECTOR_RAIL_WIDTH : INSPECTOR_OPEN_TRACK
         }`,
         height: "100dvh",
@@ -287,6 +342,46 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         color: "var(--foreground)",
       }}
     >
+      {/*
+        Top bar (the mock): a live status dot keyed on the run phase, the studio
+        wordmark, the client + phase pills, and the signed-in operator. Client +
+        operator pills render only when the page supplies them (the SSR smoke /
+        injected-state path passes neither, so the bar degrades cleanly).
+      */}
+      <header
+        data-testid="studio-topbar"
+        style={{
+          gridColumn: "1 / -1",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 14px",
+          borderBottom: "1px solid var(--line)",
+          background: "var(--panel)",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          data-testid="studio-status-dot"
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: PHASE_DOT[state.phase] ?? "var(--muted)",
+            boxShadow: `0 0 8px ${PHASE_DOT[state.phase] ?? "transparent"}`,
+          }}
+        />
+        <strong style={{ fontWeight: 600, fontSize: 13 }}>Sagemark Studio</strong>
+        {clientName && <span style={TOPBAR_PILL}>{clientName}</span>}
+        <span data-testid="studio-phase" data-phase={state.phase} style={{ ...TOPBAR_PILL, opacity: 0.9 }}>
+          {PHASE_CAPTION[state.phase] ?? state.phase}
+        </span>
+        <span style={{ flex: 1 }} />
+        {operatorName && (
+          <span style={{ fontSize: 11, color: "var(--muted)" }}>{operatorName} · operator</span>
+        )}
+      </header>
+
       <section
         ref={agentRef}
         tabIndex={-1}
@@ -294,7 +389,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         aria-label="Agent panel"
         aria-keyshortcuts="Control+1 Meta+1"
         data-zone="agent"
-        style={{ ...ZONE, borderRight: "1px solid color-mix(in srgb, currentColor 12%, transparent)", overflowY: "auto" }}
+        style={{ ...ZONE, background: "var(--panel)", borderRight: "1px solid var(--line)", overflowY: "auto" }}
       >
         <AgentPanel
           phase={state.phase}
@@ -329,6 +424,33 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
           body={state.body}
           streaming={state.phase === "streaming"}
           scorecard={state.scorecard}
+          clientId={clientId}
+          pieceId={state.pieceId ?? pieceId}
+          fetchImpl={fetchImpl as unknown as typeof fetch | undefined}
+          onApplyEdit={
+            chatActive
+              ? (result) =>
+                  // Fold the re-gated edit back as the persisted truth: the snapshot
+                  // rule swaps the body + scorecard so the inspector verdict updates
+                  // and the next edit re-bases on this body.
+                  turn.dispatch(
+                    snapshotFromPersisted(conversationId ?? "", lastSeqRef.current, {
+                      piece: {
+                        pieceId: state.pieceId ?? pieceId ?? "",
+                        slug: brief?.slug ?? "",
+                        title: brief?.title ?? "",
+                        body: result.body,
+                        status: "draft",
+                      },
+                      scorecard: {
+                        stageAVetoes: result.vetoes,
+                        score: result.score,
+                        verdict: result.verdict,
+                      },
+                    }),
+                  )
+              : undefined
+          }
         />
       </section>
 
@@ -350,7 +472,8 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
         data-collapsed={inspectorCollapsed}
         style={{
           ...ZONE,
-          borderLeft: "1px solid color-mix(in srgb, currentColor 12%, transparent)",
+          background: "var(--panel)",
+          borderLeft: "1px solid var(--line)",
           overflowY: inspectorCollapsed ? "hidden" : "auto",
         }}
       >

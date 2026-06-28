@@ -45,7 +45,14 @@ export function VerdictBand({ verdict, score, vetoed }: VerdictBandProps) {
     <div
       data-testid="verdict-band"
       data-verdict={verdict ?? "PENDING"}
-      style={{ border: "1px solid currentColor", borderRadius: 10, padding: "0.875rem 1rem" }}
+      style={{
+        // `--verdict-accent` is set by the `[data-verdict=…]` rule in globals.css
+        // (the theming layer): a green PUBLISH band, amber REVIEW, red REJECT.
+        border: "1px solid color-mix(in srgb, var(--verdict-accent, var(--line)) 55%, var(--line))",
+        background: "color-mix(in srgb, var(--verdict-accent, transparent) 9%, transparent)",
+        borderRadius: 10,
+        padding: "0.875rem 1rem",
+      }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <span style={{ ...SUBTLE, textTransform: "uppercase", letterSpacing: "0.08em" }}>

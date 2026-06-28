@@ -54,6 +54,8 @@ import {
   type TurnPromptTranscriptTurn,
   type TurnPromptDraft,
 } from "@/lib/conversation/compose-turn-prompt";
+import type { ProjectDataAccess } from "@/lib/projects/context";
+import { buildProjectContext } from "@/lib/projects/build-project-context";
 import type { SseEvent } from "@/lib/stream/event-taxonomy";
 import type {
   TruthSnapshot,
@@ -108,8 +110,14 @@ export async function prepareTurn(args: {
   bound: BoundTenancy;
   conversations: ConversationDataAccess;
   data: ContentDataAccess;
+  /**
+   * OPTIONAL project seam (Slice 5). When the conversation belongs to a project,
+   * its cross-article context (operator brief + prior-piece facts) is injected into
+   * the worker brief. Absent / not-wired => no project context (unchanged behavior).
+   */
+  projects?: Pick<ProjectDataAccess, "getProject" | "listProjectPieces">;
 }): Promise<PrepareTurnResult> {
-  const { conversationId, newMessage, bound, conversations, data } = args;
+  const { conversationId, newMessage, bound, conversations, data, projects } = args;
   const { workspaceId, clientId } = bound;
 
   // Ownership: the conversation must belong to the bound (workspaceId, clientId).
@@ -134,6 +142,11 @@ export async function prepareTurn(args: {
   // own body if no version snapshot exists yet.
   const currentDraft = await loadCurrentDraft(conversation, clientId, data);
 
+  // Project context (Slice 5): when the thread belongs to a project, summarize the
+  // prior work (operator brief + facts about the articles already in the project)
+  // so a new piece keeps continuity and does not re-cover ground.
+  const projectContextNote = await loadProjectContextNote(conversation, bound, projects);
+
   // Record the USER turn synchronously at the next seq.
   const seq = await conversations.nextSeq(conversationId, workspaceId, clientId);
   await conversations.appendTurn({
@@ -150,9 +163,45 @@ export async function prepareTurn(args: {
     newMessage,
     transcript,
     currentDraft,
+    projectContextNote,
   });
 
   return { ok: true, prompt, conversation };
+}
+
+/**
+ * Build the project-context note for a turn, or null when the thread has no project
+ * (or no project seam is wired). Scoped by the bound (workspaceId, clientId).
+ */
+async function loadProjectContextNote(
+  conversation: ConversationRow,
+  bound: BoundTenancy,
+  projects: Pick<ProjectDataAccess, "getProject" | "listProjectPieces"> | undefined,
+): Promise<string | null> {
+  if (!conversation.projectId || !projects) return null;
+  const project = await projects.getProject(
+    conversation.projectId,
+    bound.workspaceId,
+    bound.clientId,
+  );
+  if (!project) return null;
+  const pieces = await projects.listProjectPieces(
+    conversation.projectId,
+    bound.workspaceId,
+    bound.clientId,
+  );
+  return buildProjectContext({
+    projectName: project.name,
+    brief: project.brief,
+    pieces: pieces.map((p) => ({
+      title: p.title,
+      slug: p.slug,
+      clusterRole: p.clusterRole,
+      funnelStage: p.funnelStage,
+      primaryKeyword: p.primaryKeyword,
+      excerpt: p.excerpt,
+    })),
+  });
 }
 
 /**

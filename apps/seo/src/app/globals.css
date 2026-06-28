@@ -1,8 +1,35 @@
 @import "tailwindcss";
 
+/*
+ * The studio runs DARK (the approved chat-first canvas mock,
+ * apps/seo/builds/seo-creator/chat-first-canvas-mock.html). Every studio
+ * component colours from these tokens + `currentColor` + opacity, so the whole
+ * app flips from this one place — no per-component palette.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  --background: #0c0c0e;
+  --foreground: #e7e7ea;
+
+  /* The three layered surface tiers + the hairline from the mock. */
+  --panel: #141417;
+  --panel-2: #18181c;
+  --line: rgba(255, 255, 255, 0.08);
+
+  /* Muted text steps. */
+  --muted: #8a8a93;
+  --muted-2: #5e5e66;
+
+  /*
+   * The semantic accent palette. These map to the Bible's fixed verdict
+   * vocabulary (emerald = pass, amber = review, blue = info/streaming,
+   * red = veto) and are surfaced via the `data-verdict`/`data-status` hooks
+   * the components already emit — ScoreSignalDot anticipated exactly this layer.
+   */
+  --accent-green: #4ade80;
+  --accent-amber: #fbbf24;
+  --accent-blue: #60a5fa;
+  --accent-purple: #a78bfa;
+  --accent-red: #f87171;
 }
 
 body {
@@ -12,10 +39,10 @@ body {
 }
 
 /*
- * Studio canvas (PR 010 / P1.U.1): the running-tool spinner + live-stream caret
- * pulse. Keyframe lives here (not inline) so components stay declarative and the
- * animation respects a single source. No colour — opacity only, so it inherits
- * the brand `--foreground` token via `currentColor`.
+ * Studio canvas animations. `studio-pulse` (running-tool spinner + live caret)
+ * predates the dark theme; `studio-blink` drives the streaming draft caret and
+ * `studio-fade-up` the agent feed rows (Slice 2). Keyframes live here so the
+ * components stay declarative.
  */
 @keyframes studio-pulse {
   0%,
@@ -27,10 +54,155 @@ body {
   }
 }
 
+@keyframes studio-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes studio-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Verdict accent mapping — the theming layer ScoreSignalDot's header promised
+ * ("a later theming PR can map data-verdict to brand accent tokens in CSS
+ * without touching this component"). The stable band becomes a semantic accent
+ * custom property; the dot + verdict band + transcript chip read it.
+ */
+[data-verdict="PUBLISH"] {
+  --verdict-accent: var(--accent-green);
+}
+[data-verdict="REVIEW"] {
+  --verdict-accent: var(--accent-amber);
+}
+[data-verdict="REVISE"] {
+  --verdict-accent: var(--accent-amber);
+}
+[data-verdict="REJECT"] {
+  --verdict-accent: var(--accent-red);
+}
+[data-verdict="PENDING"] {
+  --verdict-accent: var(--muted);
+}
+
+.score-signal-dot {
+  color: var(--verdict-accent, currentColor);
+}
+[data-testid="transcript-verdict"] {
+  color: var(--verdict-accent, currentColor);
+}
+
+/*
+ * Tool-use glyph signal (the check / cross / spinner only — not the whole row):
+ * green done, red failed, blue running. Keyed on the row's `data-status`.
+ */
+[data-feed-kind="tool-use"][data-status="ok"] > span[aria-hidden="true"] {
+  color: var(--accent-green);
+}
+[data-feed-kind="tool-use"][data-status="error"] > span[aria-hidden="true"] {
+  color: var(--accent-red);
+}
+[data-feed-kind="tool-use"][data-status="running"] > span[aria-hidden="true"] {
+  color: var(--accent-blue);
+}
+
+/*
+ * Stage-A vetoes are hard blocks — a fired veto tints its whole chip red (the
+ * chip colours its own border + fill from currentColor). A clean pass reads
+ * green. Stage-A is the one place a colour is unambiguously good/bad.
+ */
+[data-testid="stage-a-veto"] {
+  color: var(--accent-red);
+}
+[data-testid="stage-a-clean"] {
+  color: var(--accent-green);
+}
+
+/*
+ * The streaming draft "paper" — the article reads in a serif voice (Georgia),
+ * distinct from the sans UI chrome, matching the mock. The body HTML is produced
+ * by the escape-first renderMarkdownToSafeHtml (XSS-safe), so styling its tags
+ * here is safe.
+ */
+.draft-paper {
+  font-family: Georgia, "Times New Roman", serif;
+}
+.draft-paper > :first-child {
+  margin-top: 0;
+}
+.draft-paper h1 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+.draft-paper h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 22px 0 8px;
+}
+.draft-paper h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0 6px;
+}
+.draft-paper p {
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0 0 13px;
+  color: color-mix(in srgb, var(--foreground) 86%, transparent);
+}
+.draft-paper ul,
+.draft-paper ol {
+  margin: 0 0 13px;
+  padding-left: 1.3em;
+  font-size: 14px;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--foreground) 86%, transparent);
+}
+.draft-paper li {
+  margin-bottom: 5px;
+}
+.draft-paper a {
+  color: var(--accent-blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.draft-paper strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+.draft-paper em {
+  font-style: italic;
+}
+.draft-paper code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .score-signal-dot,
   [data-status="running"],
-  [data-testid="stream-caret"] {
+  [data-testid="stream-caret"],
+  [data-testid="draft-caret"],
+  [data-anim="fade-up"] {
     animation: none !important;
   }
 }

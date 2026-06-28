@@ -58,7 +58,7 @@ export default async function StudioCanvasPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // THE GATE: redirects to /sign-in when unauthenticated (control never returns).
-  await requireOperator();
+  const operator = await requireOperator();
 
   const sp = await searchParams;
   const conversationId = readConversationId(sp);
@@ -90,6 +90,9 @@ export default async function StudioCanvasPage({
     <SeoStudioCanvas
       conversationId={state.conversationId}
       clientId={state.clientId}
+      clientName={state.clientName}
+      operatorName={operator.email}
+      pieceId={state.pieceId}
       brief={state.brief}
       initialTranscript={state.transcript}
       streamUrl={null}

@@ -59,3 +59,21 @@ Conventions: [[DR-044]]/[[DR-045]]/[[DR-046]]/[[DR-047]]. **RUNTIME / GO-LIVE st
 
 ## HUMAN/infra steps
 Enable Supabase Auth (email provider + `/auth/callback` redirect) on the project; `pnpm --filter @sagemark/seo add @supabase/ssr`; ensure `NEXT_PUBLIC_SUPABASE_URL`+publishable key+`SUPABASE_SERVICE_ROLE_KEY` on host; seed the pilot `operators`/`workspaces`/`workspace_members` linked to the existing WW `content_clients.workspace_id`.
+
+---
+
+## 🟢 GO-LIVE STATUS (2026-06-27 end of session) — LIVE except the worker-execution mile
+
+**The chat-first studio is DEPLOYED + LIVE** at https://sagemark-seo.vercel.app (main `54b1fad`). All 10 slice PRs merged + released to production. Verified live: auth gate flips (/ + /canvas → 307 /sign-in), the chat canvas renders, turns persist, the three zones work.
+
+**Auth = email+PASSWORD** (not magic-link — Supabase's built-in email is rate-limited to a few/hour; #109/#110 switched to `signInWithPassword`; operators created in the Supabase dashboard with "Auto Confirm" → zero emails).
+
+**Operator SEEDED + verified:** James Shi — `auth.users.id = 7f5472e8-522f-4a8a-ad7d-5eea557088c1` (mrjamesshi@gmail.com) → `operators` + `workspaces(id=81815c0a-e001-4c74-bfe9-e48272d2b775, "Whispering Willows of Mount Vernon")` + `workspace_members`. Resolution chain proven: `getCurrentWorkspace(James) → 81815c0a → resolveWorkspaceClient → client e84acf0f (whispering-willows)`.
+
+### ⛔ THE BLOCKER (resume here next session) — worker has no code in the Sandbox
+First live run hangs at "Waiting for the agent to start the run… / PENDING". **Root cause (confirmed):** `SEO_WORKER_SNAPSHOT_ID` is **NOT set** on Vercel prod → `launchSandbox` falls back to the EMPTY base `node24` image → `sandbox.runCommand("node", ["dist/worker/entry.js"])` finds no worker code → no output → PENDING. This is the deferred Tier-3 "snapshot creation" step (flagged NEEDS-INPUT all along). NOT a slice bug — everything upstream works.
+
+### NEXT SESSION — fix the worker execution:
+- **(A) Build + register the worker Sandbox snapshot** (proper — preserves the real agentic seo-blog-writer skill): provision a sandbox → install the worker + its deps (the `Dockerfile` at `apps/seo/src/worker/Dockerfile` + `build:worker` → `apps/seo/dist/worker/entry.js`) → `sandbox.snapshot()` → `snapshotId` → set `SEO_WORKER_SNAPSHOT_ID` on Vercel (prod+preview). Expect 1–2 rounds of live iteration (the `@vercel/sandbox` `runCommand`/`logs` shape is `as any`, unproven — DR-044). Also fix the `vercel logs` scope (CLI auth'd to "next-school"; use `--scope digital-seniority` or the API) to read the real runtime error.
+- **(B) Host-mode interim** (faster, degraded): swap the dispatcher to run the draft on the host (Vercel function) instead of the Sandbox → a real *gated* article today, but a single-shot draft, not the full multi-tool skill. Then restore (A).
+- James testing with `unitedactiveliving.com` + "a set of articles" (a cluster) — note v1 is one-piece-per-conversation; cluster is a later chip.

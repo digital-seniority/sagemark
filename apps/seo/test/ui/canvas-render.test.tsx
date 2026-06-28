@@ -61,12 +61,13 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     expect(html).toContain("Researching the topic.");
     expect(html).toContain('data-tool-code="serpFetch"');
     expect(html).toContain('data-status="ok"');
-    expect(html).toContain("Fetching live sources"); // the code -> phrase map
+    expect(html).toContain("Read the latest sources"); // the code -> plain done-phrase map
     expect(html).toContain("3 sources"); // the sanitized label
 
-    // Artifact zone: the accumulated token-delta body.
+    // Artifact zone: the accumulated token-delta body, rendered to serif prose
+    // (DraftPaper) — the markdown heading becomes an <h1>, not raw "# ..." source.
     expect(html).toContain('data-testid="artifact-body"');
-    expect(html).toContain("# Memory care basics");
+    expect(html).toContain("<h1>Memory care basics</h1>");
 
     // Inspector zone: the authoritative gate scorecard (verdict band + score).
     expect(html).toContain('data-testid="gate-scorecard"');

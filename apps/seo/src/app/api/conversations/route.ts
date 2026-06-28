@@ -90,6 +90,8 @@ const CreateBodySchema = z
   .object({
     clientId: z.string().uuid(),
     title: z.string().trim().min(1).max(200).optional(),
+    /** Optional project to open the thread inside (Slice 5b). Reads are tenancy-scoped. */
+    projectId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -151,6 +153,7 @@ export async function handleCreateConversation(
     workspaceId: ctx.workspaceId,
     clientId: ctx.clientId,
     title: body.title,
+    projectId: body.projectId ?? null,
   });
 
   console.log(

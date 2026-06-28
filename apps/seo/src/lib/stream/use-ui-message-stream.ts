@@ -88,6 +88,12 @@ export interface UiMessageStreamState {
   body: string;
   /** The latest gate scorecard, or null until a gate/snapshot frame arrives. */
   scorecard: GateScorecard | null;
+  /**
+   * The persisted piece id, learned from a `snapshot` frame (reconnect / on-done
+   * reconcile). Null until a snapshot arrives — the live token stream alone does
+   * not carry it. Drives the in-place edit save (Slice 3): no pieceId, no save.
+   */
+  pieceId: string | null;
   /** The highest gap-free delta `seq` seen (the reconnect `last_event_id`). */
   lastSeq: number | null;
   /** The terminal error (code + message), or null. */
@@ -99,6 +105,7 @@ export const INITIAL_STREAM_STATE: UiMessageStreamState = {
   feed: [],
   body: "",
   scorecard: null,
+  pieceId: null,
   lastSeq: null,
   error: null,
 };
@@ -200,6 +207,8 @@ export function reduceUiMessageStream(
       return {
         ...state,
         body: event.piece?.body ?? state.body,
+        // Learn the piece id from the persisted truth (drives the in-place edit save).
+        pieceId: event.piece?.pieceId ?? state.pieceId,
         scorecard: event.scorecard
           ? {
               // The snapshot scorecard has no single stage; treat a non-null score
