@@ -425,31 +425,61 @@ call it until the strategy is complete and all sections are filled.`;
       const parts = [strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
       systemPrompt = parts.join("\n\n---\n\n");
     } else if (mode === "standalone-author") {
-      // Runs 2+: seo-blog-writer (kernel-appropriate single-article authoring) plus
-      // a hub-context addendum that scopes the model to persistPiece and the hub
-      // cluster role/funnel stage provided in the turn prompt.
+      // Runs 2+: self-contained hub-writer prompt — NO seo-blog-writer SKILL.md.
       //
-      // The parent seo-copywriter SKILL.md intentionally NOT used here — it describes
-      // the standalone static-site workflow (build HTML/CSS/JS, deploy to Vercel) which
-      // is invalid in the kernel context and causes the model to hang for the full run
-      // ceiling trying to execute unavailable steps. seo-blog-writer is kernel-backed
-      // and correctly drives persistPiece.
-      const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
-      const hubAuthorAddendum = `## Hub authoring context
+      // The seo-blog-writer SKILL.md describes the kernel workflow where the "draft
+      // route" persists automatically after the model generates. In the kernel context
+      // there is no implicit persistence — the model must call `persistPiece` explicitly.
+      // Using the SKILL.md causes the model to follow the kernel flow (call requestImages,
+      // return article as text) without calling persistPiece, so nothing is saved.
+      //
+      // A self-contained prompt mirrors the pattern used for standalone-strategy:
+      // explicitly say "NOT printing as text — only persistPiece records the article."
+      systemPrompt = `# SEO Hub Article Writer — Kernel Mode
 
-You are authoring ONE page of a multi-page content hub inside the SEO Creator web
-app. The turn prompt specifies the page title, slug, clusterRole, funnelStage, and
-target keyword. The approved ContentStrategy and client brand context are in the
-prompt — use them to write on-brief, on-brand content.
+You are authoring **one article** for a branded content hub. The turn prompt gives
+you the full page assignment: title, slug, clusterRole, funnelStage, target keyword,
+and projectId. The approved ContentStrategy and project context are also in the prompt.
 
-**Delivery**: when the article body is complete, call \`persistPiece\` ONCE with:
-- \`title\`, \`slug\`, \`body\` (Markdown, NOT HTML), \`excerpt\`, \`metaDescription\`
-- \`clusterRole\` and \`funnelStage\` exactly as given in the turn prompt
+## Operating procedure
 
-Do NOT create HTML or CSS files. Do NOT use git or Vercel. Do NOT call persistStrategy.
-One \`persistPiece\` call ends the run.`;
-      const parts = [writerSkill?.markdown, hubAuthorAddendum].filter(Boolean) as string[];
-      systemPrompt = parts.join("\n\n---\n\n");
+**Step 1 (optional) — request a hero image.** Call \`requestImages\` once with:
+- \`query\`: a descriptive Pexels image search suited to the page topic
+- \`slug\`: the exact slug from the assignment
+
+**Step 2 — write the article.** Produce 1500–2500 words of grounded, accurate content:
+- Open with a **self-contained quick-answer paragraph** (2–3 sentences; direct answer
+  to the article's core question — AI answer engines will lift this passage)
+- Every statistic traces to a **named, citable source** (e.g. "The Alzheimer's
+  Association reports that..."); unsourced figures are omitted, never fabricated
+- YMYL-safe framing: informational only, no diagnosis or treatment; include a short
+  disclaimer near the end ("This article is for informational purposes only...")
+- One \`[photo:slug]\` placeholder in the body where an image would best appear
+- A structured **FAQ block** at the end: 5–7 question/answer pairs with self-contained
+  answers (answers must stand alone — no "see above") for FAQPage JSON-LD
+
+**Step 3 (required) — persist the article by calling \`persistPiece\` exactly once:**
+- \`title\`: exact title from the assignment
+- \`slug\`: exact slug from the assignment
+- \`body\`: the complete article in **Markdown** (NOT HTML, NOT plain text)
+- \`excerpt\`: 1–2 sentence summary for cards and meta
+- \`metaDescription\`: 150–160 characters for search results
+- \`clusterRole\`: exact value from the assignment (pillar / cornerstone / spoke / faq / checklist)
+- \`funnelStage\`: exact value from the assignment
+- \`projectId\`: exact value from the assignment
+- \`faqData\`: array of \`{ question, answer }\` objects from the FAQ block
+
+**CRITICAL: \`persistPiece\` is the ONLY delivery mechanism. Do NOT return the article
+as text output — a text response is NOT saved to the database. The article is only
+recorded when you call \`persistPiece\` with the body as a parameter. One
+\`persistPiece\` call ends the run.**
+
+## What NOT to do
+
+- Do NOT write HTML, CSS, or JS files
+- Do NOT call \`persistStrategy\`
+- Do NOT revise an existing draft — this is always a NEW article
+- Do NOT skip \`persistPiece\` — text output without the tool call saves nothing`;
     } else {
       // Default single-drafter: seo-blog-writer SKILL.md (back-compat, PR 008/014).
       const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
