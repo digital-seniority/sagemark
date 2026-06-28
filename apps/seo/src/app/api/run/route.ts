@@ -438,31 +438,53 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
 
       let authorPrompt: string;
       if (nextPage) {
+        // DISPATCH PROMPT: must be assertive enough to override the seo-blog-writer
+        // SKILL.md's "kernel draft route" mental model. That SKILL.md describes Step 6
+        // as "the route persists automatically" — causing the model to generate the
+        // article as text output rather than calling persistPiece. This prompt
+        // explicitly states that the auto-persist route is NOT active and that
+        // persistPiece is the ONLY delivery mechanism.
         authorPrompt =
-          `You are the SEO Copywriter worker in hub-authoring mode. ` +
-          `Your assignment is to write the following hub page as a complete, grounded ` +
-          `SEO article (1500-2500 words). Cite real sources for every statistic. ` +
-          `Open with a self-contained quick-answer for AI answer engines. ` +
-          `YMYL-safe framing throughout.\n\n` +
-          `PAGE ASSIGNMENT:\n` +
-          `- Title: "${nextPage.title}"\n` +
-          `- Slug: ${nextPage.slug}\n` +
-          `- clusterRole: ${nextPage.clusterRole}\n` +
-          (nextPage.funnelStage ? `- funnelStage: ${nextPage.funnelStage}\n` : "") +
-          (nextPage.primaryKeyword ? `- Primary keyword: ${nextPage.primaryKeyword}\n` : "") +
-          `- projectId: ${dispatchProjectId}\n\n` +
-          `This is a NEW article — do NOT revise any existing draft. ` +
-          `Draft immediately, then call persistPiece ONCE with the exact slug, ` +
-          `clusterRole, funnelStage, and projectId listed above.`;
+          `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
+          `The seo-blog-writer "draft route" auto-persist (SKILL.md Step 6) is NOT ` +
+          `active in this context. There is no route that captures your text output. ` +
+          `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
+          `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
+          `REQUIRED TOOL CALL SEQUENCE:\n` +
+          `1. [Optional] Call requestImages once: query="<descriptive image search>", ` +
+          `slug="${nextPage.slug}"\n` +
+          `2. [Required] Call persistPiece ONCE with:\n` +
+          `   - title: "${nextPage.title}"\n` +
+          `   - slug: "${nextPage.slug}"\n` +
+          `   - body: <the complete 1500-2500 word Markdown article — written as the ` +
+          `VALUE of this parameter, NOT as text output>\n` +
+          `   - excerpt: 1-2 sentence summary\n` +
+          `   - metaDescription: 150-160 character search snippet\n` +
+          `   - clusterRole: "${nextPage.clusterRole}"\n` +
+          (nextPage.funnelStage ? `   - funnelStage: "${nextPage.funnelStage}"\n` : "") +
+          `   - projectId: "${dispatchProjectId}"\n` +
+          `   - faqData: array of {question, answer} objects from the FAQ block\n\n` +
+          `ARTICLE REQUIREMENTS:\n` +
+          `- Open with a self-contained quick-answer paragraph (2-3 sentences; direct ` +
+          `answer to the article's core question — AI answer engines will lift this)\n` +
+          `- Every statistic cites a named, authoritative source (no fabrication)\n` +
+          `- YMYL-safe framing throughout; short disclaimer near the end\n` +
+          `- FAQ block at the end: 5-7 Q&A pairs with self-contained answers\n` +
+          `- Include one [photo:${nextPage.slug}] placeholder where an image fits\n\n` +
+          (nextPage.primaryKeyword ? `TARGET KEYWORD: ${nextPage.primaryKeyword}\n\n` : "") +
+          `This is a NEW article. Do NOT revise any existing draft.`;
       } else {
         // Fallback: no pending page found (all authored, or DB error). Give the model
         // a generic instruction so it can at least try via the project context.
         authorPrompt =
-          `You are the SEO Copywriter worker in hub-authoring mode. ` +
+          `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
+          `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
+          `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
           `Look at the "Full hub roadmap" in the project context below. ` +
           `Find the FIRST roadmap page not in "Articles already authored" and write it ` +
-          `as a complete, grounded SEO article. Call persistPiece once with the exact ` +
-          `slug, clusterRole, funnelStage, and projectId '${dispatchProjectId ?? ""}'. ` +
+          `as a complete, grounded SEO article. ` +
+          `Call persistPiece ONCE with the exact slug, clusterRole, funnelStage, ` +
+          `and projectId '${dispatchProjectId ?? ""}'. ` +
           `Do NOT revise any existing draft.`;
       }
       if (turn.projectContextNote) {
