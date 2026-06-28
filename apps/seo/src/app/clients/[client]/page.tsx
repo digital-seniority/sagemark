@@ -105,7 +105,8 @@ export async function generateMetadata({
   params: Promise<{ client: string }>;
 }): Promise<Metadata> {
   const { client: clientSlug } = await params;
-  const resolved = await resolveHome(clientSlug);
+  const data = await resolvePublicContentDataAccess();
+  const resolved = await resolveHome(clientSlug, { data });
   if (!resolved) return { title: "Not found" };
   return {
     title: `${resolved.client.name} — Resource Library`,
