@@ -204,6 +204,11 @@ const RE_SESSION_ID = /^::worker-session-id::\s*(.*)$/;
 const RE_RESULT = /^::worker-result::\s*(.*)$/;
 const RE_TERMINAL_ERROR = /^::worker-terminal-error::\s*(.*)$/;
 const RE_FATAL = /^::worker-fatal::\s*(.*)$/;
+// CLI stderr and diagnostic markers written to worker stdout — NOT forwarded as SSE
+// events (they are diagnostic-only). Captured in rawStderrLines for the no-output
+// error message so failures surface instead of producing a silent `done`.
+const RE_CLI_ERR = /^::worker-cli-err::\s*(.*)$/;
+const RE_DIAG = /^::worker-diag::\s*(.*)$/;
 // Rich live-delta markers (P-J). The payload is a base64 blob (no `::`, space, or
 // newline), so the prefix match is unambiguous and the blob is decoded separately.
 const RE_TOKEN = /^::worker-token::\s*(.*)$/;
@@ -469,6 +474,14 @@ async function* sourceFromWorker(
             yieldedAnyEvent = true;
             yield parsed.event;
             if (parsed.event.type === "done" || parsed.event.type === "error") return;
+          }
+          // CLI errors and diagnostics on stdout: not forwarded as SSE but captured
+          // for the no-output error context so failures are not silently swallowed.
+          if (parsed.kind === "none") {
+            const isCliDiag = RE_CLI_ERR.test(line) || RE_DIAG.test(line);
+            if (isCliDiag && line.trim() && rawStderrLines.length < 10) {
+              rawStderrLines.push(line.trim().slice(0, 300));
+            }
           }
           // session-id / none: nothing forwarded downstream.
         }
