@@ -401,11 +401,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
     const mode = workerEnv.workerMode ?? "single-drafter";
     let systemPrompt: string | undefined;
     if (mode === "standalone-strategy") {
-      // Run 1: parent methodology + seo-strategist sub-skill (DR-022 standalone path).
-      // KERNEL ADDENDUM: the seo-strategist SKILL.md says "surface and stop" (standalone
-      // CLI context). In the app context, "surface" means calling `persistStrategy` — not
-      // printing text. The addendum below re-interprets step 8 for the kernel.
-      const parentMd = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      // Run 1: seo-strategist sub-skill + kernel addendum.
+      // The parent seo-copywriter SKILL.md is intentionally NOT included here — it
+      // describes the standalone static-site workflow (HTML files, Vercel deploy, etc.)
+      // which is incorrect context for the in-app kernel mode. The strategist SKILL.md
+      // alone drives the ContentStrategy; the kernel addendum re-interprets step 8.
       const strategistSkill = suite.skills.find((s) => s.name === "seo-strategist");
       const kernelAddendum = `## Kernel context — how to persist the strategy
 
@@ -422,7 +422,7 @@ content roadmap), call \`persistStrategy\` **once** with a \`strategy\` object
 containing the full artifact as a JSON-serialisable object. The host will save it
 and set the project status to \`proposed\`, awaiting operator approval. Do not
 call it until the strategy is complete and all sections are filled.`;
-      const parts = [parentMd, strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
+      const parts = [strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
       systemPrompt = parts.join("\n\n---\n\n");
     } else if (mode === "standalone-author") {
       // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
@@ -486,9 +486,16 @@ call it until the strategy is complete and all sections are filled.`;
       },
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sdkResult: any = null;
     for await (const message of iterator) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msg = message as any;
+      // Capture SDK result messages (the CLI's final status frame).
+      if (msg?.type === "result") sdkResult = msg;
+
       // Capture the SDK session id as soon as it appears (resume key, acceptance #1).
-      const candidate = (message as any)?.session_id ?? (message as any)?.sessionId;
+      const candidate = msg?.session_id ?? msg?.sessionId;
       if (candidate && !sessionId) {
         sessionId = String(candidate);
         await opts.onSessionId?.(sessionId);
@@ -510,6 +517,21 @@ call it until the strategy is complete and all sections are filled.`;
       }
     }
 
+    // Surface CLI errors from the SDK result message so they reach the SSE stream
+    // instead of silently becoming a bare `done` event (the for-await loop completes
+    // normally even when the CLI exits with an API error).
+    if (sdkResult && sdkResult.subtype !== "success") {
+      throw new Error(
+        `SDK run ended with non-success result: subtype=${String(sdkResult.subtype ?? "unknown")}, ` +
+          `error=${String(sdkResult.error ?? sdkResult.message ?? "none")}`,
+      );
+    }
+    if (!sdkResult) {
+      throw new Error(
+        `CLI subprocess produced no result message — mode=${mode}, HOME=${sdkEnv.HOME ?? "unset"}, ` +
+          `execPath=${process.execPath}, ANTHROPIC_BASE_URL=${workerEnv.gatewayBaseUrl}`,
+      );
+    }
     return { status: "completed", sessionId, terminalError: null };
   };
 
