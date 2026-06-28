@@ -418,12 +418,12 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
     const iterator = queryImpl!({
       prompt: opts.prompt,
       options: {
-        // Route ALL model traffic through the Gateway bearer seam — the SDK reads
-        // ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN from the scrubbed env.
-        env: {
-          ANTHROPIC_BASE_URL: workerEnv.gatewayBaseUrl,
-          ANTHROPIC_AUTH_TOKEN: workerEnv.bridgeJwt,
-        },
+        // Route ALL model traffic through the Gateway bearer seam. The SDK uses
+        // `options.env ?? process.env` — if we pass a partial env it replaces
+        // process.env entirely (stripping PATH/HOME) and the CLI exits silently.
+        // ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN are already in process.env
+        // via buildWorkerEnv, so omitting `env` here is correct (SDK defaults to
+        // { ...process.env } which preserves PATH/HOME and the scrubbed creds).
         // The sandbox env lacks PATH so "node" by name fails with ENOENT.
         // process.execPath is the absolute path to the Node binary already running.
         executable: process.execPath,
@@ -436,7 +436,11 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
         // truth — spread the imported constant (no string literals here).
         allowedTools: [...WORKER_ALLOWED_TOOLS],
         ...(systemPrompt ? { systemPrompt } : {}),
-        permissionMode: "default",
+        // bypassPermissions is required for headless sandbox execution — no TTY
+        // is present to accept prompts. The curated allowedTools list (above) is
+        // the actual capability control; permissionMode is the session gate.
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
       },
     });
 
