@@ -29,6 +29,7 @@ import type {
 } from "@/lib/conversation/context";
 import type { ContentDataAccess } from "@/lib/content/context";
 import type { ProjectDataAccess, ProjectRow } from "@/lib/projects/context";
+import type { ContentStrategy } from "@sagemark/schema-flywheel";
 import type { ContentBrief } from "./artifact/BriefCard";
 import type { TranscriptTurn } from "./agent/ConversationTranscript";
 
@@ -109,6 +110,12 @@ export type CanvasState =
       pieceId: string | null;
       brief: ContentBrief | null;
       transcript: TranscriptTurn[];
+      /** The hub project id (null when the conversation is not in a hub project). */
+      projectId: string | null;
+      /** The project's content strategy (null when no strategy exists yet). */
+      strategy: ContentStrategy | null;
+      /** 'proposed' | 'approved' | 'archived' | null (null = no strategy). */
+      strategyStatus: "proposed" | "approved" | "archived" | null;
     };
 
 /** The injectable deps the canvas resolution consumes (fakes in tests). */
@@ -117,6 +124,8 @@ export interface CanvasResolveDeps {
   resolveClient: (workspaceId: string) => Promise<WorkspaceClient | null>;
   conversations: Pick<ConversationDataAccess, "getConversation" | "listTurns">;
   content: Pick<ContentDataAccess, "loadPiece">;
+  /** Optional projects seam; omitted → strategy fields are null. */
+  projects?: Pick<ProjectDataAccess, "getProject">;
 }
 
 /** Project a persisted turn to the transcript wire shape the canvas consumes. */
@@ -190,9 +199,12 @@ export async function resolveCanvas(
   );
   if (!conversation) return { kind: "redirect-home" };
 
-  const [turns, brief] = await Promise.all([
+  const [turns, brief, project] = await Promise.all([
     deps.conversations.listTurns(id, workspace.id, client.id),
     resolveBrief(conversation, client.id, deps.content),
+    conversation.projectId && deps.projects
+      ? deps.projects.getProject(conversation.projectId, workspace.id, client.id).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   return {
@@ -206,5 +218,8 @@ export async function resolveCanvas(
       .slice()
       .sort((a, b) => a.seq - b.seq)
       .map(toTranscriptTurn),
+    projectId: conversation.projectId ?? null,
+    strategy: project?.strategy ? (project.strategy as ContentStrategy) : null,
+    strategyStatus: project?.strategyStatus ?? null,
   };
 }

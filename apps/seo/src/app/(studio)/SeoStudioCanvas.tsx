@@ -55,6 +55,7 @@ import { InspectorPanel } from "./inspector/InspectorPanel";
 import { InspectorRail } from "./inspector/InspectorRail";
 import type { ContentBrief } from "./artifact/BriefCard";
 import type { TranscriptTurn } from "./agent/ConversationTranscript";
+import type { ContentStrategy } from "@sagemark/schema-flywheel";
 
 /** localStorage key for the operator's collapsed/expanded Inspector preference. */
 const INSPECTOR_COLLAPSED_KEY = "seo.inspectorCollapsed";
@@ -103,6 +104,12 @@ export interface SeoStudioCanvasProps {
   streamUrl?: string | null;
   /** The resolved content brief for the run (server-passed), or null. */
   brief?: ContentBrief | null;
+  /** The project's hub strategy, if this conversation belongs to a hub project. */
+  strategy?: ContentStrategy | null;
+  /** 'proposed' | 'approved' | null (null = no strategy / single-drafter). */
+  strategyStatus?: "proposed" | "approved" | "archived" | null;
+  /** The project id for strategy approval (needed by StrategyCard). */
+  projectId?: string | null;
   /**
    * The CHAT-DRIVEN front door (studio-ui). When BOTH are present the composer owns
    * the run: it POSTs `/api/run` with `{ conversationId, clientId, prompt }` and the
@@ -158,6 +165,9 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   const {
     streamUrl,
     brief = null,
+    strategy = null,
+    strategyStatus = null,
+    projectId = null,
     conversationId = null,
     clientId = null,
     initialTranscript,
@@ -421,6 +431,10 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
       >
         <ArtifactZone
           brief={brief}
+          strategy={strategy}
+          strategyStatus={strategyStatus}
+          projectId={projectId}
+          strategyClientId={clientId}
           body={state.body}
           streaming={state.phase === "streaming"}
           scorecard={state.scorecard}

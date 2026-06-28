@@ -23,7 +23,9 @@ import { ScoreSignalDot } from "@/components/ScoreSignalDot";
 import type { GateScorecard } from "@/lib/stream/use-ui-message-stream";
 import { reviseDraft, ReviseError } from "@/lib/edit/revise-client";
 import { BriefCard, type ContentBrief } from "./BriefCard";
+import { StrategyCard } from "./StrategyCard";
 import { ModeTabs, type ArtifactMode } from "./ModeTabs";
+import type { ContentStrategy } from "@sagemark/schema-flywheel";
 import { DraftPaper } from "./DraftPaper";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { PreviewFrame } from "./PreviewFrame";
@@ -41,6 +43,14 @@ export interface ApplyEditResult {
 export interface ArtifactZoneProps {
   /** The resolved content brief, or null before a run produces one. */
   brief: ContentBrief | null;
+  /** The project's hub strategy (present when the project is in a hub program). */
+  strategy?: ContentStrategy | null;
+  /** 'proposed' = awaiting operator approval; 'approved' = authoring unlocked. */
+  strategyStatus?: "proposed" | "approved" | "archived" | null;
+  /** The project id (needed for the approve POST). */
+  projectId?: string | null;
+  /** The bound client id (needed for tenancy on the approve POST). */
+  strategyClientId?: string | null;
   /** The accumulated markdown body from the SSE `token-delta` stream / snapshot. */
   body: string;
   /** Whether the body is still actively streaming (drives the live caret hint). */
@@ -87,6 +97,10 @@ const TOOLBTN: React.CSSProperties = {
 
 export function ArtifactZone({
   brief,
+  strategy = null,
+  strategyStatus: initialStrategyStatus = null,
+  projectId = null,
+  strategyClientId = null,
   body,
   streaming = false,
   scorecard,
@@ -95,6 +109,7 @@ export function ArtifactZone({
   onApplyEdit,
   fetchImpl,
 }: ArtifactZoneProps) {
+  const [localStrategyStatus, setLocalStrategyStatus] = useState(initialStrategyStatus);
   const [mode, setMode] = useState<ArtifactMode>("draft");
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState(body);
@@ -168,6 +183,17 @@ export function ArtifactZone({
           <ScoreSignalDot verdict={scorecard?.verdict ?? null} score={scorecard?.score ?? null} />
         </div>
       </header>
+
+      {strategy && projectId && strategyClientId && localStrategyStatus && (
+        <StrategyCard
+          projectId={projectId}
+          clientId={strategyClientId}
+          strategy={strategy}
+          strategyStatus={localStrategyStatus}
+          fetchImpl={fetchImpl}
+          onApproved={() => setLocalStrategyStatus("approved")}
+        />
+      )}
 
       <BriefCard brief={brief} />
 
