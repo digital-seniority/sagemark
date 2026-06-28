@@ -199,23 +199,54 @@ async function loadProjectContextNote(
   // If the project has an approved strategy, inject the roadmap + E-E-A-T plan
   // so the worker knows the full hub architecture and can write its assigned page
   // with continuity.
-  const strategy =
-    project.strategyStatus === "approved" && project.strategy
-      ? (project.strategy as {
-          objective?: string | null;
-          audience?: string | null;
-          gapAnalysis?: string | null;
-          eeatPlan?: string | null;
-          conversionArchitecture?: string | null;
-          roadmap: Array<{
-            slug: string;
-            title: string;
-            clusterRole: string;
-            funnelStage?: string | null;
-            primaryKeyword?: string | null;
-          }>;
+  // Normalise camelCase AND snake_case keys — the model may produce either.
+  const strategy = (() => {
+    if (project.strategyStatus !== "approved" || !project.strategy) return null;
+    const raw = project.strategy as Record<string, unknown>;
+    const rawRoadmap = (
+      Array.isArray(raw.roadmap)
+        ? raw.roadmap
+        : Array.isArray(raw.prioritized_roadmap)
+          ? raw.prioritized_roadmap
+          : []
+    ) as Record<string, unknown>[];
+    return {
+      objective: null as string | null,
+      audience: null as string | null,
+      gapAnalysis: null as string | null,
+      eeatPlan: null as string | null,
+      conversionArchitecture: null as string | null,
+      roadmap: rawRoadmap
+        .map((item) => {
+          const title = typeof item.title === "string" ? item.title : "";
+          if (!title) return null;
+          const slug =
+            typeof item.slug === "string"
+              ? item.slug
+              : title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+          const clusterRole =
+            typeof item.clusterRole === "string"
+              ? item.clusterRole
+              : typeof item.cluster_role === "string"
+                ? item.cluster_role
+                : "spoke";
+          const funnelStage =
+            typeof item.funnelStage === "string"
+              ? item.funnelStage
+              : typeof item.funnel_stage === "string"
+                ? item.funnel_stage
+                : null;
+          const primaryKeyword =
+            typeof item.primaryKeyword === "string"
+              ? item.primaryKeyword
+              : typeof item.target_keyword === "string"
+                ? item.target_keyword
+                : null;
+          return { slug, title, clusterRole, funnelStage, primaryKeyword };
         })
-      : null;
+        .filter((r): r is NonNullable<typeof r> => r !== null),
+    };
+  })();
 
   return buildProjectContext({
     projectName: project.name,
