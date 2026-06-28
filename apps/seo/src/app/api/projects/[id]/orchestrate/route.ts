@@ -106,7 +106,51 @@ export async function handleGetOrchestrate(
   }
 
   const strategy = project.strategy as ContentStrategy;
-  const roadmap: ContentStrategyRoadmapItem[] = strategy.roadmap ?? [];
+  // Accept both camelCase (expected) and the snake_case the model may produce.
+  const rawRoadmap = (
+    strategy.roadmap ??
+    (strategy as Record<string, unknown>).prioritized_roadmap ??
+    []
+  ) as Record<string, unknown>[];
+
+  const roadmap: ContentStrategyRoadmapItem[] = rawRoadmap
+    .map((item): ContentStrategyRoadmapItem | null => {
+      const title = typeof item.title === "string" ? item.title : null;
+      if (!title) return null;
+      const rawSlug = typeof item.slug === "string" ? item.slug : null;
+      const slug =
+        rawSlug ??
+        title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+      const clusterRole =
+        typeof item.clusterRole === "string"
+          ? item.clusterRole
+          : typeof item.cluster_role === "string"
+            ? item.cluster_role
+            : "spoke";
+      const funnelStage =
+        typeof item.funnelStage === "string"
+          ? item.funnelStage
+          : typeof item.funnel_stage === "string"
+            ? item.funnel_stage
+            : undefined;
+      const primaryKeyword =
+        typeof item.primaryKeyword === "string"
+          ? item.primaryKeyword
+          : typeof item.target_keyword === "string"
+            ? item.target_keyword
+            : undefined;
+      return {
+        slug,
+        title,
+        clusterRole: clusterRole as ContentStrategyRoadmapItem["clusterRole"],
+        funnelStage: funnelStage as ContentStrategyRoadmapItem["funnelStage"],
+        primaryKeyword,
+      };
+    })
+    .filter((r): r is ContentStrategyRoadmapItem => r !== null);
 
   // Derive authored status from the existing pieces for this project.
   const existingPieces = await deps.projects.listProjectPieces(
