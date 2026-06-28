@@ -402,9 +402,27 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
     let systemPrompt: string | undefined;
     if (mode === "standalone-strategy") {
       // Run 1: parent methodology + seo-strategist sub-skill (DR-022 standalone path).
+      // KERNEL ADDENDUM: the seo-strategist SKILL.md says "surface and stop" (standalone
+      // CLI context). In the app context, "surface" means calling `persistStrategy` — not
+      // printing text. The addendum below re-interprets step 8 for the kernel.
       const parentMd = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
       const strategistSkill = suite.skills.find((s) => s.name === "seo-strategist");
-      const parts = [parentMd, strategistSkill?.markdown].filter(Boolean) as string[];
+      const kernelAddendum = `## Kernel context — how to persist the strategy
+
+You are running inside the SEO Creator web app, not the standalone CLI. In this
+context, **"surface the ContentStrategy for operator approval" (step 8 of your
+operating procedure) means calling the \`persistStrategy\` tool** — NOT printing
+it as text. A text response alone is not persisted to the database and will be
+lost; only \`persistStrategy\` records the strategy.
+
+Once you have completed the full ContentStrategy (all sections: objective /
+audience / market, topic-cluster map, competitive-gap analysis, E-E-A-T /
+authorship plan, GEO/AEO + schema plan, conversion architecture, and prioritized
+content roadmap), call \`persistStrategy\` **once** with a \`strategy\` object
+containing the full artifact as a JSON-serialisable object. The host will save it
+and set the project status to \`proposed\`, awaiting operator approval. Do not
+call it until the strategy is complete and all sections are filled.`;
+      const parts = [parentMd, strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
       systemPrompt = parts.join("\n\n---\n\n");
     } else if (mode === "standalone-author") {
       // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
