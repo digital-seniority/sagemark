@@ -217,7 +217,16 @@ export class LiveProjectDataAccess implements ProjectDataAccess {
     workspaceId: string,
     clientId: string,
   ): Promise<ProjectPieceFact[]> {
-    // The project's articles = pieces linked to conversations in this project.
+    // Primary path: pieces with project_id set directly (hub authoring runs).
+    const { data: direct, error: directErr } = await this.supabase
+      .from("content_pieces")
+      .select("id, title, slug, cluster_role, funnel_stage, meta_description, excerpt, brief_snapshot, updated_at")
+      .eq("project_id", projectId)
+      .eq("client_id", clientId)
+      .order("updated_at", { ascending: false });
+    if (directErr) throw new Error(`live-project: listProjectPieces (direct) failed: ${stringifyErr(directErr)}`);
+
+    // Fallback: pieces linked via conversations.piece_id (legacy single-drafter path).
     const { data: convs, error: convErr } = await this.supabase
       .from("conversations")
       .select("piece_id")
@@ -226,19 +235,28 @@ export class LiveProjectDataAccess implements ProjectDataAccess {
       .eq("client_id", clientId)
       .not("piece_id", "is", null);
     if (convErr) throw new Error(`live-project: listProjectPieces (convs) failed: ${stringifyErr(convErr)}`);
-    const ids = (convs ?? [])
+    const convIds = (convs ?? [])
       .map((c) => asStringOrNull(c.piece_id))
       .filter((s): s is string => s !== null);
-    if (ids.length === 0) return [];
 
-    const { data: pieces, error: pieceErr } = await this.supabase
-      .from("content_pieces")
-      .select("id, title, slug, cluster_role, funnel_stage, meta_description, excerpt, brief_snapshot, updated_at")
-      .in("id", ids)
-      .eq("client_id", clientId)
-      .order("updated_at", { ascending: false });
-    if (pieceErr) throw new Error(`live-project: listProjectPieces (pieces) failed: ${stringifyErr(pieceErr)}`);
-    return (pieces ?? []).map(mapPieceFact).filter((r): r is ProjectPieceFact => r !== null);
+    // Merge: add conversation-linked pieces not already in the direct set.
+    const seen = new Set((direct ?? []).map((p) => asStringOrNull(p.id)).filter(Boolean));
+    const legacyIds = convIds.filter((id) => !seen.has(id));
+    let legacyPieces: typeof direct = [];
+    if (legacyIds.length > 0) {
+      const { data: lp, error: lpErr } = await this.supabase
+        .from("content_pieces")
+        .select("id, title, slug, cluster_role, funnel_stage, meta_description, excerpt, brief_snapshot, updated_at")
+        .in("id", legacyIds)
+        .eq("client_id", clientId)
+        .order("updated_at", { ascending: false });
+      if (lpErr) throw new Error(`live-project: listProjectPieces (legacy) failed: ${stringifyErr(lpErr)}`);
+      legacyPieces = lp ?? [];
+    }
+
+    return [...(direct ?? []), ...legacyPieces]
+      .map(mapPieceFact)
+      .filter((r): r is ProjectPieceFact => r !== null);
   }
 }
 
