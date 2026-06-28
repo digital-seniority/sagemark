@@ -488,11 +488,19 @@ call it until the strategy is complete and all sections are filled.`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let sdkResult: any = null;
+    let msgCount = 0;
     for await (const message of iterator) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const msg = message as any;
       // Capture SDK result messages (the CLI's final status frame).
       if (msg?.type === "result") sdkResult = msg;
+
+      // Diagnostic: emit the raw SDK message shape (type, subtype, keys) so we can
+      // see what the SDK is actually yielding — remove once the format is confirmed.
+      msgCount++;
+      process.stdout.write(
+        `::worker-diag:: msg#${msgCount} type=${String(msg?.type ?? "?")} subtype=${String(msg?.subtype ?? "?")} keys=${Object.keys(msg ?? {}).join(",")}\n`,
+      );
 
       // Capture the SDK session id as soon as it appears (resume key, acceptance #1).
       const candidate = msg?.session_id ?? msg?.sessionId;
