@@ -44,6 +44,7 @@ import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/render/build-ar
 import { Topbar } from "../../_hub/Topbar";
 import { Footer } from "../../_hub/Footer";
 import { HubScripts } from "../../_hub/HubScripts";
+import { resolvePublicContentDataAccess } from "@/lib/content/resolve-public-data-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,7 +84,8 @@ export async function generateMetadata({
   params: Promise<{ client: string; slug: string }>;
 }): Promise<Metadata> {
   const { client: clientSlug, slug } = await params;
-  const resolved = await resolvePublished(clientSlug, slug);
+  const data = await resolvePublicContentDataAccess();
+  const resolved = await resolvePublished(clientSlug, slug, { data });
   if (!resolved) return { title: "Not found" };
   const { piece } = resolved;
   return {
@@ -242,5 +244,6 @@ export default async function ClientBlogPage({
   params: Promise<{ client: string; slug: string }>;
 }) {
   const { client: clientSlug, slug } = await params;
-  return renderClientBlogPage(clientSlug, slug);
+  const data = await resolvePublicContentDataAccess();
+  return renderClientBlogPage(clientSlug, slug, { data });
 }
