@@ -52,6 +52,7 @@ export const KERNEL_ROUTES = {
   draft: "/content/api/draft",
   audit: "/content/api/audit",
   publish: "/content/api/publish",
+  strategy: "/content/api/strategy",
 } as const;
 
 export type KernelRouteName = keyof typeof KERNEL_ROUTES;
@@ -182,6 +183,20 @@ export const PublishRequestSchema = z
   .strict();
 
 export type PublishRequest = z.infer<typeof PublishRequestSchema>;
+
+// ── strategy route contract ───────────────────────────────────────────────────
+
+export const PersistStrategyRequestSchema = z
+  .object({
+    contractVersion: z.literal(CONTENT_CONTRACT_VERSION).optional(),
+    workspaceId: z.string().uuid(),
+    clientId: z.string().uuid(),
+    projectId: z.string().uuid(),
+    strategy: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+
+export type PersistStrategyRequest = z.infer<typeof PersistStrategyRequestSchema>;
 
 // ── Kernel-host-unreachable (criterion 3) ─────────────────────────────────────
 

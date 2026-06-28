@@ -90,6 +90,7 @@ export const MODEL_DISABLED_TOOLS = [
  */
 export const WORKER_ALLOWED_TOOLS = [
   "mcp__seo-worker-host-tools__persistPiece",
+  "mcp__seo-worker-host-tools__persistStrategy",
   "mcp__seo-worker-host-tools__readWorkdirFile",
 ] as const;
 
@@ -192,6 +193,7 @@ export const ALLOWED_ENV_KEYS: ReadonlySet<string> = new Set([
   "RUN_ID",
   "RUN_WORKSPACE_ID",
   "RUN_CLIENT_ID",
+  "RUN_PROJECT_ID", // non-secret: the project the strategy/authoring run belongs to
   "WORKER_WORKDIR",
 ]);
 

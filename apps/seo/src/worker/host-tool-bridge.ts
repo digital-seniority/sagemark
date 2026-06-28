@@ -35,6 +35,7 @@ import {
   KERNEL_ROUTES,
   assertKernelReachable,
   type DraftRequest,
+  type PersistStrategyRequest,
   type KernelRouteName,
 } from "../lib/content/contract";
 
@@ -48,6 +49,8 @@ export interface RunBinding {
   workspaceId: string;
   clientId: string;
   runId: string;
+  /** Non-null for strategy + authoring runs; absent for the legacy single-drafter path. */
+  projectId?: string;
 }
 
 /**
@@ -101,6 +104,17 @@ export interface PersistPieceResult {
 /** What the model-facing `persistPiece` tool accepts. Tenancy is NOT taken from
  *  here — it is injected from the frozen binding so the model can never widen it. */
 export type PersistPieceInput = Omit<DraftRequest, "contractVersion" | "workspaceId" | "clientId">;
+
+/** The host's response from the strategy persist route. */
+export interface PersistStrategyResult {
+  contractVersion: string;
+  projectId: string;
+  strategyStatus: "proposed";
+}
+
+/** What the model-facing `persistStrategy` tool accepts. Tenancy + projectId are
+ *  NOT taken from here — injected from the frozen binding. */
+export type PersistStrategyInput = { strategy: Record<string, unknown> };
 
 /** Construction config for a run-scoped bridge. */
 export interface HostToolBridgeConfig {
@@ -206,6 +220,58 @@ export class HostToolBridge {
 
     const result = (await res.json()) as PersistPieceResult;
     return result;
+  }
+
+  /**
+   * Persist the strategy for the bound project (acceptance #2 analogue for strategy
+   * runs). Tenancy + projectId are injected from the frozen binding — the model
+   * cannot supply or widen them. The host verifies project ∈ (workspaceId, clientId)
+   * server-side before writing.
+   */
+  async persistStrategy(input: PersistStrategyInput): Promise<PersistStrategyResult> {
+    if (!this.binding.projectId) {
+      throw new Error(
+        "persistStrategy: no projectId in the run binding — set RUN_PROJECT_ID before dispatching a strategy run",
+      );
+    }
+
+    const sneaky = input as Record<string, unknown>;
+    if ("workspaceId" in sneaky || "clientId" in sneaky || "projectId" in sneaky) {
+      throw new TenancyScopeError(
+        this.binding,
+        {
+          workspaceId: sneaky.workspaceId as string | undefined,
+          clientId: sneaky.clientId as string | undefined,
+        },
+        "model-supplied tenancy/projectId is not permitted — all scope comes from the run binding",
+      );
+    }
+
+    const payload: PersistStrategyRequest = {
+      contractVersion: CONTENT_CONTRACT_VERSION,
+      workspaceId: this.binding.workspaceId,
+      clientId: this.binding.clientId,
+      projectId: this.binding.projectId,
+      strategy: input.strategy,
+    };
+
+    const res = await assertKernelReachable("strategy", this.baseUrl, () =>
+      this.fetchImpl(`${this.baseUrl}${KERNEL_ROUTES.strategy}`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(payload),
+      }),
+    );
+
+    if (res.status === 401 || res.status === 403) {
+      throw new HostToolAuthError("strategy", res.status);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`host tool strategy failed (status ${res.status}): ${body.slice(0, 300)}`);
+    }
+
+    return (await res.json()) as PersistStrategyResult;
   }
 }
 

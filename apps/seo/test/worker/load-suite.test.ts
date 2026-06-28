@@ -145,10 +145,14 @@ describe("agent-worker — drives the draft route + uses the profile allowlist",
     // It is the imported constant's content, not re-declared literals.
     expect(capturedOptions.allowedTools).toEqual([
       "mcp__seo-worker-host-tools__persistPiece",
+      "mcp__seo-worker-host-tools__persistStrategy",
       "mcp__seo-worker-host-tools__readWorkdirFile",
     ]);
-    // The loaded skill name (from load-suite) is what the SDK is told to activate.
-    expect(capturedOptions.skills).toEqual([SINGLE_DRAFTER_SKILL]);
+    // The skill content is passed as systemPrompt (not the `skills` option — DR-022
+    // explicitly says the SDK's `skills` option is not wired; skill content is
+    // injected as systemPrompt so the real authored methodology reaches the model).
+    expect(typeof capturedOptions.systemPrompt).toBe("string");
+    expect(capturedOptions.systemPrompt).toContain("kernel-backed");
     // No raw built-in tools.
     expect(capturedOptions.tools).toEqual([]);
   });

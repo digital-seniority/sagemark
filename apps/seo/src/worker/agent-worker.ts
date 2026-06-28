@@ -216,10 +216,33 @@ export async function buildWorkerToolServer(opts: {
     },
   );
 
+  const persistStrategy = tool(
+    "persistStrategy",
+    "Persist the completed ContentStrategy for the bound project via the host. The " +
+      "project enters 'proposed' status pending human approval. Call this ONCE after " +
+      "finalising the strategy; do NOT supply workspaceId, clientId, or projectId — " +
+      "those are fixed by the run binding.",
+    {
+      strategy: z.record(z.string(), z.unknown()),
+    },
+    async (args: Record<string, unknown>) => {
+      const result = await opts.bridge.persistStrategy(args as any);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Strategy persisted for project ${result.projectId} (status=${result.strategyStatus}). Awaiting operator approval before authoring begins.`,
+          },
+        ],
+        structuredContent: result as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
   return createSdkMcpServer({
     name: "seo-worker-host-tools",
     version: "1.0.0",
-    tools: [persistPiece, readWorkdirFile],
+    tools: [persistPiece, persistStrategy, readWorkdirFile],
   });
 }
 
