@@ -348,6 +348,24 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
         // NOT_WIRED or project not found — fall through to single-drafter (back-compat).
       }
     }
+    // Hub run-modes: the default composeTurnPrompt brief says "run seo-blog-writer /
+    // use persistPiece" which directly conflicts with the strategy/author system prompt.
+    // Replace dispatchPrompt with a mode-aligned instruction so the model calls the
+    // correct tool (persistStrategy for Run 1, persistPiece for Runs 2+).
+    if (dispatchWorkerMode === "standalone-strategy") {
+      dispatchPrompt =
+        `The operator requests: ${prompt}\n\n` +
+        `Follow your system prompt instructions to produce a complete ContentStrategy ` +
+        `for this client. When all sections are filled (objective/audience/market, ` +
+        `topic-cluster map, competitive-gap analysis, E-E-A-T/authorship plan, ` +
+        `GEO/AEO + schema plan, conversion architecture, prioritized content roadmap), ` +
+        `call the \`persistStrategy\` tool ONCE with the full strategy as a JSON object. ` +
+        `Do not write article drafts. Do not use persistPiece.`;
+    } else if (dispatchWorkerMode === "standalone-author") {
+      // For authoring runs the composed brief is correct (it carries the project
+      // context + draft body), but the tool name must be persistPiece not persistStrategy.
+      // composeTurnPrompt already says persistPiece — no override needed here.
+    }
   }
 
   // 2. COST PRE-FLIGHT (acceptance 3): reserve BEFORE any dispatch. Over-cap =>
