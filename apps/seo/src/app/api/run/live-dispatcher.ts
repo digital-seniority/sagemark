@@ -452,6 +452,10 @@ async function* sourceFromWorker(
 ): AsyncGenerator<EventBody> {
   let stdoutBuf = "";
   let stderrBuf = "";
+  // Raw stderr lines that don't match any marker pattern (e.g. Node module errors).
+  // Captured for diagnostic context in the no-output error event.
+  const rawStderrLines: string[] = [];
+  let yieldedAnyEvent = false;
   try {
     for await (const chunk of worker.logs()) {
       if (chunk.stream === "stdout") {
@@ -462,6 +466,7 @@ async function* sourceFromWorker(
           stdoutBuf = stdoutBuf.slice(nl + 1);
           const parsed = parseWorkerLine(line);
           if (parsed.kind === "event") {
+            yieldedAnyEvent = true;
             yield parsed.event;
             if (parsed.event.type === "done" || parsed.event.type === "error") return;
           }
@@ -470,7 +475,8 @@ async function* sourceFromWorker(
       } else {
         // stderr: parse lifecycle terminal markers only (::worker-terminal-error::,
         // ::worker-fatal::). Rich-delta markers never appear on stderr; raw lines
-        // are never forwarded as free text (injection-surface discipline).
+        // are never forwarded as free text (injection-surface discipline), but we
+        // capture a snippet for diagnostic context when the worker emits no events.
         stderrBuf += chunk.data;
         let nl: number;
         while ((nl = stderrBuf.indexOf("\n")) >= 0) {
@@ -481,8 +487,13 @@ async function* sourceFromWorker(
             parsed.kind === "event" &&
             (parsed.event.type === "done" || parsed.event.type === "error")
           ) {
+            yieldedAnyEvent = true;
             yield parsed.event;
             return;
+          }
+          // Capture raw stderr for diagnostics (truncated; never forwarded as prose).
+          if (line.trim() && rawStderrLines.length < 5) {
+            rawStderrLines.push(line.trim().slice(0, 300));
           }
         }
       }
@@ -490,6 +501,7 @@ async function* sourceFromWorker(
     // Flush stdout tail for a marker not terminated by a newline.
     const tail = parseWorkerLine(stdoutBuf);
     if (tail.kind === "event") {
+      yieldedAnyEvent = true;
       yield tail.event;
       return;
     }
@@ -499,11 +511,23 @@ async function* sourceFromWorker(
       stderrTail.kind === "event" &&
       (stderrTail.event.type === "done" || stderrTail.event.type === "error")
     ) {
+      yieldedAnyEvent = true;
       yield stderrTail.event;
       return;
     }
-    // The log stream ended with no terminal marker — the relay will emit a clean
-    // `done` when the source iterator completes, so we just return here.
+    // The log stream ended with no terminal marker. If we got no events at all this
+    // is an unhandled crash (Node module error, OOM, signal) — surface it as a
+    // loud error rather than a silent "done" that masks the failure.
+    if (!yieldedAnyEvent) {
+      const diagCtx = rawStderrLines.length
+        ? `stderr: ${rawStderrLines.join(" | ")}`
+        : "no stdout/stderr output received from worker";
+      yield {
+        type: "error",
+        code: "WORKER_LOOP_FAILED",
+        message: `worker exited without emitting any events (${diagCtx})`,
+      };
+    }
   } finally {
     await sandbox.stop?.().catch(() => undefined);
   }
