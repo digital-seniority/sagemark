@@ -95,7 +95,7 @@ export const runtime = "nodejs";
 /** Always run at request time — this is a live dispatch + SSE relay, never cached. */
 export const dynamic = "force-dynamic";
 /** The single-piece generation cap (seconds) — the relay/JWT run-budget ceiling. */
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 // ── The per-run bridge JWT (acceptance 6) ─────────────────────────────────────
 // The mint/verify primitives + their types now live in `@/lib/auth/bridge-token`

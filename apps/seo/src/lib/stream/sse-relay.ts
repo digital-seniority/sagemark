@@ -121,7 +121,7 @@ export interface SseRelayConfig {
   heartbeatMs?: number;
   /**
    * Hard stall ceiling (ms) — if no worker event arrives within this, emit a
-   * terminal HEARTBEAT_TIMEOUT error and close (acceptance 4). Default 90s (the
+   * terminal HEARTBEAT_TIMEOUT error and close (acceptance 4). Default 270s (the
    * single-piece run-budget ceiling, matching the bridge-JWT expiry).
    */
   stallMs?: number;
@@ -131,7 +131,7 @@ export interface SseRelayConfig {
 
 const DEFAULT_HEARTBEAT_MS = 15_000;
 /** The run-budget ceiling — the single-piece generation cap (matches the JWT exp). */
-export const RUN_BUDGET_CEILING_MS = 90_000;
+export const RUN_BUDGET_CEILING_MS = 270_000;
 
 // ── The core relay (string-frame generator, the unit-testable heart) ──────────
 
