@@ -35,6 +35,7 @@ import {
   type ContentDataAccess,
 } from "@/lib/content/context";
 import { resolveContentDataAccess } from "@/lib/content/resolve-data-access";
+import { makePexelsImagePersist } from "@/lib/content/pexels-persist";
 
 export const runtime = "nodejs";
 export const maxDuration = 15;
@@ -143,6 +144,13 @@ export async function handleRequestImages(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const data = await resolveContentDataAccess();
-  return handleRequestImages(request, { ...DEFAULT_DEPS, data });
+  const [data, enqueueImageFetch] = await Promise.all([
+    resolveContentDataAccess(),
+    makePexelsImagePersist(),
+  ]);
+  return handleRequestImages(request, {
+    ...DEFAULT_DEPS,
+    data,
+    ...(enqueueImageFetch ? { enqueueImageFetch } : {}),
+  });
 }
