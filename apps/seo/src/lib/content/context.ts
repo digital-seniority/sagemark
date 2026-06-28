@@ -660,6 +660,8 @@ export interface PublicClient {
   id: string;
   blogSlug: string;
   name: string;
+  /** The client's brand spec JSON blob (content_clients.brand_spec), or null if not set. */
+  brandSpec?: unknown | null;
 }
 
 /**
