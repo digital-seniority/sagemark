@@ -353,7 +353,7 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
     // Replace dispatchPrompt with a mode-aligned instruction so the model calls the
     // correct tool (persistStrategy for Run 1, persistPiece for Runs 2+).
     if (dispatchWorkerMode === "standalone-strategy") {
-      dispatchPrompt =
+      let strategyPrompt =
         `The operator requests: ${prompt}\n\n` +
         `Follow your system prompt instructions to produce a complete ContentStrategy ` +
         `for this client. When all sections are filled (objective/audience/market, ` +
@@ -361,6 +361,10 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
         `GEO/AEO + schema plan, conversion architecture, prioritized content roadmap), ` +
         `call the \`persistStrategy\` tool ONCE with the full strategy as a JSON object. ` +
         `Do not write article drafts. Do not use persistPiece.`;
+      if (turn.projectContextNote) {
+        strategyPrompt += `\n\n=== CLIENT & PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END CONTEXT ===`;
+      }
+      dispatchPrompt = strategyPrompt;
     } else if (dispatchWorkerMode === "standalone-author") {
       // For authoring runs the composed brief is correct (it carries the project
       // context + draft body), but the tool name must be persistPiece not persistStrategy.
