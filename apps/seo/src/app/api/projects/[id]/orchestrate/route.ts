@@ -108,7 +108,7 @@ export async function handleGetOrchestrate(
   const strategy = project.strategy as ContentStrategy;
   // Accept both camelCase (expected) and the snake_case the model may produce.
   const rawRoadmap = (
-    strategy.roadmap ??
+    (strategy.roadmap as unknown) ??
     (strategy as Record<string, unknown>).prioritized_roadmap ??
     []
   ) as Record<string, unknown>[];
