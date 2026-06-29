@@ -87,7 +87,8 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
     chat != null &&
     chat.initialTranscript != null &&
     chat.initialTranscript.length === 0 &&
-    feed.length === 0;
+    feed.length === 0 &&
+    !chat.inFlight; // hide welcome the moment a run starts — show RunWarmup instead
 
   return (
     <div
