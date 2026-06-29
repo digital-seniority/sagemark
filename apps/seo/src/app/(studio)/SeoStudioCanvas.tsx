@@ -379,6 +379,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
       }
       // One-click author-all (S3): offered when more than one page remains.
       if (remaining != null && remaining > 1 && !autoAuthorAll) {
+        // eslint-disable-next-line react-hooks/refs -- refs are accessed inside the onClick handler, not during render
         composerSuggestions.push({
           label: `Author the whole hub (${remaining} left)`,
           onClick: startAuthorAll,
