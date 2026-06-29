@@ -15,16 +15,24 @@
  * Presentational. Colour from `currentColor` + opacity. Clean ASCII / UTF-8.
  */
 
-import type { AgentFeedItem } from "@/lib/stream/use-ui-message-stream";
+import type { AgentFeedItem, StreamPhase } from "@/lib/stream/use-ui-message-stream";
 import { ThinkingDelta } from "./ThinkingDelta";
 import { ToolUseRow } from "./ToolUseRow";
+import { RunWarmup } from "./RunWarmup";
 
 export interface AgentMessageStreamProps {
   feed: AgentFeedItem[];
+  /** The run phase — drives the never-empty warmup while a run is starting (S2). */
+  phase?: StreamPhase;
 }
 
-export function AgentMessageStream({ feed }: AgentMessageStreamProps) {
+export function AgentMessageStream({ feed, phase = "idle" }: AgentMessageStreamProps) {
   if (feed.length === 0) {
+    // A run is live but no events have arrived yet (sandbox boot) — show the
+    // lifecycle warmup instead of a dead box. Idle (no run) keeps the quiet hint.
+    if (phase === "streaming") {
+      return <RunWarmup />;
+    }
     return (
       <p
         data-testid="agent-feed-empty"

@@ -127,7 +127,7 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
               />
             )}
             {/* The IN-FLIGHT live turn — reused verbatim (thinking + tool-use rows). */}
-            <AgentMessageStream feed={feed} />
+            <AgentMessageStream feed={feed} phase={phase} />
           </>
         )}
       </div>
