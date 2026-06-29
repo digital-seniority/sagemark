@@ -1,31 +1,18 @@
 /**
- * Public content-hub SSR render route (PR 015, lane render-geo).
+ * Public content-hub SSR render route (PR 015, lane render-geo) — demo-parity
+ * article shell (lane hub-visual).
  *
  *   /clients/[client]/blog/[slug]
  *
- * THE PUBLIC SURFACE. Renders ONE published content piece as a Server Component
- * so the full article body ships in the INITIAL HTML (acceptance criterion 1 —
- * the SEO/GEO requirement: crawlers + answer engines read server HTML, not a
- * client-hydrated body). Fail-closed:
- *   - `[client]` resolves a tenant by its public `blog_slug` — never a
- *     workspace/client UUID from the URL; every read is scoped by the resolved
- *     client id (no cross-client serve).
- *   - Only `status='published'` pieces are served; ANY non-published slug
- *     (draft/review/approved/archived) or unknown slug -> `notFound()` (404),
- *     never the content (criterion 4). The seam filters; the DB anon RLS policy
- *     (`content_pieces_public_read`, DR-023) is the authoritative second gate.
- *   - Placeholder directives (`[photo:]`/`[cta:]`) are stripped before render —
- *     none leak (criterion 3).
- *   - FAQ content emits valid FAQPage JSON-LD (criterion 2).
- *   - clusterRole branches rendering: article (Article+BreadcrumbList JSON-LD),
- *     faq (FAQPage JSON-LD), checklist (print-sheet, no JSON-LD).
+ * Renders ONE published content piece as a Server Component (full body in the
+ * INITIAL HTML — the SEO/GEO requirement). Wrapped in the demo hub chrome
+ * (`.hub` Topbar/Footer + ported stylesheet) with a centered reading column
+ * (`.wrap.read` + `.prose`). Fail-closed: `[client]` resolves by public
+ * `blog_slug`; only `status='published'` is served (else 404); `[photo:]`/`[cta:]`
+ * directives are stripped; the body is rendered escape-first by `renderArticleBody`.
  *
- * The body is rendered to injection-safe HTML by `renderArticleBody` (escape-
- * first) and embedded via `dangerouslySetInnerHTML` — safe by construction.
- *
- * Dynamic: this route reads per-request from the (unwired in this build) public
- * data seam, so it renders at request time (`force-dynamic`); no body is ever
- * statically baked from a non-published state.
+ * The inner `<article>` element is kept ATTRIBUTE-FREE — the SSR contract test
+ * pins `/<article>…</article>` on the static markup.
  */
 
 import { notFound } from "next/navigation";
@@ -73,8 +60,6 @@ export async function resolvePublished(
   if (!client) return null;
   const piece = await deps.data.loadPublishedPiece(client.id, pieceSlug);
   if (!piece) return null;
-  // Defense-in-depth: the seam must already scope by client, but never serve a
-  // piece whose clientId disagrees with the resolved client (no cross-tenant).
   if (piece.clientId !== client.id) return null;
   return { client, piece };
 }
@@ -97,10 +82,8 @@ export async function generateMetadata({
 
 /**
  * Render the published article (Server Component). The returned JSX is what
- * Next serializes into the INITIAL HTML response.
- *
- * Slice 10: branched on `clusterRole` — article, faq, checklist.
- * Wrapped in hub chrome (Topbar/Footer/brand style).
+ * Next serializes into the INITIAL HTML response. Branched on `clusterRole`:
+ * article, faq, checklist. Wrapped in the demo hub chrome.
  */
 export async function renderClientBlogPage(
   clientSlug: string,
@@ -109,22 +92,18 @@ export async function renderClientBlogPage(
 ) {
   const resolved = await resolvePublished(clientSlug, pieceSlug, deps);
   if (!resolved) {
-    // Fail-closed: a non-published / unknown slug is a 404, never the content.
     notFound();
   }
   const { client, piece } = resolved;
 
-  // Brand theming (Slice 9/10)
   const brand = parseBrandSpec(client.brandSpec);
   const brandCss = buildBrandStyleTag(brand);
+  const phone = brand?.nap?.phone ?? null;
 
   // Body: placeholder-stripped, injection-safe HTML.
   const bodyHtml = renderArticleBody(piece.body);
 
-  // Branch on clusterRole to choose the page shape + JSON-LD.
   const role = piece.clusterRole ?? "article";
-
-  // Article / BreadcrumbList JSON-LD (for non-faq, non-checklist).
   const isChecklist = role === "checklist";
   const isFaq = role === "faq";
 
@@ -149,73 +128,67 @@ export async function renderClientBlogPage(
       ? buildBreadcrumbJsonLd(hubUrl, client.name, piece.title, pageUrl)
       : null;
 
-  // FAQ JSON-LD: emit whenever faqData is non-empty, regardless of clusterRole.
-  // (The clusterRole only controls the visual template, not whether faqData is emitted.)
   const faqJsonLd = serializeFaqJsonLd(piece.faqData);
 
+  const mainRole = isChecklist ? "checklist-page" : isFaq ? "faq-page" : "article-page";
+
   return (
-    <>
-      {/* Injection-safe brand theme vars */}
+    <div className="hub" data-role={mainRole}>
+      {/* Injection-safe brand theme vars + the ported hub design system */}
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: brandCss }} />
-      {/* Static, brand-variable-driven hub layout stylesheet (H1) */}
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: HUB_STYLESHEET }} />
-      <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
 
-      <main data-role={isChecklist ? "checklist-page" : isFaq ? "faq-page" : "article-page"}>
-        {isChecklist ? (
-          // Printable checklist: simple, no JSON-LD, print CTA.
-          <>
-            <article data-role="checklist">
+      <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} phone={phone} />
+
+      <main className="article">
+        <div className="wrap">
+          <div className="read">
+            <nav className="breadcrumb" aria-label="Breadcrumb">
+              <a href={`/clients/${clientSlug}`}>{client.name}</a> ·{" "}
+              <span>{piece.title}</span>
+            </nav>
+
+            <div className="article-head">
               <h1>{piece.title}</h1>
-              {piece.excerpt ? <p data-role="excerpt">{piece.excerpt}</p> : null}
-              <div
-                data-role="article-body"
-                // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
-                dangerouslySetInnerHTML={{ __html: bodyHtml }}
-              />
-            </article>
-            {/* Print behaviour wired by HubScripts via data-role="print-cta" */}
-            <button
-              data-role="print-cta"
-              style={{
-                display: "block",
-                margin: "1.5rem auto",
-                padding: "0.75rem 1.5rem",
-                background: "var(--brand-accent, #c08a4e)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "1rem",
-                fontWeight: 600,
-              }}
-            >
-              Print this checklist
-            </button>
-          </>
-        ) : (
-          // Article or FAQ: standard article chrome.
-          <article>
-            <h1>{piece.title}</h1>
-            {piece.excerpt ? <p data-role="excerpt">{piece.excerpt}</p> : null}
-            <div
-              data-role="article-body"
-              // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
-              dangerouslySetInnerHTML={{ __html: bodyHtml }}
-            />
-          </article>
-        )}
+              {piece.excerpt ? (
+                <p className="dek" data-role="excerpt">
+                  {piece.excerpt}
+                </p>
+              ) : null}
+            </div>
 
-        {/* FAQPage JSON-LD */}
-        {faqJsonLd ? (
-          <script
-            type="application/ld+json"
-            // Safe: serializeFaqJsonLd is JSON.stringify + closing-tag neutralized.
-            dangerouslySetInnerHTML={{ __html: faqJsonLd }}
-          />
-        ) : null}
+            <div className="prose">
+              <article>
+                <div
+                  data-role="article-body"
+                  // Safe: bodyHtml is escape-first rendered (see client-blog.ts).
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: bodyHtml }}
+                />
+              </article>
+            </div>
+
+            {isChecklist ? (
+              <div className="print-actions">
+                {/* Print behaviour wired by HubScripts via data-role="print-cta" */}
+                <button className="btn gold" data-role="print-cta">
+                  Print this checklist
+                </button>
+              </div>
+            ) : null}
+
+            {/* FAQPage JSON-LD */}
+            {faqJsonLd ? (
+              <script
+                type="application/ld+json"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: faqJsonLd }}
+              />
+            ) : null}
+          </div>
+        </div>
       </main>
 
       <Footer brand={brand} clientName={client.name} clientSlug={clientSlug} />
@@ -225,7 +198,7 @@ export async function renderClientBlogPage(
       {articleLd ? (
         <script
           type="application/ld+json"
-          // Safe: buildArticleJsonLd is JSON.stringify + closing-tag neutralized.
+          // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: articleLd }}
         />
       ) : null}
@@ -234,11 +207,11 @@ export async function renderClientBlogPage(
       {breadcrumbLd ? (
         <script
           type="application/ld+json"
-          // Safe: buildBreadcrumbJsonLd is JSON.stringify + closing-tag neutralized.
+          // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: breadcrumbLd }}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
