@@ -15,6 +15,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import { StudioWelcome } from "@/app/(studio)/agent/StudioWelcome";
+import { AgentPanel } from "@/app/(studio)/agent/AgentPanel";
 
 describe("StudioWelcome — first-run guidance", () => {
   it("renders the guidance and three example briefs", () => {
@@ -33,6 +34,30 @@ describe("StudioWelcome — first-run guidance", () => {
     // The click sends the FULL brief prompt, not the short chip label.
     expect(picks[0]!.length).toBeGreaterThan(20);
     expect(picks[0]).toMatch(/dementia/i);
+  });
+
+  it("AgentPanel hides welcome and shows RunWarmup the moment inFlight=true", () => {
+    // Dogfood bug: with an empty transcript and no feed items, the welcome stayed
+    // visible for the entire ~50s sandbox boot window because showWelcome didn't
+    // check inFlight. Now it should flip to RunWarmup as soon as the POST opens.
+    const fetchImpl = () =>
+      Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    render(
+      <AgentPanel
+        phase="streaming"
+        feed={[]}
+        chat={{
+          conversationId: "conv-1",
+          clientId: "client-1",
+          initialTranscript: [],
+          onSend: () => {},
+          inFlight: true,
+          fetchImpl: fetchImpl as typeof fetch,
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("studio-welcome")).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-warmup")).toBeInTheDocument();
   });
 
   it("shows the voice-spec hard stop instead of examples when blocked", () => {
