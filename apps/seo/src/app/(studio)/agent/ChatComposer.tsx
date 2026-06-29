@@ -24,7 +24,20 @@
  * ASCII / UTF-8.
  */
 
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
+
+/** A next-best-action suggestion shown as a chip under the composer. */
+export interface ComposerSuggestion {
+  /** The chip label the operator sees. */
+  label: string;
+  /** The prompt the chip carries. */
+  prompt: string;
+  /**
+   * When true the chip FILLS the textarea (and focuses it) so the operator can
+   * finish the thought; otherwise it dispatches the turn immediately.
+   */
+  fill?: boolean;
+}
 
 export interface ChatComposerProps {
   /** Dispatch one turn with the composed prompt (the lifted `useTurnStream.sendTurn`). */
@@ -33,14 +46,55 @@ export interface ChatComposerProps {
   inFlight: boolean;
   /** Optional placeholder override (e.g. first turn vs a follow-up revision). */
   placeholder?: string;
+  /**
+   * Context-aware next-best-action chips (S1). Shown under the textarea while idle
+   * so the operator always knows what to do next; empty/absent => no chips.
+   */
+  suggestions?: ComposerSuggestion[];
 }
 
 const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
-export function ChatComposer({ onSend, inFlight, placeholder }: ChatComposerProps) {
+const CHIP: React.CSSProperties = {
+  appearance: "none",
+  cursor: "pointer",
+  font: "inherit",
+  fontSize: 12,
+  fontWeight: 500,
+  color: "inherit",
+  background: "color-mix(in srgb, currentColor 7%, transparent)",
+  border: "1px solid color-mix(in srgb, currentColor 22%, transparent)",
+  borderRadius: 999,
+  padding: "4px 10px",
+  whiteSpace: "nowrap",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+export function ChatComposer({ onSend, inFlight, placeholder, suggestions = [] }: ChatComposerProps) {
   const [value, setValue] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const trimmed = value.trim();
   const canSend = trimmed.length > 0 && !inFlight;
+
+  function pick(s: ComposerSuggestion) {
+    if (inFlight) return;
+    if (s.fill) {
+      setValue(s.prompt);
+      // Focus + place the cursor at the end so the operator can finish the thought.
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.selectionStart = el.selectionEnd = el.value.length;
+        }
+      });
+      return;
+    }
+    setValue("");
+    void onSend(s.prompt);
+  }
 
   function submit() {
     if (!canSend) return;
@@ -69,6 +123,7 @@ export function ChatComposer({ onSend, inFlight, placeholder }: ChatComposerProp
     >
       <textarea
         data-testid="chat-composer-input"
+        ref={textareaRef}
         aria-label="Message the agent"
         value={value}
         onChange={(e) => setValue(e.target.value)}
@@ -76,7 +131,10 @@ export function ChatComposer({ onSend, inFlight, placeholder }: ChatComposerProp
         disabled={inFlight}
         rows={3}
         placeholder={
-          placeholder ?? (inFlight ? "Agent is working..." : "Ask for a draft, or a scoped change...")
+          placeholder ??
+          (inFlight
+            ? "Agent is working..."
+            : "Describe a page to write — or pick a suggestion below.")
         }
         style={{
           width: "100%",
@@ -94,6 +152,28 @@ export function ChatComposer({ onSend, inFlight, placeholder }: ChatComposerProp
           opacity: inFlight ? 0.6 : 1,
         }}
       />
+
+      {/* Next-best-action chips (S1) — always-on guidance while idle. */}
+      {!inFlight && suggestions.length > 0 && (
+        <div data-testid="composer-suggestions" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {suggestions.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              data-testid="composer-suggestion"
+              title={s.fill ? "Fill the message — finish the thought, then send" : "Run this now"}
+              onClick={() => pick(s)}
+              style={CHIP}
+            >
+              <span aria-hidden="true" style={{ opacity: 0.7 }}>
+                {s.fill ? "✎" : "→"}
+              </span>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <span style={SUBTLE} aria-hidden="true">
           Enter to send · Shift+Enter for a new line

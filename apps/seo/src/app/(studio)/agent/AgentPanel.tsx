@@ -32,7 +32,7 @@ import {
   ConversationTranscript,
   type TranscriptTurn,
 } from "./ConversationTranscript";
-import { ChatComposer } from "./ChatComposer";
+import { ChatComposer, type ComposerSuggestion } from "./ChatComposer";
 import { StudioWelcome } from "./StudioWelcome";
 
 /** The chat handle the canvas lifts down so the composer drives the run. */
@@ -45,6 +45,8 @@ export interface AgentChatHandle {
   onSend: (prompt: string) => void | Promise<void>;
   /** True while a turn streams (disables the composer — single-flight). */
   inFlight: boolean;
+  /** Context-aware next-best-action chips for the composer (S1). */
+  suggestions?: ComposerSuggestion[];
   /** Injectable fetch forwarded to the transcript's mount load (tests). */
   fetchImpl?: typeof fetch;
 }
@@ -148,7 +150,9 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
       )}
 
       {/* The composer — the mouth. Only on the chat-driven canvas. */}
-      {chat && <ChatComposer onSend={chat.onSend} inFlight={chat.inFlight} />}
+      {chat && (
+        <ChatComposer onSend={chat.onSend} inFlight={chat.inFlight} suggestions={chat.suggestions} />
+      )}
     </div>
   );
 }

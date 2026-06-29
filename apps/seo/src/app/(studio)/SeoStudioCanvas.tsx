@@ -50,6 +50,7 @@ import {
   type PersistedDraft,
 } from "@/lib/stream/post-turn-stream";
 import { AgentPanel } from "./agent/AgentPanel";
+import type { ComposerSuggestion } from "./agent/ChatComposer";
 import { ArtifactZone } from "./artifact/ArtifactZone";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { InspectorRail } from "./inspector/InspectorRail";
@@ -275,6 +276,37 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   // Precedence: an injected test state wins; else the chat path; else the legacy GET.
   const state = injectedState ?? (chatActive ? turn.state : live);
 
+  // Next-best-action chips (S1) — derived from the state the canvas already holds, so
+  // the operator always knows what to do next instead of facing a blank box.
+  const draftPresent = Boolean(state.body && state.body.trim().length > 0);
+  const isHubProject = Boolean(projectId);
+  const composerSuggestions: ComposerSuggestion[] = [];
+  if (isHubProject) {
+    if (strategyStatus === "approved") {
+      composerSuggestions.push({ label: "Author hub pages", prompt: "Author hub pages" });
+    } else if (strategyStatus == null || strategyStatus === "archived") {
+      composerSuggestions.push({
+        label: "Run the content strategy",
+        prompt: "Run the content strategy",
+      });
+    }
+    // 'proposed' -> the operator approves via the StrategyCard in the center zone;
+    // no chat chip can approve, so none is offered for that state.
+  }
+  if (draftPresent) {
+    composerSuggestions.push({
+      label: "Revise this draft",
+      prompt: "Revise the current draft: ",
+      fill: true,
+    });
+    composerSuggestions.push({
+      label: "Sharpen the opening",
+      prompt: "Tighten the opening so the quick-answer is sharper and more direct.",
+    });
+  } else if (!isHubProject) {
+    composerSuggestions.push({ label: "Write a new page", prompt: "Write a new page about ", fill: true });
+  }
+
   // Collapsible Inspector (agent-ui). DEFAULT FALSE — docked open while drafting.
   // The operator's choice persists to localStorage; we read it on mount in an
   // effect (NOT during render) so the SSR/first-paint markup is deterministic and
@@ -416,6 +448,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
                   initialTranscript: transcript,
                   onSend: turn.sendTurn,
                   inFlight: turn.inFlight,
+                  suggestions: composerSuggestions,
                   fetchImpl: fetchImpl as unknown as typeof fetch | undefined,
                 }
               : null
