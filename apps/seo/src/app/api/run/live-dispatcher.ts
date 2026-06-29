@@ -537,37 +537,33 @@ async function* sourceFromWorker(
       yield stderrTail.event;
       return;
     }
-    // The log stream ended with no terminal marker. If we got no events at all this
-    // is an unhandled crash (Node module error, OOM, signal) — surface it as a
-    // loud error rather than a silent "done" that masks the failure.
-    if (!yieldedAnyEvent) {
-      const diagCtx = rawStderrLines.length
-        ? `stderr: ${rawStderrLines.join(" | ")}`
+    // The log stream ended with no terminal marker — always surface this as an
+    // error. A well-behaved worker MUST emit ::worker-done:: or ::worker-result::.
+    // Swallowing this produces a silent idle transition that hides the real cause.
+    const diagCtx = rawStderrLines.length
+      ? `stderr: ${rawStderrLines.join(" | ")}`
+      : yieldedAnyEvent
+        ? "worker exited without terminal marker (init/diag events seen but no done)"
         : "no stdout/stderr output received from worker";
-      yield {
-        type: "error",
-        code: "WORKER_LOOP_FAILED",
-        message: `worker exited without emitting any events (${diagCtx})`,
-      };
-    }
+    yield {
+      type: "error",
+      code: "WORKER_LOOP_FAILED",
+      message: `worker exited without terminal marker (${diagCtx})`,
+    };
   } catch (err) {
     // The Vercel Sandbox SDK throws a StreamError when the sandbox VM terminates
     // (platform timeout, OOM, or explicit stop — signalled via a {stream:"error"}
-    // NDJSON line in the log HTTP stream). Catching here prevents the error from
-    // propagating to the relay's pull(), which would map it to a generic
-    // HEARTBEAT_TIMEOUT with no diagnostic info. Instead, emit a WORKER_LOOP_FAILED
-    // event so the browser shows the actual platform error message.
-    if (!yieldedAnyEvent) {
-      const message = err instanceof Error ? err.message : String(err);
-      const diagCtx = rawStderrLines.length ? ` | stderr: ${rawStderrLines.join(" | ")}` : "";
-      yield {
-        type: "error",
-        code: "WORKER_LOOP_FAILED",
-        message: `sandbox stream terminated: ${message}${diagCtx}`,
-      };
-    }
-    // If events were already yielded, the stream just cut off mid-run — the
-    // consumer already has what was produced. Fall through to finally (teardown).
+    // NDJSON line in the log HTTP stream). Always surface this — even when some
+    // events were already emitted, the stream terminated abnormally and the user
+    // must know. (Previously guarded by !yieldedAnyEvent, which silently swallowed
+    // the error whenever the worker emitted any init/diag event before dying.)
+    const message = err instanceof Error ? err.message : String(err);
+    const diagCtx = rawStderrLines.length ? ` | stderr: ${rawStderrLines.join(" | ")}` : "";
+    yield {
+      type: "error",
+      code: "WORKER_LOOP_FAILED",
+      message: `sandbox stream terminated: ${message}${diagCtx}`,
+    };
   } finally {
     await sandbox.stop?.().catch(() => undefined);
   }
