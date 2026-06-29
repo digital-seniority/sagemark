@@ -156,7 +156,7 @@ export default function SignInPage() {
           {busy ? "Signing in..." : "Sign in"}
         </button>
         {status.kind === "error" ? (
-          <p role="alert" style={{ marginTop: 12, fontSize: 14, opacity: 0.85 }}>
+          <p role="alert" style={{ marginTop: 12, fontSize: 14, color: "var(--accent-red)" }}>
             {status.message}
           </p>
         ) : null}

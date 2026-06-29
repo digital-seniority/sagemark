@@ -415,7 +415,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   // NOTE: collapsing the Inspector is PURELY VISUAL. The publish gate is always
   // enforced server-side (`@sagemark/core` seo-gate via `/api/publish`); hiding
   // the scorecard never disables or bypasses the gate.
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return; // SSR guard.
