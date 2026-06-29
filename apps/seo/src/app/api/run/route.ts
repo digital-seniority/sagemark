@@ -509,16 +509,52 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       dispatchPrompt = authorPrompt;
     } else {
       // Single-drafter mode (no hub project). The seo-blog-writer SKILL.md system
-      // prompt instructs the model to return the article as text (the standalone CLI
-      // "draft route" would auto-persist it), which conflicts with the kernel context
-      // where only an explicit `persistPiece` tool call saves the article. Append the
-      // same override used by standalone-author mode so the model calls persistPiece.
-      dispatchPrompt +=
-        `\n\n[KERNEL OVERRIDE] The seo-blog-writer "draft route" auto-persist ` +
-        `(SKILL.md Step 6) is NOT available in this kernel context. You MUST call the ` +
-        `\`persistPiece\` tool ONCE with the full Markdown article as the \`body\` ` +
-        `parameter after writing. Returning the article as text does NOT save it — ` +
-        `only \`persistPiece\` records it to the database. Do NOT publish.`;
+      // prompt tells the model to return text (the standalone CLI "draft route"
+      // auto-persists it), which conflicts with the kernel context where ONLY an
+      // explicit `persistPiece` call saves the article. Appending a human-turn
+      // override proved insufficient — the system prompt wins.
+      //
+      // Fix: switch to "standalone-author" workerMode so the worker picks its
+      // self-contained kernel-safe system prompt (which explicitly requires
+      // persistPiece and disallows text output), then replace dispatchPrompt
+      // with a hub-style assignment brief. The host bridge injects projectId
+      // from the binding (null for non-hub), so we omit it from the prompt.
+      dispatchWorkerMode = "standalone-author";
+      dispatchPrompt =
+        `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
+        `The seo-blog-writer "draft route" auto-persist (SKILL.md Step 6) is NOT ` +
+        `active in this context. There is no route that captures your text output. ` +
+        `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
+        `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
+        `REQUIRED TOOL CALL SEQUENCE:\n` +
+        `1. [Optional] Call requestImages once: query="<descriptive image search>", ` +
+        `slug=<slug you derive from the title>\n` +
+        `2. [Required] Call persistPiece ONCE with:\n` +
+        `   - title: a compelling SEO title for the topic below\n` +
+        `   - slug: kebab-case derived from the title\n` +
+        `   - body: the complete 1500–2500 word Markdown article (written as the VALUE ` +
+        `of this parameter, NOT as text output)\n` +
+        `   - excerpt: 1–2 sentence summary for cards and meta\n` +
+        `   - metaDescription: 150–160 character search snippet\n` +
+        `   - clusterRole: "spoke"\n` +
+        `   - funnelStage: "MOFU"\n` +
+        `   - faqData: array of {question, answer} objects (5–7 Q&A pairs)\n` +
+        `   - (projectId: managed by host — do not supply)\n\n` +
+        `ARTICLE REQUIREMENTS — write the body in Markdown using these authoring ` +
+        `conventions (they render into a polished, branded template; do NOT write raw HTML):\n` +
+        `- Do NOT include the H1 title in the body — the page renders the title itself. ` +
+        `Start the body with the quick-answer block.\n` +
+        `- Quick answer: a line ":::quick-answer", then a 2–3 sentence direct answer ` +
+        `(bold load-bearing terms with **…**), then a line ":::". AI answer engines lift this.\n` +
+        `- Use "## " headings for each major section (they become the on-page table of contents).\n` +
+        `- For ANY comparison, use a GitHub-style Markdown table ` +
+        `(| Col A | Col B |, then | --- | --- |, then the rows).\n` +
+        `- Use callouts for asides: ":::tip" (advice), ":::warn" (caution), or ":::note" ` +
+        `(context/stat), content, then ":::". Put the YMYL disclaimer in a ":::note" near the end.\n` +
+        `- End with a takeaways box: ":::takeaways", 4–6 bullets, ":::".\n` +
+        `- Every statistic cites a named, authoritative source. YMYL-safe framing throughout.\n` +
+        `- Do NOT write an FAQ section in the body — pass 5–7 Q&A pairs in faqData instead.\n\n` +
+        `=== ARTICLE TOPIC (data) ===\n${prompt.trim()}\n=== END ===`;
     }
   }
 
