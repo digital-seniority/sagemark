@@ -989,6 +989,8 @@ export interface HubPresentation {
   primaryCtaLabel?: string;
   /** Curated short topbar nav links (label + the piece slug to link to). */
   nav?: Array<{ label: string; slug: string }>;
+  /** Named reviewer for the E-E-A-T byline (YMYL trust signal). */
+  reviewer?: { name?: string; credential?: string; bio?: string };
   /** Strategy "steps" section. */
   stepsEyebrow?: string;
   stepsHeadline?: string;
