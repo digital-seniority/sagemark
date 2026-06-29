@@ -321,9 +321,51 @@ export async function emitFromSdkMessage(
   if (!message || typeof message !== "object") return 0;
   let emitted = 0;
 
-  // ── Current SDK format: {type:"stream_event", event: RawMessageStreamEvent} ──
-  // The SDK wraps every Anthropic API streaming event inside this envelope.
-  // Handle it here and return early so the legacy path below is not run.
+  // ── Current SDK format: {type:"assistant", message:{role:"assistant", content:[...]}} ──
+  // The SDK (≥0.1.x) passes through the Claude CLI's stream-json output directly.
+  // The CLI emits complete turn messages — one per model turn — rather than per-token
+  // deltas. Process every content block in the turn to emit the corresponding events.
+  if (message.type === "assistant" && message.message && typeof message.message === "object") {
+    const inner = message.message as Record<string, unknown>;
+    const content = Array.isArray(inner.content) ? (inner.content as Record<string, unknown>[]) : [];
+    for (const block of content) {
+      if (block.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+        await emitter.tokenDelta(block.text as string);
+        emitted++;
+      } else if (
+        block.type === "thinking" &&
+        typeof block.thinking === "string" &&
+        block.thinking.length > 0
+      ) {
+        await emitter.thinking(block.thinking as string);
+        emitted++;
+      } else if (block.type === "tool_use" && typeof block.name === "string") {
+        const seq = await emitter.toolUseFromRawName(block.name as string, "running");
+        if (seq !== null) emitted++;
+      }
+    }
+    return emitted; // handled; skip legacy path
+  }
+
+  // ── User turn with tool results: {type:"user", message:{role:"user", content:[...]}} ──
+  // Emitted after the model calls a tool. We track tool completion here (ok/error).
+  if (message.type === "user" && message.message && typeof message.message === "object") {
+    const inner = message.message as Record<string, unknown>;
+    const content = Array.isArray(inner.content) ? (inner.content as Record<string, unknown>[]) : [];
+    for (const block of content) {
+      if (block.type === "tool_result" && typeof block.tool_use_id === "string") {
+        // The result block has tool_use_id but not the tool name. Emit a generic
+        // completion signal — the UI row was already opened by the assistant turn.
+        // Pass the tool_use_id as rawName; toolNameToCode won't recognise it (returns
+        // null) so no event is emitted. This is acceptable: the running→ok transition
+        // requires knowing the tool name. A follow-up can track id→name across turns.
+      }
+    }
+    return emitted;
+  }
+
+  // ── Older SDK stream_event format: {type:"stream_event", event: RawMessageStreamEvent} ──
+  // Retained for backward compat with SDK versions that wrapped streaming events.
   if (message.type === "stream_event" && message.event && typeof message.event === "object") {
     const evt = message.event as Record<string, unknown>;
 

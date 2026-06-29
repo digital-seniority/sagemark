@@ -312,6 +312,8 @@ describe("POST /api/run — turn-aware (conversationId present)", () => {
     expect(dispatchedPrompt).not.toBe("Write about hip protectors");
     expect(dispatchedPrompt).toContain("ARTICLE ASSIGNMENT");
     expect(dispatchedPrompt).toContain("Write about hip protectors");
+    expect(dispatchedPrompt).toContain("awareness");
+    expect(dispatchedPrompt).toContain("spoke");
 
     await drainResponse(res);
   });
