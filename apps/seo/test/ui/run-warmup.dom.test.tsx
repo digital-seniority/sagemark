@@ -25,4 +25,17 @@ describe("AgentMessageStream warmup (S2)", () => {
     expect(screen.getByTestId("agent-feed-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("run-warmup")).not.toBeInTheDocument();
   });
+
+  it("shows a Gate-panel nudge when done but no feed items (silent gate/exit)", () => {
+    render(<AgentMessageStream feed={[]} phase="done" />);
+    expect(screen.getByTestId("agent-done-no-output")).toBeInTheDocument();
+    expect(screen.getByText(/Gate panel/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-feed-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("run-warmup")).not.toBeInTheDocument();
+  });
+
+  it("returns null for error phase (agent-error banner handles it in AgentPanel)", () => {
+    const { container } = render(<AgentMessageStream feed={[]} phase="error" />);
+    expect(container.firstChild).toBeNull();
+  });
 });

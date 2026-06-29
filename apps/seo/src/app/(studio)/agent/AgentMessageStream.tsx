@@ -42,9 +42,24 @@ export function AgentMessageStream({ feed, phase = "idle", inFlight = false }: A
     if (inFlight || phase === "streaming") {
       return <RunWarmup />;
     }
-    // Post-run with an empty feed (e.g. strategy gate fired before any feed
-    // items) — the inspector + phase badge already surface the state; return
-    // null to avoid a stale "Waiting…" prompt after the run has ended.
+    // Post-run empty feed: the run completed (or errored) without producing
+    // any agent activity visible in this feed.
+    // - "error" is handled by AgentPanel's agent-error banner — return null here
+    //   to avoid duplicating the message.
+    // - "done" with no feed items means the run gated or exited silently. The
+    //   inspector panel has the gate verdict, but it is collapsed by default so
+    //   the user needs a visible nudge to look there.
+    if (phase === "done") {
+      return (
+        <p
+          data-testid="agent-done-no-output"
+          style={{ fontSize: 13, opacity: 0.55, margin: 0, fontStyle: "italic" }}
+        >
+          Run finished with no activity — open the Gate panel (›› on the right) to
+          see the result.
+        </p>
+      );
+    }
     if (phase !== "idle") return null;
     return (
       <p
