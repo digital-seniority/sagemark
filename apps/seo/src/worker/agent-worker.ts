@@ -177,6 +177,9 @@ export async function buildWorkerToolServer(opts: {
       funnelStage: z
         .enum(["awareness", "consideration", "decision", "retention"])
         .optional(),
+      faqData: z
+        .array(z.object({ question: z.string(), answer: z.string() }))
+        .optional(),
     },
     async (args: Record<string, unknown>) => {
       const result = await opts.bridge.persistPiece(args as any);
