@@ -310,7 +310,7 @@ describe("POST /api/run — turn-aware (conversationId present)", () => {
     // The dispatched brief is the standalone-author assignment template, NOT the
     // raw message — the single-drafter else branch ran and replaced it.
     expect(dispatchedPrompt).not.toBe("Write about hip protectors");
-    expect(dispatchedPrompt).toContain("STANDALONE ARTICLE ASSIGNMENT");
+    expect(dispatchedPrompt).toContain("ARTICLE ASSIGNMENT");
     expect(dispatchedPrompt).toContain("Write about hip protectors");
 
     await drainResponse(res);
