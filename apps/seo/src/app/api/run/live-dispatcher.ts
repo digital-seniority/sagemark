@@ -550,6 +550,24 @@ async function* sourceFromWorker(
         message: `worker exited without emitting any events (${diagCtx})`,
       };
     }
+  } catch (err) {
+    // The Vercel Sandbox SDK throws a StreamError when the sandbox VM terminates
+    // (platform timeout, OOM, or explicit stop — signalled via a {stream:"error"}
+    // NDJSON line in the log HTTP stream). Catching here prevents the error from
+    // propagating to the relay's pull(), which would map it to a generic
+    // HEARTBEAT_TIMEOUT with no diagnostic info. Instead, emit a WORKER_LOOP_FAILED
+    // event so the browser shows the actual platform error message.
+    if (!yieldedAnyEvent) {
+      const message = err instanceof Error ? err.message : String(err);
+      const diagCtx = rawStderrLines.length ? ` | stderr: ${rawStderrLines.join(" | ")}` : "";
+      yield {
+        type: "error",
+        code: "WORKER_LOOP_FAILED",
+        message: `sandbox stream terminated: ${message}${diagCtx}`,
+      };
+    }
+    // If events were already yielded, the stream just cut off mid-run — the
+    // consumer already has what was produced. Fall through to finally (teardown).
   } finally {
     await sandbox.stop?.().catch(() => undefined);
   }
@@ -615,6 +633,18 @@ export function createLiveDispatcher(deps: LiveDispatcherDeps = {}): WorkerDispa
       // BootRefusedError (or any launch failure) -> one terminal SSE error frame.
       const code = err instanceof BootRefusedError ? "WORKER_LOOP_FAILED" : "RELAY_FAILED";
       return withEnvelope(runId, terminalErrorSource(code, (err as Error).message));
+    }
+
+    // Extend the sandbox lifetime immediately after creation. The Vercel Sandbox
+    // platform may apply a shorter default timeout than `profile.timeoutMs`
+    // (observed: VM dies at ~180s despite timeout:270_000 at create). Calling
+    // extendTimeout adds `timeoutMs` more milliseconds from now, ensuring the
+    // sandbox lives long enough for a full article-generation run.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (launch.sandbox as any).extendTimeout?.(timeoutMs);
+    } catch {
+      // Non-fatal: proceed with whatever lifetime the platform granted.
     }
 
     let worker: StartedWorker;
