@@ -47,6 +47,10 @@ export interface AgentChatHandle {
   inFlight: boolean;
   /** Context-aware next-best-action chips for the composer (S1). */
   suggestions?: ComposerSuggestion[];
+  /** True while the one-click "Author the whole hub" loop is running (S3). */
+  autoAuthorAll?: boolean;
+  /** Stop the author-all loop (S3) — shown in the banner, works mid-run. */
+  onStopAuthorAll?: () => void;
   /** Injectable fetch forwarded to the transcript's mount load (tests). */
   fetchImpl?: typeof fetch;
 }
@@ -146,6 +150,58 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
         >
           <strong>{error.code}</strong>
           <span style={{ ...SUBTLE, display: "block", marginTop: 2 }}>{error.message}</span>
+        </div>
+      )}
+
+      {/* One-click author-all status + stop (S3) — visible even while a run is in
+          flight (the composer chips are hidden mid-run, so Stop lives here). */}
+      {chat?.autoAuthorAll && (
+        <div
+          data-testid="author-all-banner"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: 12,
+            padding: "0.5rem 0.7rem",
+            borderRadius: 8,
+            border: "1px solid color-mix(in srgb, var(--accent-blue) 40%, var(--line))",
+            background: "color-mix(in srgb, var(--accent-blue) 10%, transparent)",
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--accent-blue)",
+                animation: "studio-pulse 1.2s ease-in-out infinite",
+              }}
+            />
+            Authoring the whole hub…
+          </span>
+          <button
+            type="button"
+            data-testid="author-all-stop"
+            onClick={chat.onStopAuthorAll}
+            style={{
+              appearance: "none",
+              cursor: "pointer",
+              font: "inherit",
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: "inherit",
+              background: "transparent",
+              border: "1px solid currentColor",
+              borderRadius: 999,
+              padding: "3px 10px",
+            }}
+          >
+            Stop
+          </button>
         </div>
       )}
 

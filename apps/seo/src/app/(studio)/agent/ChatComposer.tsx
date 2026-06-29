@@ -30,13 +30,15 @@ import { useRef, useState, type KeyboardEvent } from "react";
 export interface ComposerSuggestion {
   /** The chip label the operator sees. */
   label: string;
-  /** The prompt the chip carries. */
-  prompt: string;
+  /** The prompt the chip carries (omit when `onClick` drives a custom action). */
+  prompt?: string;
   /**
    * When true the chip FILLS the textarea (and focuses it) so the operator can
    * finish the thought; otherwise it dispatches the turn immediately.
    */
   fill?: boolean;
+  /** A custom action that overrides the prompt send/fill (e.g. start a loop). */
+  onClick?: () => void;
 }
 
 export interface ChatComposerProps {
@@ -79,7 +81,11 @@ export function ChatComposer({ onSend, inFlight, placeholder, suggestions = [] }
   const canSend = trimmed.length > 0 && !inFlight;
 
   function pick(s: ComposerSuggestion) {
-    if (inFlight) return;
+    if (s.onClick) {
+      s.onClick();
+      return;
+    }
+    if (inFlight || !s.prompt) return;
     if (s.fill) {
       setValue(s.prompt);
       // Focus + place the cursor at the end so the operator can finish the thought.
