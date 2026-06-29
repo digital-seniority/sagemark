@@ -419,6 +419,36 @@ export async function renderHomePage(
                 )}
               </div>
             ))}
+
+            {/* Catch-all: spokes whose stage is outside the three funnel sections
+                (e.g. retention) still surface — no published guide is dropped. */}
+            {(() => {
+              const grouped = new Set(
+                cluster.sections.flatMap((s) => s.cards.map((c) => c.slug)),
+              );
+              const ungrouped = cluster.allSpokes.filter((c) => !grouped.has(c.slug));
+              if (ungrouped.length === 0) return null;
+              return (
+                <div data-role="funnel-stage" data-stage="more" style={{ marginTop: "44px" }}>
+                  <h2 data-role="stage-label" style={{ textAlign: "center", marginTop: 0 }}>
+                    More guides for families
+                  </h2>
+                  <div className="cards">
+                    {ungrouped.map((card) => (
+                      <GuideCard
+                        key={card.slug}
+                        href={blog(card.slug)}
+                        title={card.title}
+                        excerpt={card.excerpt}
+                        tag={cardTag(card, hub)}
+                        image={pickImage(card.slug, cardIndex.get(card.slug) ?? 0, hub)}
+                        more={moreLabel(card.clusterRole)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </section>
 
