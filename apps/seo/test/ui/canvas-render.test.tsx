@@ -70,11 +70,11 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     // The markdown heading renders as an <h1> (now carrying a slug anchor id).
     expect(html).toMatch(/<h1 id="[^"]*">Memory care basics<\/h1>/);
 
-    // Inspector zone: the authoritative gate scorecard (verdict band + score).
-    expect(html).toContain('data-testid="gate-scorecard"');
+    // Inspector zone: collapsed rail shows verdict badge (scorecard is behind the expand toggle).
+    expect(html).toContain('data-testid="inspector-rail"');
+    expect(html).toContain('data-testid="rail-verdict-badge"');
     expect(html).toContain('data-verdict="PUBLISH"');
-    expect(html).toContain('data-testid="verdict-score"');
-    expect(html).toContain("88");
+    expect(html).toContain("88"); // score visible in rail badge title attribute
   });
 
   it("surfaces a terminal error as an explicit row (not a dead spinner)", () => {

@@ -24,15 +24,28 @@ export interface AgentMessageStreamProps {
   feed: AgentFeedItem[];
   /** The run phase — drives the never-empty warmup while a run is starting (S2). */
   phase?: StreamPhase;
+  /**
+   * True while the turn POST is open (request-gated). Used as the primary warmup
+   * trigger so RunWarmup shows from the moment the request is sent — not only once
+   * the first SSE event flips phase to "streaming" (which happens 30-80s later,
+   * after sandbox boot + strategy check).
+   */
+  inFlight?: boolean;
 }
 
-export function AgentMessageStream({ feed, phase = "idle" }: AgentMessageStreamProps) {
+export function AgentMessageStream({ feed, phase = "idle", inFlight = false }: AgentMessageStreamProps) {
   if (feed.length === 0) {
     // A run is live but no events have arrived yet (sandbox boot) — show the
-    // lifecycle warmup instead of a dead box. Idle (no run) keeps the quiet hint.
-    if (phase === "streaming") {
+    // lifecycle warmup instead of a dead box. Gate on inFlight (request-open)
+    // so we cover the silent boot window; phase === "streaming" catches the
+    // rare edge where a non-feed event (e.g. gate) arrives before any feed items.
+    if (inFlight || phase === "streaming") {
       return <RunWarmup />;
     }
+    // Post-run with an empty feed (e.g. strategy gate fired before any feed
+    // items) — the inspector + phase badge already surface the state; return
+    // null to avoid a stale "Waiting…" prompt after the run has ended.
+    if (phase !== "idle") return null;
     return (
       <p
         data-testid="agent-feed-empty"

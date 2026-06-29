@@ -379,6 +379,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
       }
       // One-click author-all (S3): offered when more than one page remains.
       if (remaining != null && remaining > 1 && !autoAuthorAll) {
+        // eslint-disable-next-line react-hooks/refs -- refs are accessed inside the onClick handler, not during render
         composerSuggestions.push({
           label: `Author the whole hub (${remaining} left)`,
           onClick: startAuthorAll,
@@ -415,7 +416,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   // NOTE: collapsing the Inspector is PURELY VISUAL. The publish gate is always
   // enforced server-side (`@sagemark/core` seo-gate via `/api/publish`); hiding
   // the scorecard never disables or bypasses the gate.
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return; // SSR guard.
