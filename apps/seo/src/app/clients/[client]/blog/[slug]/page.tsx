@@ -40,6 +40,7 @@ import {
 import { renderArticleBody } from "@/lib/render/client-blog";
 import { serializeFaqJsonLd } from "@/lib/render/build-faq-jsonld";
 import { buildBrandStyleTag, parseBrandSpec } from "@/lib/render/brand-theme";
+import { HUB_STYLESHEET } from "@/lib/render/hub-stylesheet";
 import { buildArticleJsonLd, buildBreadcrumbJsonLd } from "@/lib/render/build-article-jsonld";
 import { Topbar } from "../../_hub/Topbar";
 import { Footer } from "../../_hub/Footer";
@@ -157,6 +158,9 @@ export async function renderClientBlogPage(
       {/* Injection-safe brand theme vars */}
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: brandCss }} />
+      {/* Static, brand-variable-driven hub layout stylesheet (H1) */}
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: HUB_STYLESHEET }} />
       <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
 
       <main data-role={isChecklist ? "checklist-page" : isFaq ? "faq-page" : "article-page"}>

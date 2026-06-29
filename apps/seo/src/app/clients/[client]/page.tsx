@@ -40,6 +40,7 @@ import { buildClusterMap, type ClusterMap } from "@/lib/render/hub-homepage";
 import { resolveHeroAsset } from "@/lib/tools/hero-image";
 import { resolvePublicContentDataAccess } from "@/lib/content/resolve-public-data-access";
 import { buildBrandStyleTag, parseBrandSpec } from "@/lib/render/brand-theme";
+import { HUB_STYLESHEET } from "@/lib/render/hub-stylesheet";
 import { buildOrgJsonLd } from "@/lib/render/build-org-jsonld";
 import { Topbar } from "./_hub/Topbar";
 import { Footer } from "./_hub/Footer";
@@ -161,6 +162,9 @@ export async function renderHomePage(
       {/* Injection-safe brand theme vars */}
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: brandCss }} />
+      {/* Static, brand-variable-driven hub layout stylesheet (H1) */}
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: HUB_STYLESHEET }} />
       <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
 
       <main data-role="resource-home">
