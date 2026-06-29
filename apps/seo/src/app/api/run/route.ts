@@ -508,53 +508,33 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       }
       dispatchPrompt = authorPrompt;
     } else {
-      // Single-drafter mode (no hub project). The seo-blog-writer SKILL.md system
-      // prompt tells the model to return text (the standalone CLI "draft route"
-      // auto-persists it), which conflicts with the kernel context where ONLY an
-      // explicit `persistPiece` call saves the article. Appending a human-turn
-      // override proved insufficient — the system prompt wins.
+      // Single-drafter mode (no hub project). Switch to standalone-author workerMode
+      // so the worker uses the kernel-safe system prompt (persistPiece only, no text
+      // output). The dispatch prompt is just the article assignment — the system prompt
+      // already instructs the model to call persistPiece and not return text.
       //
-      // Fix: switch to "standalone-author" workerMode so the worker picks its
-      // self-contained kernel-safe system prompt (which explicitly requires
-      // persistPiece and disallows text output), then replace dispatchPrompt
-      // with a hub-style assignment brief. The host bridge injects projectId
-      // from the binding (null for non-hub), so we omit it from the prompt.
+      // IMPORTANT: Do NOT supply clusterRole or funnelStage here. They are optional
+      // hub-specific fields. funnelStage must be one of the contract enum values
+      // ("awareness"|"consideration"|"decision"|"retention") — hub shorthand like
+      // "MOFU" is invalid and will cause a zod validation failure at the host,
+      // silently killing the run with no output.
       dispatchWorkerMode = "standalone-author";
       dispatchPrompt =
-        `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
-        `The seo-blog-writer "draft route" auto-persist (SKILL.md Step 6) is NOT ` +
-        `active in this context. There is no route that captures your text output. ` +
-        `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
-        `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
-        `REQUIRED TOOL CALL SEQUENCE:\n` +
-        `1. [Optional] Call requestImages once: query="<descriptive image search>", ` +
-        `slug=<slug you derive from the title>\n` +
-        `2. [Required] Call persistPiece ONCE with:\n` +
-        `   - title: a compelling SEO title for the topic below\n` +
-        `   - slug: kebab-case derived from the title\n` +
-        `   - body: the complete 1500–2500 word Markdown article (written as the VALUE ` +
-        `of this parameter, NOT as text output)\n` +
-        `   - excerpt: 1–2 sentence summary for cards and meta\n` +
-        `   - metaDescription: 150–160 character search snippet\n` +
-        `   - clusterRole: "spoke"\n` +
-        `   - funnelStage: "MOFU"\n` +
-        `   - faqData: array of {question, answer} objects (5–7 Q&A pairs)\n` +
-        `   - (projectId: managed by host — do not supply)\n\n` +
-        `ARTICLE REQUIREMENTS — write the body in Markdown using these authoring ` +
-        `conventions (they render into a polished, branded template; do NOT write raw HTML):\n` +
-        `- Do NOT include the H1 title in the body — the page renders the title itself. ` +
-        `Start the body with the quick-answer block.\n` +
-        `- Quick answer: a line ":::quick-answer", then a 2–3 sentence direct answer ` +
-        `(bold load-bearing terms with **…**), then a line ":::". AI answer engines lift this.\n` +
-        `- Use "## " headings for each major section (they become the on-page table of contents).\n` +
-        `- For ANY comparison, use a GitHub-style Markdown table ` +
-        `(| Col A | Col B |, then | --- | --- |, then the rows).\n` +
-        `- Use callouts for asides: ":::tip" (advice), ":::warn" (caution), or ":::note" ` +
-        `(context/stat), content, then ":::". Put the YMYL disclaimer in a ":::note" near the end.\n` +
-        `- End with a takeaways box: ":::takeaways", 4–6 bullets, ":::".\n` +
-        `- Every statistic cites a named, authoritative source. YMYL-safe framing throughout.\n` +
-        `- Do NOT write an FAQ section in the body — pass 5–7 Q&A pairs in faqData instead.\n\n` +
-        `=== ARTICLE TOPIC (data) ===\n${prompt.trim()}\n=== END ===`;
+        `=== STANDALONE ARTICLE ASSIGNMENT ===\n\n` +
+        `This is a standalone article (no content hub project).\n` +
+        `Do NOT supply clusterRole, funnelStage, or projectId when calling persistPiece.\n\n` +
+        `Derive a compelling SEO title (under 70 characters) and kebab-case slug from the topic.\n` +
+        `Write a 1500–2500 word Markdown article and call persistPiece to save it.\n\n` +
+        `persistPiece fields to populate: title, slug, body, excerpt, metaDescription, faqData.\n\n` +
+        `ARTICLE FORMAT (Markdown body only — the template renders the H1 title):\n` +
+        `- Open with a :::quick-answer block: 2–3 sentences with **bold** load-bearing terms, ` +
+        `then close with :::.\n` +
+        `- Use ## headings for major sections.\n` +
+        `- Use Markdown tables for comparisons.\n` +
+        `- End with a :::takeaways block (4–6 bullets), then :::.\n` +
+        `- Cite named authoritative sources for every statistic. YMYL-safe framing.\n` +
+        `- 5–7 Q&A pairs in faqData; do NOT write a FAQ section in the body.\n\n` +
+        `TOPIC: ${prompt.trim()}`;
     }
   }
 
