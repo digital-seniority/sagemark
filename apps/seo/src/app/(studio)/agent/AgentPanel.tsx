@@ -32,7 +32,7 @@ import {
   ConversationTranscript,
   type TranscriptTurn,
 } from "./ConversationTranscript";
-import { ChatComposer } from "./ChatComposer";
+import { ChatComposer, type ComposerSuggestion } from "./ChatComposer";
 import { StudioWelcome } from "./StudioWelcome";
 
 /** The chat handle the canvas lifts down so the composer drives the run. */
@@ -45,6 +45,12 @@ export interface AgentChatHandle {
   onSend: (prompt: string) => void | Promise<void>;
   /** True while a turn streams (disables the composer — single-flight). */
   inFlight: boolean;
+  /** Context-aware next-best-action chips for the composer (S1). */
+  suggestions?: ComposerSuggestion[];
+  /** True while the one-click "Author the whole hub" loop is running (S3). */
+  autoAuthorAll?: boolean;
+  /** Stop the author-all loop (S3) — shown in the banner, works mid-run. */
+  onStopAuthorAll?: () => void;
   /** Injectable fetch forwarded to the transcript's mount load (tests). */
   fetchImpl?: typeof fetch;
 }
@@ -125,7 +131,7 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
               />
             )}
             {/* The IN-FLIGHT live turn — reused verbatim (thinking + tool-use rows). */}
-            <AgentMessageStream feed={feed} />
+            <AgentMessageStream feed={feed} phase={phase} />
           </>
         )}
       </div>
@@ -147,8 +153,62 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
         </div>
       )}
 
+      {/* One-click author-all status + stop (S3) — visible even while a run is in
+          flight (the composer chips are hidden mid-run, so Stop lives here). */}
+      {chat?.autoAuthorAll && (
+        <div
+          data-testid="author-all-banner"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: 12,
+            padding: "0.5rem 0.7rem",
+            borderRadius: 8,
+            border: "1px solid color-mix(in srgb, var(--accent-blue) 40%, var(--line))",
+            background: "color-mix(in srgb, var(--accent-blue) 10%, transparent)",
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "var(--accent-blue)",
+                animation: "studio-pulse 1.2s ease-in-out infinite",
+              }}
+            />
+            Authoring the whole hub…
+          </span>
+          <button
+            type="button"
+            data-testid="author-all-stop"
+            onClick={chat.onStopAuthorAll}
+            style={{
+              appearance: "none",
+              cursor: "pointer",
+              font: "inherit",
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: "inherit",
+              background: "transparent",
+              border: "1px solid currentColor",
+              borderRadius: 999,
+              padding: "3px 10px",
+            }}
+          >
+            Stop
+          </button>
+        </div>
+      )}
+
       {/* The composer — the mouth. Only on the chat-driven canvas. */}
-      {chat && <ChatComposer onSend={chat.onSend} inFlight={chat.inFlight} />}
+      {chat && (
+        <ChatComposer onSend={chat.onSend} inFlight={chat.inFlight} suggestions={chat.suggestions} />
+      )}
     </div>
   );
 }

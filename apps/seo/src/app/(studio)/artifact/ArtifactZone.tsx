@@ -66,6 +66,8 @@ export interface ArtifactZoneProps {
   pieceId?: string | null;
   /** Fold a re-gated in-place edit back into the canvas (chat path only). */
   onApplyEdit?: (result: ApplyEditResult) => void;
+  /** Bump to re-fetch the hub roadmap so the authored count advances live (S3). */
+  roadmapRefreshSignal?: number;
   /** Injectable fetch for the revise POST (tests). */
   fetchImpl?: typeof fetch;
 }
@@ -111,6 +113,7 @@ export function ArtifactZone({
   clientId = null,
   pieceId = null,
   onApplyEdit,
+  roadmapRefreshSignal = 0,
   fetchImpl,
 }: ArtifactZoneProps) {
   const [localStrategyStatus, setLocalStrategyStatus] = useState(initialStrategyStatus);
@@ -190,7 +193,12 @@ export function ArtifactZone({
 
       {/* Hub roadmap progress — visible when strategy approved + projectId bound. */}
       {localStrategyStatus === "approved" && projectId && strategyClientId && (
-        <PageProgressList projectId={projectId} clientId={strategyClientId} fetchImpl={fetchImpl} />
+        <PageProgressList
+          projectId={projectId}
+          clientId={strategyClientId}
+          refreshSignal={roadmapRefreshSignal}
+          fetchImpl={fetchImpl}
+        />
       )}
 
       {strategy && projectId && strategyClientId && localStrategyStatus && (
