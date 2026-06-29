@@ -307,10 +307,10 @@ describe("POST /api/run — turn-aware (conversationId present)", () => {
     expect(afterPreamble[0].seq).toBe(0);
     expect(afterPreamble[0].content).toBe("Write about hip protectors");
 
-    // The dispatched brief is the COMPOSED turn prompt (first-turn framing), NOT the
-    // raw message — the composer ran.
+    // The dispatched brief is the standalone-author assignment template, NOT the
+    // raw message — the single-drafter else branch ran and replaced it.
     expect(dispatchedPrompt).not.toBe("Write about hip protectors");
-    expect(dispatchedPrompt).toContain("seo-blog-writer");
+    expect(dispatchedPrompt).toContain("STANDALONE ARTICLE ASSIGNMENT");
     expect(dispatchedPrompt).toContain("Write about hip protectors");
 
     await drainResponse(res);
