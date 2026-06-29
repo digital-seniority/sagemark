@@ -507,6 +507,18 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
           `\n\n=== PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END PROJECT CONTEXT ===`;
       }
       dispatchPrompt = authorPrompt;
+    } else {
+      // Single-drafter mode (no hub project). The seo-blog-writer SKILL.md system
+      // prompt instructs the model to return the article as text (the standalone CLI
+      // "draft route" would auto-persist it), which conflicts with the kernel context
+      // where only an explicit `persistPiece` tool call saves the article. Append the
+      // same override used by standalone-author mode so the model calls persistPiece.
+      dispatchPrompt +=
+        `\n\n[KERNEL OVERRIDE] The seo-blog-writer "draft route" auto-persist ` +
+        `(SKILL.md Step 6) is NOT available in this kernel context. You MUST call the ` +
+        `\`persistPiece\` tool ONCE with the full Markdown article as the \`body\` ` +
+        `parameter after writing. Returning the article as text does NOT save it — ` +
+        `only \`persistPiece\` records it to the database. Do NOT publish.`;
     }
   }
 
