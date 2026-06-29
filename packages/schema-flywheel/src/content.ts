@@ -966,6 +966,57 @@ export const workspaceMembers = pgTable(
 // strategy route, and studio surfaces rather than redefining).
 // ---------------------------------------------------------------------------
 
+/**
+ * The crafted, landing-page presentation layer for a client's hub homepage —
+ * the bespoke marketing copy + curated imagery that lifts the auto-generated
+ * content index to a finished, client-deliverable hub (mirrors the bundled
+ * `examples/whispering-willows-demo` homepage). Every field is OPTIONAL: the
+ * render derives sensible defaults from the cluster + brand when a field is
+ * absent, so an unseeded client still renders a coherent (if plainer) hub.
+ */
+export interface HubPresentation {
+  /** Small uppercase eyebrow above the hero headline. */
+  eyebrow?: string;
+  /** Crafted hero headline (marketing voice — not the bare client name). */
+  heroHeadline?: string;
+  /** Hero lede paragraph. */
+  heroLede?: string;
+  /** Hero art image URL (the large hero photograph). */
+  heroImage?: string;
+  /** Floating stat badge over the hero art. */
+  heroStat?: { value?: string; label?: string };
+  /** Primary hero CTA label (defaults to "Read the guides"). */
+  primaryCtaLabel?: string;
+  /** Curated short topbar nav links (label + the piece slug to link to). */
+  nav?: Array<{ label: string; slug: string }>;
+  /** Named reviewer for the E-E-A-T byline (YMYL trust signal). */
+  reviewer?: { name?: string; credential?: string; bio?: string };
+  /** Strategy "steps" section. */
+  stepsEyebrow?: string;
+  stepsHeadline?: string;
+  stepsLede?: string;
+  steps?: Array<{ k?: string; title?: string; body?: string }>;
+  /** Resource-library section intro. */
+  libraryEyebrow?: string;
+  libraryHeadline?: string;
+  libraryLede?: string;
+  /** Quality (dark) section. */
+  qualityEyebrow?: string;
+  qualityHeadline?: string;
+  qualityLede?: string;
+  qualityPillars?: Array<{ k?: string; title?: string; body?: string }>;
+  /** Closing CTA band. */
+  ctaHeadline?: string;
+  ctaBody?: string;
+  /** Footer blurb + optional license/accreditation line. */
+  footerBlurb?: string;
+  footerLicense?: string;
+  /** Per-card imagery: a cycled pool, optional per-slug override, per-slug tag. */
+  imagePool?: string[];
+  cardImages?: Record<string, string>;
+  cardTags?: Record<string, string>;
+}
+
 export interface BrandSpec {
   name?: string;
   logo?: { url?: string; alt?: string; treatment?: "light" | "dark" };
@@ -991,6 +1042,8 @@ export interface BrandSpec {
     url?: string;
   };
   tagline?: string;
+  /** Crafted landing-page presentation for the hub homepage (optional). */
+  hub?: HubPresentation;
 }
 
 export interface ContentStrategyRoadmapItem {

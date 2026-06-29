@@ -1,65 +1,97 @@
 /**
- * Footer — branded site footer for the hub (Slice 9).
- * Server component. Uses CSS vars from buildBrandStyleTag.
+ * Footer — branded hub footer (demo-parity). Server component; emits the demo
+ * `.footer` markup styled by the ported hub stylesheet. Columns: brand + blurb,
+ * family-guide links, and visit/call NAP + accreditation line.
  */
 
 import type { BrandSpec } from "@sagemark/schema-flywheel";
+import type { HubNavLink } from "./Topbar";
 
 interface FooterProps {
   brand: BrandSpec | null;
   clientName: string;
   clientSlug: string;
+  links?: HubNavLink[];
 }
 
-export function Footer({ brand, clientName, clientSlug: _slug }: FooterProps) {
+export function Footer({ brand, clientName, clientSlug, links = [] }: FooterProps) {
   const nap = brand?.nap;
-  const phone = nap?.phone?.replace(/[^0-9+\-\(\) \.]/g, "").trim() ?? null;
-  const email = typeof nap?.email === "string" ? nap.email.replace(/[<>"']/g, "") : null;
-  const locality = nap?.locality ?? null;
-  const region = nap?.region ?? null;
+  const hub = brand?.hub;
+  const logo = brand?.logo;
+  const phone = nap?.phone ?? null;
+  const tel = phone ? phone.replace(/[^0-9+]/g, "") : null;
+  const blurb = hub?.footerBlurb ?? brand?.tagline ?? null;
+  const license = hub?.footerLicense ?? null;
+  const legalName = nap?.legalName ?? clientName;
+  const cityLine = [nap?.locality, nap?.region, nap?.postalCode].filter(Boolean).join(", ");
+  const year = new Date().getFullYear();
 
   return (
-    <footer
-      data-role="hub-footer"
-      style={{
-        background: "var(--brand-dark, #2f4339)",
-        color: "rgba(255,255,255,0.8)",
-        marginTop: "4rem",
-        padding: "2.5rem 1.25rem",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1180px",
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          gap: "2rem",
-          alignItems: "start",
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: "var(--brand-heading-font, serif)", fontWeight: 600, fontSize: "1.1rem", color: "#fff", marginBottom: "0.5rem" }}>
-            {clientName}
+    <footer className="footer" data-role="hub-footer">
+      <div className="wrap">
+        <div className="grid">
+          <div>
+            <a className="brand" href={`/clients/${clientSlug}`} style={{ marginBottom: "16px" }}>
+              {logo?.url ? (
+                <span className="brand-badge">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logo.url} alt={logo.alt ?? clientName} />
+                </span>
+              ) : (
+                <b style={{ color: "#fff" }}>{clientName}</b>
+              )}
+            </a>
+            {blurb ? <p>{blurb}</p> : null}
           </div>
-          {(locality || region) ? (
-            <div style={{ fontSize: "0.875rem", opacity: 0.7, marginBottom: "0.5rem" }}>
-              {[locality, region].filter(Boolean).join(", ")}
+
+          {links.length > 0 ? (
+            <div>
+              <h5>Family Guides</h5>
+              <ul className="links">
+                {links.map((l) => (
+                  <li key={l.href}>
+                    <a href={l.href}>{l.label}</a>
+                  </li>
+                ))}
+              </ul>
             </div>
-          ) : null}
-          {phone ? (
-            <a href={`tel:${phone.replace(/\s/g, "")}`} style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.875rem", display: "block", marginBottom: "0.25rem" }}>
-              {phone}
-            </a>
-          ) : null}
-          {email ? (
-            <a href={`mailto:${email}`} style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.875rem", display: "block" }}>
-              {email}
-            </a>
-          ) : null}
+          ) : (
+            <div />
+          )}
+
+          <div>
+            <h5>Visit or Call</h5>
+            <p className="nap">
+              {nap?.streetAddress ? (
+                <>
+                  {nap.streetAddress}
+                  <br />
+                </>
+              ) : null}
+              {cityLine ? (
+                <>
+                  {cityLine}
+                  <br />
+                </>
+              ) : null}
+              {tel ? (
+                <a href={`tel:${tel}`}>
+                  <b>{phone}</b>
+                </a>
+              ) : null}
+            </p>
+            {license ? (
+              <p className="nap" style={{ marginTop: "10px", fontSize: ".82rem", color: "#9fb3a6" }}>
+                {license}
+              </p>
+            ) : null}
+          </div>
         </div>
-        <div style={{ fontSize: "0.75rem", opacity: 0.5, textAlign: "right", alignSelf: "end" }}>
-          © {new Date().getFullYear()} {clientName}
+
+        <div className="legal">
+          <span>
+            © {year} {legalName}. Educational content — not a substitute for medical advice.
+          </span>
         </div>
       </div>
     </footer>

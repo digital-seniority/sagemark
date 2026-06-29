@@ -464,13 +464,28 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
           (nextPage.funnelStage ? `   - funnelStage: "${nextPage.funnelStage}"\n` : "") +
           `   - projectId: "${dispatchProjectId}"\n` +
           `   - faqData: array of {question, answer} objects from the FAQ block\n\n` +
-          `ARTICLE REQUIREMENTS:\n` +
-          `- Open with a self-contained quick-answer paragraph (2-3 sentences; direct ` +
-          `answer to the article's core question — AI answer engines will lift this)\n` +
-          `- Every statistic cites a named, authoritative source (no fabrication)\n` +
-          `- YMYL-safe framing throughout; short disclaimer near the end\n` +
-          `- FAQ block at the end: 5-7 Q&A pairs with self-contained answers\n` +
-          `- Include one [photo:${nextPage.slug}] placeholder where an image fits\n\n` +
+          `ARTICLE REQUIREMENTS — write the body in Markdown using these authoring ` +
+          `conventions (they render into a polished, branded template; do NOT write raw ` +
+          `HTML or invent any design):\n` +
+          `- Do NOT include the H1 title in the body — the page renders the title itself. ` +
+          `Start the body with the quick-answer block.\n` +
+          `- Quick answer: a line ":::quick-answer", then a 2-3 sentence direct answer to ` +
+          `the core question (bold the load-bearing terms with **…**), then a line ":::". ` +
+          `AI answer engines lift this.\n` +
+          `- Use "## " headings for each major section (they become the on-page table of ` +
+          `contents).\n` +
+          `- For ANY comparison, use a GitHub-style Markdown table ` +
+          `(| Col A | Col B |, then | --- | --- |, then the rows).\n` +
+          `- Use callouts for asides — a line ":::tip" (advice), ":::warn" (caution), or ` +
+          `":::note" (context/stat), the content, then ":::". Put the YMYL disclaimer in a ` +
+          `":::note" near the end.\n` +
+          `- End the body with a key-takeaways box: a line ":::takeaways", a bulleted list ` +
+          `of 4-6 takeaways, then ":::".\n` +
+          `- Every statistic cites a named, authoritative source (no fabrication); keep ` +
+          `YMYL-safe framing throughout.\n` +
+          `- Do NOT write an FAQ section in the body — instead pass 5-7 Q&A pairs in the ` +
+          `faqData parameter (they render as an accordion + FAQ schema).\n` +
+          `- Include one [photo:${nextPage.slug}] placeholder where a supporting image fits.\n\n` +
           (nextPage.primaryKeyword ? `TARGET KEYWORD: ${nextPage.primaryKeyword}\n\n` : "") +
           `This is a NEW article. Do NOT revise any existing draft.`;
       } else {

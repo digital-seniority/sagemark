@@ -28,13 +28,14 @@ describe("buildStandaloneHtml", () => {
     expect(html).toContain("<title>Early signs of dementia</title>");
     expect(html).toContain('<meta name="description"');
     expect(html).toContain("<style>"); // inline CSS — self-contained
-    // The body rendered to tags (escape-first), not raw markdown.
-    expect(html).toContain("<h1>Early signs of dementia</h1>");
+    // The body rendered to tags (escape-first), not raw markdown. Headings now
+    // carry a slug anchor id (TOC targets).
+    expect(html).toMatch(/<h1 id="[^"]*">Early signs of dementia<\/h1>/);
     expect(html).toContain("<strong>small changes</strong>");
-    expect(html).toContain("<h2>When to act</h2>");
+    expect(html).toMatch(/<h2 id="[^"]*">When to act<\/h2>/);
     expect(html).not.toContain("# Early signs"); // no raw markdown
     // Exactly one H1 (the body's), not a duplicated explicit one.
-    expect(html.match(/<h1>/g) ?? []).toHaveLength(1);
+    expect(html.match(/<h1[ >]/g) ?? []).toHaveLength(1);
   });
 
   it("escapes the title and emits FAQ JSON-LD when faqData is present", () => {
@@ -55,7 +56,7 @@ describe("buildFragmentHtml / buildMarkdown", () => {
     const frag = buildFragmentHtml(BODY);
     expect(frag).not.toContain("<!DOCTYPE");
     expect(frag).not.toContain("<html");
-    expect(frag).toContain("<h1>Early signs of dementia</h1>");
+    expect(frag).toMatch(/<h1 id="[^"]*">Early signs of dementia<\/h1>/);
   });
 
   it("markdown strips studio placeholder directives", () => {
