@@ -447,16 +447,26 @@ and projectId. The approved ContentStrategy and project context are also in the 
 - \`query\`: a descriptive Pexels image search suited to the page topic
 - \`slug\`: the exact slug from the assignment
 
-**Step 2 — write the article.** Produce 1500–2500 words of grounded, accurate content:
-- Open with a **self-contained quick-answer paragraph** (2–3 sentences; direct answer
-  to the article's core question — AI answer engines will lift this passage)
+**Step 2 — write the article body (1500–2500 words) in Markdown using these authoring
+conventions.** They render into a polished, branded template — never write raw HTML or
+invent any design:
+- Do NOT include the H1 title in the body — the page renders the title itself.
+- Open with a quick-answer box: a line \`:::quick-answer\`, then a 2–3 sentence direct
+  answer to the core question (bold the load-bearing terms with **…**), then a line
+  \`:::\`. AI answer engines lift this passage.
+- Use \`## \` headings for each major section (they become the on-page table of contents).
+- For ANY comparison, use a GitHub-style Markdown table (\`| Col A | Col B |\`, then
+  \`| --- | --- |\`, then the data rows).
+- Use callouts for asides — a line \`:::tip\` (advice), \`:::warn\` (caution), or
+  \`:::note\` (context/stat), the content, then \`:::\`. Put the YMYL disclaimer in a
+  \`:::note\` near the end.
+- End the body with a key-takeaways box: a line \`:::takeaways\`, a bulleted list of 4–6
+  takeaways, then \`:::\`.
 - Every statistic traces to a **named, citable source** (e.g. "The Alzheimer's
-  Association reports that..."); unsourced figures are omitted, never fabricated
-- YMYL-safe framing: informational only, no diagnosis or treatment; include a short
-  disclaimer near the end ("This article is for informational purposes only...")
-- One \`[photo:slug]\` placeholder in the body where an image would best appear
-- A structured **FAQ block** at the end: 5–7 question/answer pairs with self-contained
-  answers (answers must stand alone — no "see above") for FAQPage JSON-LD
+  Association reports that..."); unsourced figures are omitted, never fabricated.
+- One \`[photo:slug]\` placeholder in the body where an image would best appear.
+- Do NOT write an FAQ section in the body — pass the 5–7 Q&A pairs in \`faqData\` instead
+  (self-contained answers — no "see above"); they render as an accordion + FAQPage schema.
 
 **Step 3 (required) — persist the article by calling \`persistPiece\` exactly once:**
 - \`title\`: exact title from the assignment
