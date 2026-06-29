@@ -36,6 +36,12 @@ interface OrchestrateStatus {
 export interface PageProgressListProps {
   projectId: string;
   clientId: string;
+  /**
+   * A monotonically-increasing signal: bump it (e.g. on each turn completion) to
+   * re-fetch the roadmap so the authored count advances live (S3), instead of
+   * staying stale until a page reload.
+   */
+  refreshSignal?: number;
   /** Optional fetch override for tests. */
   fetchImpl?: typeof fetch;
 }
@@ -48,25 +54,37 @@ const CLUSTER_ROLE_LABEL: Record<string, string> = {
   checklist: "Checklist",
 };
 
-export function PageProgressList({ projectId, clientId, fetchImpl }: PageProgressListProps) {
+export function PageProgressList({ projectId, clientId, refreshSignal = 0, fetchImpl }: PageProgressListProps) {
   const [status, setStatus] = useState<OrchestrateStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const fetcher = fetchImpl ?? fetch;
     fetcher(`/api/projects/${encodeURIComponent(projectId)}/orchestrate?clientId=${encodeURIComponent(clientId)}`)
       .then(async (res) => {
+        if (cancelled) return;
         if (!res.ok) {
           setError(`Could not load roadmap status (${res.status})`);
           return;
         }
         const data = (await res.json()) as OrchestrateStatus;
-        setStatus(data);
+        if (!cancelled) {
+          setStatus(data);
+          setError(null);
+        }
       })
-      .catch(() => setError("Could not load roadmap status"))
-      .finally(() => setLoading(false));
-  }, [projectId, clientId, fetchImpl]);
+      .catch(() => {
+        if (!cancelled) setError("Could not load roadmap status");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, clientId, refreshSignal, fetchImpl]);
 
   if (loading) {
     return (

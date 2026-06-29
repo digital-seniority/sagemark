@@ -50,6 +50,7 @@ import {
   type PersistedDraft,
 } from "@/lib/stream/post-turn-stream";
 import { AgentPanel } from "./agent/AgentPanel";
+import type { ComposerSuggestion } from "./agent/ChatComposer";
 import { ArtifactZone } from "./artifact/ArtifactZone";
 import { InspectorPanel } from "./inspector/InspectorPanel";
 import { InspectorRail } from "./inspector/InspectorRail";
@@ -205,6 +206,22 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
   const lastSeqRef = useRef<number | null>(null);
   const dispatchRef = useRef<ReturnType<typeof useTurnStream>["dispatch"] | null>(null);
 
+  // S3 — live roadmap + one-click "Author the whole hub".
+  // `roadmapSignal` bumps on each completed turn so the roadmap re-fetches and the
+  // authored count advances live. `autoAuthorAll` drives the bounded auto-loop; the
+  // refs let `onTurnComplete` (defined before `turn`) read the latest without a
+  // stale closure. `autoCountRef` is a hard backstop against any runaway loop.
+  const [roadmapSignal, setRoadmapSignal] = useState(0);
+  const [autoAuthorAll, setAutoAuthorAll] = useState(false);
+  const [hubStatus, setHubStatus] = useState<{
+    total: number;
+    authoredCount: number;
+    pendingCount: number;
+  } | null>(null);
+  const autoAuthorAllRef = useRef(false);
+  const autoCountRef = useRef(0);
+  const sendTurnRef = useRef<((prompt: string) => void | Promise<void>) | null>(null);
+
   // The ON-DONE reconcile: re-read the persisted transcript + draft, fold the draft
   // back as a synthetic snapshot so the next turn's baseline is the persisted truth.
   const onTurnComplete = useCallback(
@@ -249,8 +266,34 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
           // A failed draft reconcile leaves the stream-accumulated body in place.
         }
       }
+
+      // 3. S3 — advance the live roadmap, then continue the author-all loop. Bounded
+      //    by the roadmap (pendingCount), a hard iteration cap, and the per-run $2
+      //    server cost cap; stops on completion, fetch error, turn error (this
+      //    callback only fires on a CLEAN turn), or the operator's Stop.
+      setRoadmapSignal((s) => s + 1);
+      if (autoAuthorAllRef.current && projectId && doFetch) {
+        try {
+          const res = await doFetch(
+            `/api/projects/${encodeURIComponent(projectId)}/orchestrate?clientId=${encodeURIComponent(info.clientId)}`,
+            { headers: { accept: "application/json" } },
+          );
+          const data = res.ok ? ((await res.json()) as { pendingCount?: number }) : null;
+          const remaining = data?.pendingCount ?? 0;
+          autoCountRef.current += 1;
+          if (remaining > 0 && autoCountRef.current < 40 && autoAuthorAllRef.current) {
+            void sendTurnRef.current?.("Author hub pages");
+          } else {
+            autoAuthorAllRef.current = false;
+            setAutoAuthorAll(false);
+          }
+        } catch {
+          autoAuthorAllRef.current = false;
+          setAutoAuthorAll(false);
+        }
+      }
     },
-    [fetchImpl, reconcileDraft],
+    [fetchImpl, reconcileDraft, projectId],
   );
 
   // The POST-fetch projected state (chat path). Called unconditionally (rules of
@@ -269,11 +312,100 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
     dispatchRef.current = turn.dispatch;
   }, [turn.state.lastSeq, turn.dispatch]);
 
+  // Keep the author-all loop's refs current (read by onTurnComplete, defined above).
+  useEffect(() => {
+    sendTurnRef.current = turn.sendTurn;
+    autoAuthorAllRef.current = autoAuthorAll;
+  }, [turn.sendTurn, autoAuthorAll]);
+
+  // Live hub-roadmap status (S3): drives the "Author the whole hub (N left)" chip
+  // and the loop's remaining count; re-fetches whenever `roadmapSignal` bumps.
+  useEffect(() => {
+    if (!chatActive || !projectId || !clientId || strategyStatus !== "approved") return;
+    let cancelled = false;
+    const f =
+      (fetchImpl as unknown as typeof fetch | undefined) ??
+      (typeof fetch !== "undefined" ? fetch : null);
+    if (!f) return;
+    f(
+      `/api/projects/${encodeURIComponent(projectId)}/orchestrate?clientId=${encodeURIComponent(clientId)}`,
+      { headers: { accept: "application/json" } },
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: { total?: number; authoredCount?: number; pendingCount?: number } | null) => {
+        if (cancelled || !d) return;
+        setHubStatus({
+          total: d.total ?? 0,
+          authoredCount: d.authoredCount ?? 0,
+          pendingCount: d.pendingCount ?? 0,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [chatActive, projectId, clientId, strategyStatus, roadmapSignal, fetchImpl]);
+
+  // Start / stop the bounded author-all loop. `startAuthorAll` resets the backstop
+  // counter, arms the loop, and dispatches the first authoring run; subsequent runs
+  // are chained by onTurnComplete until the roadmap is empty (or the operator stops).
+  const startAuthorAll = useCallback(() => {
+    autoCountRef.current = 0;
+    autoAuthorAllRef.current = true;
+    setAutoAuthorAll(true);
+    void sendTurnRef.current?.("Author hub pages");
+  }, []);
+  const stopAuthorAll = useCallback(() => {
+    autoAuthorAllRef.current = false;
+    setAutoAuthorAll(false);
+  }, []);
+
   // The legacy EventSource (GET) projected state — back-compat for the one-shot path.
   const live = useUiMessageStream({ url: streamUrl, eventSourceFactory });
 
   // Precedence: an injected test state wins; else the chat path; else the legacy GET.
   const state = injectedState ?? (chatActive ? turn.state : live);
+
+  // Next-best-action chips (S1) — derived from the state the canvas already holds, so
+  // the operator always knows what to do next instead of facing a blank box.
+  const draftPresent = Boolean(state.body && state.body.trim().length > 0);
+  const isHubProject = Boolean(projectId);
+  const composerSuggestions: ComposerSuggestion[] = [];
+  if (isHubProject) {
+    if (strategyStatus === "approved") {
+      const remaining = hubStatus?.pendingCount ?? null;
+      if ((remaining === null || remaining > 0) && !autoAuthorAll) {
+        composerSuggestions.push({ label: "Author hub pages", prompt: "Author hub pages" });
+      }
+      // One-click author-all (S3): offered when more than one page remains.
+      if (remaining != null && remaining > 1 && !autoAuthorAll) {
+        composerSuggestions.push({
+          label: `Author the whole hub (${remaining} left)`,
+          onClick: startAuthorAll,
+        });
+      }
+    } else if (strategyStatus == null || strategyStatus === "archived") {
+      composerSuggestions.push({
+        label: "Run the content strategy",
+        prompt: "Run the content strategy",
+      });
+    }
+    // 'proposed' -> the operator approves via the StrategyCard in the center zone;
+    // no chat chip can approve, so none is offered for that state.
+  }
+  if (draftPresent) {
+    composerSuggestions.push({
+      label: "Revise this draft",
+      prompt: "Revise the current draft: ",
+      fill: true,
+    });
+    composerSuggestions.push({
+      label: "Sharpen the opening",
+      prompt: "Tighten the opening so the quick-answer is sharper and more direct.",
+    });
+  } else if (!isHubProject) {
+    composerSuggestions.push({ label: "Write a new page", prompt: "Write a new page about ", fill: true });
+  }
 
   // Collapsible Inspector (agent-ui). DEFAULT FALSE — docked open while drafting.
   // The operator's choice persists to localStorage; we read it on mount in an
@@ -416,6 +548,9 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
                   initialTranscript: transcript,
                   onSend: turn.sendTurn,
                   inFlight: turn.inFlight,
+                  suggestions: composerSuggestions,
+                  autoAuthorAll,
+                  onStopAuthorAll: stopAuthorAll,
                   fetchImpl: fetchImpl as unknown as typeof fetch | undefined,
                 }
               : null
@@ -439,6 +574,7 @@ export function SeoStudioCanvas(props: SeoStudioCanvasProps) {
           projectId={projectId}
           strategyClientId={clientId}
           hubBlogSlug={clientBlogSlug}
+          roadmapRefreshSignal={roadmapSignal}
           body={state.body}
           streaming={state.phase === "streaming"}
           scorecard={state.scorecard}
