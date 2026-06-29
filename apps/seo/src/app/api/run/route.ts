@@ -510,31 +510,37 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
     } else {
       // Single-drafter mode (no hub project). Switch to standalone-author workerMode
       // so the worker uses the kernel-safe system prompt (persistPiece only, no text
-      // output). The dispatch prompt is just the article assignment — the system prompt
-      // already instructs the model to call persistPiece and not return text.
+      // output).
       //
-      // IMPORTANT: Do NOT supply clusterRole or funnelStage here. They are optional
-      // hub-specific fields. funnelStage must be one of the contract enum values
-      // ("awareness"|"consideration"|"decision"|"retention") — hub shorthand like
-      // "MOFU" is invalid and will cause a zod validation failure at the host,
-      // silently killing the run with no output.
+      // The standalone-author system prompt (snapshot) was designed for hub articles.
+      // Step 3 says "exact value from the assignment" for clusterRole/funnelStage/projectId.
+      // For standalone articles we must therefore:
+      //   • Provide a valid clusterRole ("spoke") so the model has something to pass.
+      //   • Explicitly mark funnelStage as absent (it is optional; omit it from the call).
+      //   • Explicitly mark projectId as absent (host bridge injects null for non-hub).
+      //
+      // Do NOT invent a funnelStage — the contract enum is ("awareness"|"consideration"|
+      // "decision"|"retention"). There is no "MOFU" variant; passing an invalid value
+      // causes a silent zod failure at the host that kills the run with no output.
       dispatchWorkerMode = "standalone-author";
       dispatchPrompt =
-        `=== STANDALONE ARTICLE ASSIGNMENT ===\n\n` +
-        `This is a standalone article (no content hub project).\n` +
-        `Do NOT supply clusterRole, funnelStage, or projectId when calling persistPiece.\n\n` +
-        `Derive a compelling SEO title (under 70 characters) and kebab-case slug from the topic.\n` +
-        `Write a 1500–2500 word Markdown article and call persistPiece to save it.\n\n` +
-        `persistPiece fields to populate: title, slug, body, excerpt, metaDescription, faqData.\n\n` +
-        `ARTICLE FORMAT (Markdown body only — the template renders the H1 title):\n` +
-        `- Open with a :::quick-answer block: 2–3 sentences with **bold** load-bearing terms, ` +
-        `then close with :::.\n` +
-        `- Use ## headings for major sections.\n` +
-        `- Use Markdown tables for comparisons.\n` +
-        `- End with a :::takeaways block (4–6 bullets), then :::.\n` +
-        `- Cite named authoritative sources for every statistic. YMYL-safe framing.\n` +
-        `- 5–7 Q&A pairs in faqData; do NOT write a FAQ section in the body.\n\n` +
-        `TOPIC: ${prompt.trim()}`;
+        `=== ARTICLE ASSIGNMENT ===\n\n` +
+        `TOPIC: ${prompt.trim()}\n\n` +
+        `Assignment fields for persistPiece:\n` +
+        `- title: [derive a compelling SEO title — max 70 characters]\n` +
+        `- slug: [derive a clean kebab-case slug, e.g. "preventing-falls-older-adults"]\n` +
+        `- clusterRole: spoke\n` +
+        `- funnelStage: [NOT ASSIGNED — omit from the persistPiece call entirely]\n` +
+        `- projectId: [managed by host — omit from the persistPiece call entirely]\n\n` +
+        `Call persistPiece with: title, slug, body, excerpt, metaDescription, clusterRole, faqData.\n` +
+        `Do NOT include funnelStage or projectId.\n\n` +
+        `ARTICLE FORMAT (body in Markdown; template renders the H1 — do not include it):\n` +
+        `- Open with a :::quick-answer block: 2–3 **bold** sentences, close with :::.\n` +
+        `- ## headings for major sections.\n` +
+        `- Markdown tables for any comparisons.\n` +
+        `- End with a :::takeaways block (4–6 bullets).\n` +
+        `- 5–7 Q&A pairs in faqData; no FAQ section in the body.\n` +
+        `- Named sources for every statistic. YMYL-safe framing throughout.`;
     }
   }
 
