@@ -60,7 +60,7 @@ describe("placeholder stripping (criterion 3)", () => {
     const html = renderArticleBody(
       "## Title\n\n[photo: x]\n\nReal sentence.\n\n[cta: y]\n",
     );
-    expect(html).toContain("<h2>Title</h2>");
+    expect(html).toMatch(/<h2 id="title">Title<\/h2>/);
     expect(html).toContain("<p>Real sentence.</p>");
     expect(html).not.toMatch(/\[(photo|cta)/);
   });

@@ -33,7 +33,7 @@ describe("PreviewFrame", () => {
     expect(frame.getAttribute("sandbox")).toBe("");
     const doc = frame.getAttribute("srcdoc") ?? "";
     expect(doc).toContain("<!DOCTYPE html>");
-    expect(doc).toContain("<h1>Early signs</h1>");
+    expect(doc).toMatch(/<h1 id="[^"]*">Early signs<\/h1>/);
     expect(doc).toContain("Real prose here.");
   });
 });

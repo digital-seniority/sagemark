@@ -121,8 +121,12 @@ function toCard(p: PublishedPiece): SpokeCard {
  * that (defensively) is not in that set is reported in `orphanSpokes`.
  */
 export function buildClusterMap(pieces: PublishedPiece[]): ClusterMap {
-  // The pillar is the first pillar/cornerstone-roled piece (deterministic order).
-  const pillarPiece = pieces.find((p) => isPillarRole(p.clusterRole)) ?? null;
+  // The pillar is the true `pillar`-roled piece when one exists; only fall back
+  // to a cornerstone when there is no explicit pillar (deterministic order).
+  const pillarPiece =
+    pieces.find((p) => p.clusterRole === "pillar") ??
+    pieces.find((p) => isPillarRole(p.clusterRole)) ??
+    null;
   const spokes = pieces.filter((p) => p !== pillarPiece);
   const allSpokes = spokes.map(toCard);
 
