@@ -440,6 +440,31 @@ export class LiveConversationDataAccess implements ConversationDataAccess {
       );
     }
   }
+
+  /**
+   * Auto-title the conversation from the operator's first message. The caller
+   * is expected to only call when the current title is null (the turn.ts call
+   * site guards on `conversation.title == null`). Cross-tenant ids match zero
+   * rows (no mutation, no leak).
+   */
+  async setConversationTitle(
+    conversationId: string,
+    title: string,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from("conversations")
+      .update({ title, updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .eq("workspace_id", workspaceId)
+      .eq("client_id", clientId);
+    if (error) {
+      throw new Error(
+        `live-conversation-data-access: setConversationTitle failed for conversation=${conversationId}: ${stringifyErr(error)}`,
+      );
+    }
+  }
 }
 
 // ── Inert factory (built + injectable; gated on service-role creds) ────────────

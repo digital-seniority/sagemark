@@ -141,6 +141,7 @@ function makeConvAccess(seed?: Partial<ConversationRow>): {
       return mine.length === 0 ? 0 : Math.max(...mine.map((t) => t.seq)) + 1;
     },
     setConversationPiece,
+    setConversationTitle: vi.fn(async () => {}),
   };
 
   return { access, conversations, turns, spy: { appendTurn, setConversationPiece } };

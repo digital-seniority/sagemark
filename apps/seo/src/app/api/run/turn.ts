@@ -164,6 +164,14 @@ export async function prepareTurn(args: {
     content: newMessage,
   });
 
+  // Auto-title from the first user message (turnRows was read before the append,
+  // so length === 0 means this IS the first turn). Fire-and-forget: a title write
+  // failure must never abort the run dispatch.
+  if (turnRows.length === 0 && conversation.title == null) {
+    const title = newMessage.trim().substring(0, 80);
+    conversations.setConversationTitle(conversationId, title, workspaceId, clientId).catch(() => {});
+  }
+
   // Compose the worker brief for this turn (pure; deterministic).
   const prompt = composeTurnPrompt({
     newMessage,
