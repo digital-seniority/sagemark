@@ -39,6 +39,7 @@ function conversations(c: ConversationRow): ConversationDataAccess {
     createConversation: async () => "x",
     listConversations: async () => [],
     setConversationPiece: async () => undefined,
+    setConversationTitle: async () => undefined,
   };
 }
 

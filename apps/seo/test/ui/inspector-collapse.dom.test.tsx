@@ -7,9 +7,9 @@
  * artifact gets a wider reading view. These assert, via a REAL DOM render
  * (@testing-library/react) + user clicks:
  *
- *   - DEFAULT is docked-open (full panel, not the rail) when no persisted choice.
- *   - Collapsing replaces the full panel with the narrow rail AND narrows the
- *     inspector grid column (so the `1fr` artifact widens).
+ *   - DEFAULT is collapsed (rail only, no full panel) when no persisted choice.
+ *   - Expanding replaces the rail with the full panel AND widens the inspector
+ *     grid column (so the `1fr` artifact narrows back to normal).
  *   - The toggle is a real <button> whose aria-expanded flips, and the
  *     data-zone="inspector" region survives in both states (the Cmd/Ctrl+3 focus
  *     jump still has a target).
@@ -50,80 +50,83 @@ beforeEach(() => {
 });
 
 describe("SeoStudioCanvas — collapsible Inspector", () => {
-  it("defaults to docked-open: full panel renders, rail does not", () => {
+  it("defaults to collapsed: rail renders, full panel does not", () => {
     render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
 
-    expect(screen.getByTestId("inspector-panel")).toBeInTheDocument();
-    expect(screen.queryByTestId("inspector-rail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("inspector-rail")).toBeInTheDocument();
+    expect(screen.queryByTestId("inspector-panel")).not.toBeInTheDocument();
 
-    // The inspector region is present and not collapsed.
+    // The inspector region is present and collapsed.
     const zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
     expect(zone).toBeInTheDocument();
-    expect(zone).toHaveAttribute("data-collapsed", "false");
-    expect(screen.getByTestId("seo-studio-canvas")).toHaveAttribute(
-      "data-inspector-collapsed",
-      "false",
-    );
-
-    // Open ⇒ the inspector track matches the agent track (not the 48px rail).
-    expect(inspectorTrack()).not.toBe("48px");
-  });
-
-  it("collapses to the narrow rail and widens the artifact (grid column → 48px)", () => {
-    render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
-
-    const collapse = screen.getByTestId("inspector-collapse");
-    expect(collapse).toHaveAttribute("aria-expanded", "true");
-    expect(collapse.tagName).toBe("BUTTON");
-
-    fireEvent.click(collapse);
-
-    // The full panel is replaced by the rail.
-    expect(screen.queryByTestId("inspector-panel")).not.toBeInTheDocument();
-    expect(screen.getByTestId("inspector-rail")).toBeInTheDocument();
-
-    // The grid column narrowed to the rail width (so the 1fr artifact widens).
-    expect(inspectorTrack()).toBe("48px");
-
-    const zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
     expect(zone).toHaveAttribute("data-collapsed", "true");
     expect(screen.getByTestId("seo-studio-canvas")).toHaveAttribute(
       "data-inspector-collapsed",
       "true",
     );
+
+    // Collapsed ⇒ the inspector track is the narrow rail width.
+    expect(inspectorTrack()).toBe("48px");
   });
 
-  it("expands back from the rail to the full panel (toggle + aria-expanded flip)", () => {
+  it("expands from the rail to the full panel (grid column widens)", () => {
     render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
 
-    fireEvent.click(screen.getByTestId("inspector-collapse"));
-
     const rail = screen.getByTestId("inspector-rail");
-    // The whole rail is the expand affordance: a real button, aria-expanded=false.
     expect(rail.tagName).toBe("BUTTON");
     expect(rail).toHaveAttribute("aria-expanded", "false");
     expect(rail).toHaveAttribute("aria-label", expect.stringMatching(/expand inspector/i));
 
     fireEvent.click(rail);
 
+    // The rail is replaced by the full panel.
     expect(screen.getByTestId("inspector-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("inspector-rail")).not.toBeInTheDocument();
-    expect(screen.getByTestId("inspector-collapse")).toHaveAttribute("aria-expanded", "true");
+
+    // The grid column widened (so the 1fr artifact is at its normal width).
     expect(inspectorTrack()).not.toBe("48px");
+
+    const zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
+    expect(zone).toHaveAttribute("data-collapsed", "false");
+    expect(screen.getByTestId("seo-studio-canvas")).toHaveAttribute(
+      "data-inspector-collapsed",
+      "false",
+    );
+  });
+
+  it("collapses back to the narrow rail (toggle + aria-expanded flip)", () => {
+    render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
+
+    // Expand first.
+    fireEvent.click(screen.getByTestId("inspector-rail"));
+
+    const collapse = screen.getByTestId("inspector-collapse");
+    expect(collapse.tagName).toBe("BUTTON");
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(collapse);
+
+    // The full panel is replaced by the rail again.
+    expect(screen.queryByTestId("inspector-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("inspector-rail")).toBeInTheDocument();
+    expect(inspectorTrack()).toBe("48px");
+
+    const zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
+    expect(zone).toHaveAttribute("data-collapsed", "true");
   });
 
   it("keeps the data-zone=inspector region (Cmd/Ctrl+3 focus target) in BOTH states", () => {
     render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
 
-    // Expanded: region present + focusable.
+    // Collapsed: region present + focusable.
     let zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
     expect(zone).toBeInTheDocument();
     expect(zone).toHaveAttribute("tabindex", "-1");
     expect(zone).toHaveAttribute("aria-keyshortcuts", "Control+3 Meta+3");
 
-    fireEvent.click(screen.getByTestId("inspector-collapse"));
+    fireEvent.click(screen.getByTestId("inspector-rail"));
 
-    // Collapsed: the SAME region (and its focus target) survives.
+    // Expanded: the SAME region (and its focus target) survives.
     zone = document.querySelector('[data-zone="inspector"]') as HTMLElement;
     expect(zone).toBeInTheDocument();
     expect(zone).toHaveAttribute("tabindex", "-1");
@@ -139,8 +142,7 @@ describe("SeoStudioCanvas — collapsible Inspector", () => {
     ]);
     render(<SeoStudioCanvas injectedState={state} />);
 
-    fireEvent.click(screen.getByTestId("inspector-collapse"));
-
+    // Inspector starts collapsed — rail badge is immediately visible.
     const badge = screen.getByTestId("rail-verdict-badge");
     expect(badge).toHaveAttribute("data-verdict", "PUBLISH");
     // The check glyph marks publish-eligible (derived from state.scorecard, no recompute).
@@ -149,8 +151,8 @@ describe("SeoStudioCanvas — collapsible Inspector", () => {
 
   it("rail badge stays PENDING (no check) before any gate event", () => {
     render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
-    fireEvent.click(screen.getByTestId("inspector-collapse"));
 
+    // Inspector starts collapsed — rail badge is immediately visible.
     const badge = screen.getByTestId("rail-verdict-badge");
     expect(badge).toHaveAttribute("data-verdict", "PENDING");
     expect(badge.textContent).not.toContain("✓");
@@ -158,13 +160,15 @@ describe("SeoStudioCanvas — collapsible Inspector", () => {
 
   it("persists the collapsed choice to localStorage", () => {
     render(<SeoStudioCanvas injectedState={INITIAL_STREAM_STATE} />);
-    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBe("true");
 
-    fireEvent.click(screen.getByTestId("inspector-collapse"));
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("true");
+    // Starts collapsed; no explicit localStorage entry set to "false" yet.
+    expect(window.localStorage.getItem(STORAGE_KEY)).not.toBe("false");
 
-    fireEvent.click(screen.getByTestId("inspector-rail"));
+    fireEvent.click(screen.getByTestId("inspector-rail")); // expand
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("false");
+
+    fireEvent.click(screen.getByTestId("inspector-collapse")); // collapse
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("true");
   });
 
   it("reads a persisted collapsed=true preference on mount", () => {

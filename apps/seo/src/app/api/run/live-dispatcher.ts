@@ -395,7 +395,11 @@ export interface LiveDispatcherDeps {
   /** Provision + boot-gate the VM (default: PR 006 `launchSandbox`). */
   launchSandboxImpl?: (profile: LaunchProfile) => Promise<LaunchResult>;
   /** Start the worker process in the VM + return its log source. */
-  startWorker?: (sandbox: LaunchResult["sandbox"], prompt: string) => Promise<StartedWorker>;
+  startWorker?: (
+    sandbox: LaunchResult["sandbox"],
+    prompt: string,
+    baseEnv: Record<string, string>,
+  ) => Promise<StartedWorker>;
   /** Resolve the host base URL (default: env precedence above). */
   resolveHostBaseUrl?: () => string;
   /** The FS-jail workdir (default `/home/worker/run`). */
@@ -408,8 +412,12 @@ export interface LiveDispatcherDeps {
  * Start the worker loop inside the provisioned VM. `launchSandbox` only PROVISIONS
  * the hardened VM; the loop is NOT spawned by it. We start it the same way the
  * Dockerfile ENTRYPOINT does (`node dist/worker/entry.js`), passing the run's brief
- * via the `WORKER_PROMPT` per-command env override (the worker entry reads it; the
- * scrubbed base env from `buildWorkerEnv` deliberately does not carry the prompt).
+ * via `WORKER_PROMPT`. We re-spread the scrubbed base env (`launch.env`, from
+ * `buildWorkerEnv`) onto the per-command env because the `@vercel/sandbox` SDK treats
+ * a per-command `env` as an OVERRIDE of the sandbox defaults, not a merge — so passing
+ * `{ WORKER_PROMPT }` alone would starve the entry process of `ANTHROPIC_BASE_URL`,
+ * `SEO_HOST_BASE_URL`, `RUN_ID`, etc. and `readWorkerEnv()` would throw before the loop.
+ * Spreading is safe under both readings (a no-op if the SDK actually merges).
  * Detached, so we stream its logs while it runs.
  *
  * `cwd` is set explicitly so `process.cwd()` inside the worker resolves to
@@ -420,13 +428,14 @@ export interface LiveDispatcherDeps {
 async function startWorkerInSandbox(
   sandbox: LaunchResult["sandbox"],
   prompt: string,
+  baseEnv: Record<string, string>,
 ): Promise<StartedWorker> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cmd = await (sandbox as any).runCommand({
     cmd: "node",
     args: [WORKER_ENTRY],
     cwd: "/home/worker/app",
-    env: { WORKER_PROMPT: prompt },
+    env: { ...baseEnv, WORKER_PROMPT: prompt },
     detached: true,
   });
   return {
@@ -610,7 +619,7 @@ export function createLiveDispatcher(deps: LiveDispatcherDeps = {}): WorkerDispa
 
     let worker: StartedWorker;
     try {
-      worker = await startWorker(launch.sandbox, dispatch.prompt);
+      worker = await startWorker(launch.sandbox, dispatch.prompt, launch.env);
     } catch (err) {
       await (launch.sandbox as SandboxHandle).stop?.().catch(() => undefined);
       return withEnvelope(

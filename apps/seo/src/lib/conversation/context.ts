@@ -115,8 +115,8 @@ export interface AppendTurnInput {
  * The mockable conversation data-access interface the chat-front-door route layer
  * uses. Every method is TENANCY-SCOPED by the BOUND `(workspaceId, clientId)`: a
  * cross-tenant conversation/turn id resolves to null / empty (no leak). READ
- * methods never mutate; the three writes (`createConversation`, `appendTurn`,
- * `setConversationPiece`) are the only mutation paths.
+ * methods never mutate; the four writes (`createConversation`, `appendTurn`,
+ * `setConversationPiece`, `setConversationTitle`) are the only mutation paths.
  */
 export interface ConversationDataAccess {
   /**
@@ -190,6 +190,20 @@ export interface ConversationDataAccess {
     workspaceId: string,
     clientId: string,
   ): Promise<void>;
+
+  /**
+   * Set the conversation title (auto-titled from the operator's first message so
+   * the list does not show all "Untitled piece"). IDEMPOTENT: only writes when
+   * the current title is null — a second call after the title is set is a no-op
+   * (the WHERE `title IS NULL` matches zero rows). Scoped by the BOUND
+   * (id, workspaceId, clientId) — a cross-tenant id updates ZERO rows.
+   */
+  setConversationTitle(
+    conversationId: string,
+    title: string,
+    workspaceId: string,
+    clientId: string,
+  ): Promise<void>;
 }
 
 // ── Production default: fail-closed "not wired" stub ───────────────────────────
@@ -259,5 +273,8 @@ export const NOT_WIRED_CONVERSATION_ACCESS: ConversationDataAccess = {
   },
   setConversationPiece: () => {
     throw new ConversationAccessNotWiredError("setConversationPiece");
+  },
+  setConversationTitle: () => {
+    throw new ConversationAccessNotWiredError("setConversationTitle");
   },
 };
