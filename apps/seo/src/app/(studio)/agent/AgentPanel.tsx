@@ -89,13 +89,13 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
     const el = scrollRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (nearBottom) el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
   }, [feed]);
 
   // Always snap to bottom when a new run starts so RunWarmup is in view.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && chat?.inFlight) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (el && chat?.inFlight) el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
   }, [chat?.inFlight]);
 
   // First-run: a chat-driven canvas whose transcript is KNOWN-empty (a server-passed
