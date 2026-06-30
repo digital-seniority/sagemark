@@ -23,6 +23,7 @@
  * Colour from `currentColor` + opacity (no hardcoded palette). Clean ASCII / UTF-8.
  */
 
+import { useRef, useEffect } from "react";
 import type {
   AgentFeedItem,
   StreamPhase,
@@ -79,6 +80,24 @@ const PHASE_LABEL: Record<StreamPhase, string> = {
 const SUBTLE: React.CSSProperties = { opacity: 0.6, fontSize: 13 };
 
 export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the thread to the bottom as new feed items arrive so the
+  // operator never misses streaming output. Only snaps if already near bottom
+  // (within 150px) to avoid interrupting intentional scroll-up for review.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (nearBottom) el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
+  }, [feed]);
+
+  // Always snap to bottom when a new run starts so RunWarmup is in view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && chat?.inFlight) el.scrollTo?.({ top: el.scrollHeight, behavior: "smooth" });
+  }, [chat?.inFlight]);
+
   // First-run: a chat-driven canvas whose transcript is KNOWN-empty (a server-passed
   // empty array, not the undefined fetch-on-mount case) AND no live feed yet -> show
   // the warm guidance instead of the bare empty strings. When initialTranscript is
@@ -118,7 +137,7 @@ export function AgentPanel({ phase, feed, error, chat = null }: AgentPanelProps)
 
       {/* The scrollable thread: prior turns (transcript) then the live turn (feed),
           or the first-run welcome when the conversation is brand new. */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
         {showWelcome && chat ? (
           <StudioWelcome onPick={chat.onSend} />
         ) : (

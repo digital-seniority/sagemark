@@ -98,20 +98,41 @@ export function ToolUseRow({ item }: ToolUseRowProps) {
         animation: "studio-fade-up 0.35s ease both",
       }}
     >
-      <span
-        aria-hidden="true"
-        style={{
-          display: "inline-block",
-          width: 14,
-          textAlign: "center",
-          opacity: running ? 0.6 : 1,
-          // The running glyph gets a gentle pulse; CSS keyframe is defined in
-          // globals.css (`@keyframes studio-pulse`) so we avoid inline animation.
-          animation: running ? "studio-pulse 1.2s ease-in-out infinite" : undefined,
-        }}
-      >
-        {glyph}
-      </span>
+      {running ? (
+        <span
+          aria-hidden="true"
+          style={{
+            display: "inline-flex",
+            width: 14,
+            alignItems: "center",
+            gap: 2,
+            color: "var(--accent-blue)",
+          }}
+        >
+          {(["0s", "0.15s", "0.3s"] as const).map((delay, i) => (
+            <span
+              key={i}
+              data-dot-bounce=""
+              style={{
+                display: "inline-block",
+                fontSize: 14,
+                lineHeight: 1,
+                fontWeight: 700,
+                animation: `studio-dot-bounce 0.9s ease-in-out infinite ${delay}`,
+              }}
+            >
+              ·
+            </span>
+          ))}
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          style={{ display: "inline-block", width: 14, textAlign: "center" }}
+        >
+          {glyph}
+        </span>
+      )}
       <span style={{ flex: 1 }}>{phrase}</span>
       {item.label && (
         <span
