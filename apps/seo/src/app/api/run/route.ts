@@ -355,12 +355,16 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
     if (dispatchWorkerMode === "standalone-strategy") {
       let strategyPrompt =
         `The operator requests: ${prompt}\n\n` +
-        `Follow your system prompt instructions to produce a complete ContentStrategy ` +
-        `for this client. When all sections are filled (objective/audience/market, ` +
-        `topic-cluster map, competitive-gap analysis, E-E-A-T/authorship plan, ` +
-        `GEO/AEO + schema plan, conversion architecture, prioritized content roadmap), ` +
-        `call the \`persistStrategy\` tool ONCE with the full strategy as a JSON object. ` +
-        `Do not write article drafts. Do not use persistPiece.`;
+        `If you need clarifying information before you can produce a genuine strategy, ` +
+        `ask your questions as TEXT OUTPUT now. Do NOT call persistStrategy with ` +
+        `placeholder, partial, or Q&A text — only call it once you have enough ` +
+        `information to fill every field with real, client-specific content.\n\n` +
+        `When you have all the information needed, follow your system prompt instructions ` +
+        `to produce a complete ContentStrategy for this client. When all sections are ` +
+        `filled (objective/audience/market, topic-cluster map, competitive-gap analysis, ` +
+        `E-E-A-T/authorship plan, GEO/AEO + schema plan, conversion architecture, ` +
+        `prioritized content roadmap), call the \`persistStrategy\` tool ONCE with the ` +
+        `full strategy as a JSON object. Do not write article drafts. Do not use persistPiece.`;
       if (turn.projectContextNote) {
         strategyPrompt += `\n\n=== CLIENT & PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END CONTEXT ===`;
       }

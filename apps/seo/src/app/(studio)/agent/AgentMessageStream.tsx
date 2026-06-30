@@ -34,6 +34,12 @@ export interface AgentMessageStreamProps {
 }
 
 export function AgentMessageStream({ feed, phase = "idle", inFlight = false }: AgentMessageStreamProps) {
+  const streaming = phase === "streaming" || inFlight;
+  // The last narration item is the one actively receiving tokens — it gets the cursor.
+  const lastNarrationId = feed.reduce<number | null>(
+    (last, item) => (item.kind === "narration" ? item.id : last),
+    null,
+  );
   if (feed.length === 0) {
     // A run is live but no events have arrived yet (sandbox boot) — show the
     // lifecycle warmup instead of a dead box. Gate on inFlight (request-open)
@@ -92,16 +98,37 @@ export function AgentMessageStream({ feed, phase = "idle", inFlight = false }: A
           ) : item.kind === "narration" ? (
             <p
               data-testid="agent-narration"
+              data-anim="fade-up"
               style={{
                 margin: 0,
                 fontSize: 13,
                 lineHeight: 1.55,
                 color: "currentColor",
-                opacity: 0.65,
+                opacity: 0.85,
                 whiteSpace: "pre-wrap",
+                animation: "studio-fade-up 0.35s ease both",
+                borderLeft: `2px solid ${streaming && item.id === lastNarrationId ? "var(--accent-blue)" : "transparent"}`,
+                paddingLeft: 8,
+                transition: "border-color 0.4s ease",
               }}
             >
               {item.text}
+              {streaming && item.id === lastNarrationId && (
+                <span
+                  data-testid="stream-caret"
+                  aria-hidden="true"
+                  style={{
+                    display: "inline-block",
+                    width: 2,
+                    height: "1em",
+                    verticalAlign: "text-bottom",
+                    marginLeft: 2,
+                    borderRadius: 1,
+                    background: "var(--accent-blue)",
+                    animation: "studio-blink 1s step-end infinite",
+                  }}
+                />
+              )}
             </p>
           ) : (
             <ToolUseRow item={item} />

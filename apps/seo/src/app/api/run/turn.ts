@@ -305,6 +305,13 @@ export interface AgentTurnRecorderDeps {
   conversations: ConversationDataAccess;
   data: ContentDataAccess;
   /**
+   * The agent's accumulated text output during the run (token-delta narration).
+   * Used as the agent turn `content` when no piece was produced (e.g. clarifying
+   * questions) so the transcript shows the agent's actual response in the left
+   * panel rather than the generic "Draft updated." placeholder.
+   */
+  narration?: string;
+  /**
    * OPTIONAL observer of the fire-and-forget agent-turn write (tests await it for
    * determinism). Receives the in-flight recording promise the instant it starts.
    * Production leaves it unset — the write stays fire-and-forget, never blocking the
@@ -330,13 +337,18 @@ export function wrapSourceRecordingAgentTurn(
   deps: AgentTurnRecorderDeps,
 ): AsyncIterable<SseEvent> {
   let recorded = false;
+  // Accumulate the agent's text output so it can be recorded as the turn content
+  // when no piece is produced (e.g. the agent asks clarifying questions).
+  let narrationBuffer = "";
+
   // Record at most once. `succeeded` controls WHETHER a draft was produced.
   const recordOnce = (succeeded: boolean): void => {
     if (recorded) return;
     recorded = true;
     if (!succeeded) return; // a failed run records no agent turn
+    const narration = narrationBuffer.trim() || undefined;
     // Fire-and-forget — never block the stream, never surface a bookkeeping error.
-    const settled = recordAgentTurn(deps).catch(() => undefined);
+    const settled = recordAgentTurn({ ...deps, narration }).catch(() => undefined);
     deps.onRecording?.(settled);
   };
 
@@ -347,6 +359,10 @@ export function wrapSourceRecordingAgentTurn(
       // after the terminal one. So any recording MUST happen BEFORE we yield a
       // terminal frame, not after (code after `yield <terminal>` would never run).
       for await (const event of source) {
+        // Accumulate the agent's text output (narration) from token-delta events.
+        if (event.type === "token-delta") {
+          narrationBuffer += event.delta;
+        }
         if (event.type === "error") {
           // Terminal failure — record nothing (no draft produced), then forward.
           recordOnce(false);
@@ -384,7 +400,7 @@ export function wrapSourceRecordingAgentTurn(
  * Tenancy: every read/write is scoped by the bound (workspaceId, clientId).
  */
 export async function recordAgentTurn(deps: AgentTurnRecorderDeps): Promise<void> {
-  const { conversationId, runId, bound, conversation, conversations, data } = deps;
+  const { conversationId, runId, bound, conversation, conversations, data, narration } = deps;
   const { workspaceId, clientId } = bound;
 
   // Re-load the conversation so we read the CURRENT `pieceId` (the worker may have
@@ -417,6 +433,11 @@ export async function recordAgentTurn(deps: AgentTurnRecorderDeps): Promise<void
       verdict = latest?.verdict ?? piece.verdict;
       summary = summarizeAgentTurn(piece.title, pieceVersion, verdict);
     }
+  } else if (narration && narration.trim().length > 0) {
+    // No piece was produced — use the agent's actual text output as the turn
+    // content so clarifying questions / informational responses appear in the
+    // conversation transcript (left panel) rather than being silently discarded.
+    summary = narration.trim();
   }
 
   const seq = await conversations.nextSeq(conversationId, workspaceId, clientId);
