@@ -177,6 +177,9 @@ export async function buildWorkerToolServer(opts: {
       funnelStage: z
         .enum(["awareness", "consideration", "decision", "retention"])
         .optional(),
+      faqData: z
+        .array(z.object({ question: z.string(), answer: z.string() }))
+        .optional(),
     },
     async (args: Record<string, unknown>) => {
       const result = await opts.bridge.persistPiece(args as any);
@@ -401,14 +404,95 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
     const mode = workerEnv.workerMode ?? "single-drafter";
     let systemPrompt: string | undefined;
     if (mode === "standalone-strategy") {
-      // Run 1: parent methodology + seo-strategist sub-skill (DR-022 standalone path).
-      const parentMd = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      // Run 1: seo-strategist sub-skill + kernel addendum.
+      // The parent seo-copywriter SKILL.md is intentionally NOT included here — it
+      // describes the standalone static-site workflow (HTML files, Vercel deploy, etc.)
+      // which is incorrect context for the in-app kernel mode. The strategist SKILL.md
+      // alone drives the ContentStrategy; the kernel addendum re-interprets step 8.
       const strategistSkill = suite.skills.find((s) => s.name === "seo-strategist");
-      const parts = [parentMd, strategistSkill?.markdown].filter(Boolean) as string[];
+      const kernelAddendum = `## Kernel context — how to persist the strategy
+
+You are running inside the SEO Creator web app, not the standalone CLI. In this
+context, **"surface the ContentStrategy for operator approval" (step 8 of your
+operating procedure) means calling the \`persistStrategy\` tool** — NOT printing
+it as text. A text response alone is not persisted to the database and will be
+lost; only \`persistStrategy\` records the strategy.
+
+Once you have completed the full ContentStrategy (all sections: objective /
+audience / market, topic-cluster map, competitive-gap analysis, E-E-A-T /
+authorship plan, GEO/AEO + schema plan, conversion architecture, and prioritized
+content roadmap), call \`persistStrategy\` **once** with a \`strategy\` object
+containing the full artifact as a JSON-serialisable object. The host will save it
+and set the project status to \`proposed\`, awaiting operator approval. Do not
+call it until the strategy is complete and all sections are filled.`;
+      const parts = [strategistSkill?.markdown, kernelAddendum].filter(Boolean) as string[];
       systemPrompt = parts.join("\n\n---\n\n");
     } else if (mode === "standalone-author") {
-      // Runs 2+: parent methodology only — the strategy + brand context comes via the brief.
-      systemPrompt = loadParentSkillMarkdown({ kernelBaseUrl: workerEnv.hostBaseUrl });
+      // Runs 2+: self-contained hub-writer prompt — NO seo-blog-writer SKILL.md.
+      //
+      // The seo-blog-writer SKILL.md describes the kernel workflow where the "draft
+      // route" persists automatically after the model generates. In the kernel context
+      // there is no implicit persistence — the model must call `persistPiece` explicitly.
+      // Using the SKILL.md causes the model to follow the kernel flow (call requestImages,
+      // return article as text) without calling persistPiece, so nothing is saved.
+      //
+      // A self-contained prompt mirrors the pattern used for standalone-strategy:
+      // explicitly say "NOT printing as text — only persistPiece records the article."
+      systemPrompt = `# SEO Hub Article Writer — Kernel Mode
+
+You are authoring **one article** for a branded content hub. The turn prompt gives
+you the full page assignment: title, slug, clusterRole, funnelStage, target keyword,
+and projectId. The approved ContentStrategy and project context are also in the prompt.
+
+## Operating procedure
+
+**Step 1 (optional) — request a hero image.** Call \`requestImages\` once with:
+- \`query\`: a descriptive Pexels image search suited to the page topic
+- \`slug\`: the exact slug from the assignment
+
+**Step 2 — write the article body (1500–2500 words) in Markdown using these authoring
+conventions.** They render into a polished, branded template — never write raw HTML or
+invent any design:
+- Do NOT include the H1 title in the body — the page renders the title itself.
+- Open with a quick-answer box: a line \`:::quick-answer\`, then a 2–3 sentence direct
+  answer to the core question (bold the load-bearing terms with **…**), then a line
+  \`:::\`. AI answer engines lift this passage.
+- Use \`## \` headings for each major section (they become the on-page table of contents).
+- For ANY comparison, use a GitHub-style Markdown table (\`| Col A | Col B |\`, then
+  \`| --- | --- |\`, then the data rows).
+- Use callouts for asides — a line \`:::tip\` (advice), \`:::warn\` (caution), or
+  \`:::note\` (context/stat), the content, then \`:::\`. Put the YMYL disclaimer in a
+  \`:::note\` near the end.
+- End the body with a key-takeaways box: a line \`:::takeaways\`, a bulleted list of 4–6
+  takeaways, then \`:::\`.
+- Every statistic traces to a **named, citable source** (e.g. "The Alzheimer's
+  Association reports that..."); unsourced figures are omitted, never fabricated.
+- One \`[photo:slug]\` placeholder in the body where an image would best appear.
+- Do NOT write an FAQ section in the body — pass the 5–7 Q&A pairs in \`faqData\` instead
+  (self-contained answers — no "see above"); they render as an accordion + FAQPage schema.
+
+**Step 3 (required) — persist the article by calling \`persistPiece\` exactly once:**
+- \`title\`: exact title from the assignment
+- \`slug\`: exact slug from the assignment
+- \`body\`: the complete article in **Markdown** (NOT HTML, NOT plain text)
+- \`excerpt\`: 1–2 sentence summary for cards and meta
+- \`metaDescription\`: 150–160 characters for search results
+- \`clusterRole\`: exact value from the assignment (pillar / cornerstone / spoke / faq / checklist)
+- \`funnelStage\`: exact value from the assignment
+- \`projectId\`: exact value from the assignment
+- \`faqData\`: array of \`{ question, answer }\` objects from the FAQ block
+
+**CRITICAL: \`persistPiece\` is the ONLY delivery mechanism. Do NOT return the article
+as text output — a text response is NOT saved to the database. The article is only
+recorded when you call \`persistPiece\` with the body as a parameter. One
+\`persistPiece\` call ends the run.**
+
+## What NOT to do
+
+- Do NOT write HTML, CSS, or JS files
+- Do NOT call \`persistStrategy\`
+- Do NOT revise an existing draft — this is always a NEW article
+- Do NOT skip \`persistPiece\` — text output without the tool call saves nothing`;
     } else {
       // Default single-drafter: seo-blog-writer SKILL.md (back-compat, PR 008/014).
       const writerSkill = suite.skills.find((s) => s.name === "seo-blog-writer");
@@ -468,9 +552,24 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       },
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let sdkResult: any = null;
+    let msgCount = 0;
     for await (const message of iterator) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const msg = message as any;
+      // Capture SDK result messages (the CLI's final status frame).
+      if (msg?.type === "result") sdkResult = msg;
+
+      // Diagnostic: emit the raw SDK message shape (type, subtype, keys) so we can
+      // see what the SDK is actually yielding — remove once the format is confirmed.
+      msgCount++;
+      process.stdout.write(
+        `::worker-diag:: msg#${msgCount} type=${String(msg?.type ?? "?")} subtype=${String(msg?.subtype ?? "?")} keys=${Object.keys(msg ?? {}).join(",")}\n`,
+      );
+
       // Capture the SDK session id as soon as it appears (resume key, acceptance #1).
-      const candidate = (message as any)?.session_id ?? (message as any)?.sessionId;
+      const candidate = msg?.session_id ?? msg?.sessionId;
       if (candidate && !sessionId) {
         sessionId = String(candidate);
         await opts.onSessionId?.(sessionId);
@@ -492,6 +591,21 @@ export async function runAgentLoop(opts: RunLoopOptions): Promise<RunLoopResult>
       }
     }
 
+    // Surface CLI errors from the SDK result message so they reach the SSE stream
+    // instead of silently becoming a bare `done` event (the for-await loop completes
+    // normally even when the CLI exits with an API error).
+    if (sdkResult && sdkResult.subtype !== "success") {
+      throw new Error(
+        `SDK run ended with non-success result: subtype=${String(sdkResult.subtype ?? "unknown")}, ` +
+          `error=${String(sdkResult.error ?? sdkResult.message ?? "none")}`,
+      );
+    }
+    if (!sdkResult) {
+      throw new Error(
+        `CLI subprocess produced no result message — mode=${mode}, HOME=${sdkEnv.HOME ?? "unset"}, ` +
+          `execPath=${process.execPath}, ANTHROPIC_BASE_URL=${workerEnv.gatewayBaseUrl}`,
+      );
+    }
     return { status: "completed", sessionId, terminalError: null };
   };
 

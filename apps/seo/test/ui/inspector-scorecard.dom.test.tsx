@@ -94,9 +94,16 @@ describe("InspectorPanel — gate scorecard from the gate SSE event", () => {
   });
 
   it("labels the Stage-B dimension bars as a zero-credit client preview", () => {
-    const state = project([
-      { type: "token-delta", seq: 1, runId: RUN, delta: "# Heading\n\n" + "word ".repeat(120) },
-    ]);
+    // Body only arrives via snapshot (reconcile after persistPiece).
+    // Populate state.body via a snapshot event to simulate a completed run.
+    const articleBody = "# Heading\n\n" + "word ".repeat(120);
+    const state = reduceUiMessageStream(INITIAL_STREAM_STATE, {
+      type: "snapshot",
+      seq: 5,
+      runId: RUN,
+      piece: { pieceId: "p1", slug: "heading", title: "Heading", body: articleBody, status: "draft" },
+      scorecard: null,
+    });
     render(<InspectorPanel state={state} keyword="word" />);
     expect(screen.getByTestId("stage-b-preview-label")).toHaveTextContent(/live preview/i);
     expect(screen.getByTestId("inspector-source-note")).toHaveTextContent(/authoritative server gate/i);

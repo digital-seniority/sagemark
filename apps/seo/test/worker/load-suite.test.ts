@@ -106,6 +106,7 @@ describe("agent-worker — drives the draft route + uses the profile allowlist",
       capturedOptions = args.options;
       return (async function* () {
         yield { session_id: "sess-1" };
+        yield { type: "result", subtype: "success", result: "" };
       })();
     };
 

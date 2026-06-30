@@ -1,33 +1,27 @@
 /**
- * Generated resource-library homepage (PR 017 / P1.R.3, lane render-geo).
+ * Generated resource-library homepage (PR 017 / P1.R.3, lane render-geo) —
+ * rebuilt to demo-parity (lane render-geo / hub-visual).
  *
  *   /clients/[client]
  *
- * THE NET-NEW HOMEPAGE TEMPLATE. Renders a client's resource-library hub as a
- * Server Component so the full page ships in the INITIAL HTML (the SEO/GEO
- * requirement — crawlers + answer engines read server HTML). It is fed by the
- * FIRST-CLASS `cluster_role` / `funnel_stage` columns (D7), grouped into:
- *   - a HERO (license-gated image; degrades to no image when unprovenanced),
- *   - a STATISTIC callout,
- *   - a named THREE-STAGE cluster section (awareness / consideration / decision),
- *   - a GUIDE-CARD grid (every spoke; each card links to its piece),
- *   - a QUALITY section,
- *   - a TOUR CTA + a LICENSE BADGE (DR-033: hero provenance is surfaced).
+ * Renders a client's resource-library hub as a Server Component (full page in the
+ * INITIAL HTML — the SEO/GEO requirement). The layout mirrors the bundled
+ * reference demo (`examples/whispering-willows-demo`): a 2-column hero with a stat
+ * badge, a strategy "steps" section, a stage-grouped grid of image cards, a dark
+ * quality section, and a CTA band — driven by the first-class
+ * `cluster_role`/`funnel_stage` columns plus the client's `brand_spec.hub`
+ * presentation layer. Every `data-role` hook the SSR contract tests pin is
+ * preserved.
  *
- * Fail-closed (mirrors the blog route, DR-026):
- *   - `[client]` resolves a tenant by its public `blog_slug` — never a UUID from
- *     the URL; every read is scoped by the resolved client id (no cross-client).
- *   - Only PUBLISHED pieces are listed (the seam filters; the DB anon RLS policy
- *     is the authoritative second gate).
- *   - The HERO image is rendered ONLY when its persisted asset carries a non-null
- *     `license` (DR-033 render gate) — an unprovenanced asset is never surfaced.
- *   - No `[photo:]`/`[cta:]` token leaks (escape-first body render reused).
- *
- * Dynamic: reads per-request from the public data seam → `force-dynamic`.
+ * Fail-closed (mirrors the blog route, DR-026): `[client]` resolves a tenant by
+ * its public `blog_slug` (never a UUID); only PUBLISHED pieces are listed; the
+ * HERO image renders only when its persisted asset carries a non-null license
+ * (DR-033); no `[photo:]`/`[cta:]` token leaks (excerpts only, escape-first body).
  */
 
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import type { HubPresentation } from "@sagemark/schema-flywheel";
 
 import {
   NOT_WIRED_PUBLIC_DATA_ACCESS,
@@ -36,12 +30,13 @@ import {
   type PublishedPiece,
   type ReferencedHeroAsset,
 } from "@/lib/content/context";
-import { buildClusterMap, type ClusterMap } from "@/lib/render/hub-homepage";
+import { buildClusterMap, type ClusterMap, type SpokeCard } from "@/lib/render/hub-homepage";
 import { resolveHeroAsset } from "@/lib/tools/hero-image";
 import { resolvePublicContentDataAccess } from "@/lib/content/resolve-public-data-access";
 import { buildBrandStyleTag, parseBrandSpec } from "@/lib/render/brand-theme";
+import { HUB_STYLESHEET } from "@/lib/render/hub-stylesheet";
 import { buildOrgJsonLd } from "@/lib/render/build-org-jsonld";
-import { Topbar } from "./_hub/Topbar";
+import { Topbar, type HubNavLink } from "./_hub/Topbar";
 import { Footer } from "./_hub/Footer";
 import { HubScripts } from "./_hub/HubScripts";
 
@@ -64,11 +59,29 @@ export interface ResolvedHome {
   hero: ReferencedHeroAsset | null;
 }
 
+/** The generic quality pillars used when a client has not seeded its own. */
+const DEFAULT_QUALITY_PILLARS = [
+  {
+    k: "Source-grounded",
+    title: "No invented statistics",
+    body: "Every figure traces to a named authority and is cited on the page.",
+  },
+  {
+    k: "Built for AI answers",
+    title: "Self-contained and structured",
+    body: "Clear headings, comparison tables, and FAQ schema let answer engines lift a clean, quotable passage.",
+  },
+  {
+    k: "E-E-A-T ready",
+    title: "A named, accountable byline",
+    body: "Health content needs a credentialed human behind it — each page carries a reviewer byline.",
+  },
+];
+
 /**
  * Resolve the homepage data fail-closed. Returns null when the client slug is
  * unknown (the caller 404s). Heroes are resolved via the READ path
- * (`resolveHeroAsset`) — never generated inline (F8): the SSR render uses
- * already-persisted, license-gated assets only.
+ * (`resolveHeroAsset`) — never generated inline (F8).
  */
 export async function resolveHome(
   clientSlug: string,
@@ -78,14 +91,9 @@ export async function resolveHome(
   if (!client) return null;
 
   const pieces = await deps.data.listPublishedPieces(client.id);
-  // Defense-in-depth: never surface a piece whose clientId disagrees.
   const scoped = pieces.filter((p) => p.clientId === client.id);
   const cluster = buildClusterMap(scoped);
 
-  // Resolve the FIRST hero reference (the homepage hero slot) from PERSISTED,
-  // license-gated assets. Generation is out-of-band (ensureHeroAsset job); SSR
-  // never blocks on it. When the seam can't resolve heroes (optional method
-  // absent) OR the asset is unlicensed/unresolved → null (degrade, no image).
   let hero: ReferencedHeroAsset | null = null;
   const firstHeroSlug = cluster.heroSlugs[0];
   if (firstHeroSlug && deps.data.resolveHeroAssets) {
@@ -105,7 +113,8 @@ export async function generateMetadata({
   params: Promise<{ client: string }>;
 }): Promise<Metadata> {
   const { client: clientSlug } = await params;
-  const resolved = await resolveHome(clientSlug);
+  const data = await resolvePublicContentDataAccess();
+  const resolved = await resolveHome(clientSlug, { data });
   if (!resolved) return { title: "Not found" };
   return {
     title: `${resolved.client.name} — Resource Library`,
@@ -113,25 +122,77 @@ export async function generateMetadata({
   };
 }
 
-/** A single guide card (a spoke linking to its piece). */
+// ── Presentation helpers ───────────────────────────────────────────────────────
+
+function shortLabel(title: string): string {
+  return title.length > 24 ? `${title.slice(0, 22).trimEnd()}…` : title;
+}
+
+/** A short tag pill for a card, from a per-slug override or its cluster role/stage. */
+function cardTag(card: SpokeCard, hub?: HubPresentation): string {
+  const override = hub?.cardTags?.[card.slug];
+  if (override) return override;
+  if (card.clusterRole === "pillar" || card.clusterRole === "cornerstone") return "Cornerstone";
+  if (card.clusterRole === "faq") return "Questions";
+  if (card.clusterRole === "checklist") return "Free · printable";
+  switch (card.funnelStage) {
+    case "awareness":
+      return "Understanding the basics";
+    case "consideration":
+      return "Comparing options";
+    case "decision":
+      return "Making the decision";
+    default:
+      return "Guide";
+  }
+}
+
+/** Resolve a card image: per-slug override, else cycle the pool, else null. */
+function pickImage(slug: string, idx: number, hub?: HubPresentation): string | null {
+  if (hub?.cardImages?.[slug]) return hub.cardImages[slug]!;
+  const pool = hub?.imagePool ?? [];
+  if (!pool.length) return null;
+  return pool[((idx % pool.length) + pool.length) % pool.length]!;
+}
+
+/** The "Read the X" verb for a card by role. */
+function moreLabel(role: string): string {
+  if (role === "faq") return "Read the answers";
+  if (role === "checklist") return "Open & print";
+  return "Read the guide";
+}
+
+/** A single guide card (demo `.card` — image + tag + title + excerpt + more). */
 function GuideCard({
-  clientSlug,
-  slug,
+  href,
   title,
   excerpt,
+  tag,
+  image,
+  more,
 }: {
-  clientSlug: string;
-  slug: string;
+  href: string;
   title: string;
   excerpt: string | null;
+  tag: string;
+  image: string | null;
+  more: string;
 }) {
   return (
-    <li data-role="guide-card">
-      <a href={`/clients/${clientSlug}/blog/${slug}`} data-role="spoke-link">
+    <a className="card" href={href} data-role="guide-card">
+      {image ? (
+        <div className="ph">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt="" loading="lazy" />
+        </div>
+      ) : null}
+      <div className="body">
+        <span className="tag">{tag}</span>
         <h3>{title}</h3>
         {excerpt ? <p>{excerpt}</p> : null}
-      </a>
-    </li>
+        <span className="more">{more} →</span>
+      </div>
+    </a>
   );
 }
 
@@ -150,122 +211,306 @@ export async function renderHomePage(
   const { client, cluster, hero } = resolved;
   const totalGuides = cluster.allSpokes.length + (cluster.pillar ? 1 : 0);
 
-  // Brand theming (Slice 9): parse brand spec from the public client row.
   const brand = parseBrandSpec(client.brandSpec);
   const brandCss = buildBrandStyleTag(brand);
   const orgLd = buildOrgJsonLd(brand, client.name);
+  const hub = brand?.hub;
+
+  const phone = brand?.nap?.phone ?? null;
+  const tel = phone ? phone.replace(/[^0-9+]/g, "") : null;
+  const blog = (slug: string) => `/clients/${clientSlug}/blog/${slug}`;
+
+  // Topbar nav: curated override, else derived from the cluster.
+  const navLinks: HubNavLink[] = hub?.nav?.length
+    ? hub.nav.map((n) => ({ label: n.label, href: blog(n.slug) }))
+    : [
+        ...(cluster.pillar ? [{ label: "Start here", href: blog(cluster.pillar.slug) }] : []),
+        ...cluster.sections.flatMap((s) =>
+          s.cards.slice(0, 1).map((c) => ({ label: shortLabel(c.title), href: blog(c.slug) })),
+        ),
+      ];
+
+  const footerLinks: HubNavLink[] = [
+    ...(cluster.pillar ? [{ label: cluster.pillar.title, href: blog(cluster.pillar.slug) }] : []),
+    ...cluster.allSpokes.slice(0, 7).map((c) => ({ label: c.title, href: blog(c.slug) })),
+  ];
+
+  // Deterministic image cycling across all spoke cards.
+  const cardIndex = new Map(cluster.allSpokes.map((c, i) => [c.slug, i]));
+
+  // Hero art: a license-gated asset (DR-033) takes precedence; else the brand hero image.
+  const licensedHero = hero && hero.url && hero.license ? hero : null;
+  const pillarImg = cluster.pillar
+    ? hub?.cardImages?.[cluster.pillar.slug] ?? hub?.imagePool?.[0] ?? null
+    : null;
+
+  const steps = (
+    hub?.steps && hub.steps.length
+      ? hub.steps
+      : cluster.sections.map((s, i) => ({ k: `0${i + 1}`, title: s.label, body: "" }))
+  ).slice(0, 3);
+
+  const qualityPillars = (
+    hub?.qualityPillars && hub.qualityPillars.length ? hub.qualityPillars : DEFAULT_QUALITY_PILLARS
+  ).slice(0, 3);
 
   return (
-    <>
-      {/* Injection-safe brand theme vars */}
+    <div className="hub" data-role="resource-home">
+      {/* Injection-safe brand theme vars + the ported hub design system */}
       {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: brandCss }} />
-      <Topbar brand={brand} clientName={client.name} clientSlug={clientSlug} />
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: HUB_STYLESHEET }} />
 
-      <main data-role="resource-home">
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section data-role="hero">
-        {/* Render the hero image ONLY when license-gated (DR-033). */}
-        {hero && hero.url && hero.license ? (
-          <figure data-role="hero-image">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={hero.url} alt={hero.alt ?? client.name} />
-            {/* LICENSE BADGE — surfaces the recorded provenance (DR-033). */}
-            <figcaption data-role="license-badge">
-              {hero.license.attribution ??
-                `Image: ${hero.license.provider}${
-                  hero.license.terms ? ` (${hero.license.terms})` : ""
-                }`}
-            </figcaption>
-          </figure>
-        ) : null}
-        <h1>{client.name} Resource Library</h1>
-        {cluster.pillar?.excerpt ? (
-          <p data-role="hero-lede">{cluster.pillar.excerpt}</p>
-        ) : null}
-      </section>
+      <Topbar
+        brand={brand}
+        clientName={client.name}
+        clientSlug={clientSlug}
+        navLinks={navLinks}
+        phone={phone}
+      />
 
-      {/* ── STATISTIC CALLOUT ────────────────────────────────────────────── */}
-      <section data-role="statistic-callout">
-        <p>
-          <strong data-role="statistic-value">{totalGuides}</strong>{" "}
-          published guides and answers, organized to meet you wherever you are.
-        </p>
-      </section>
+      <main>
+        {/* ── HERO ─────────────────────────────────────────────────────────── */}
+        <section className="hero" data-role="hero">
+          <div className="wrap">
+            <div>
+              <span className="eyebrow">{hub?.eyebrow ?? "A family resource library"}</span>
+              <h1>{hub?.heroHeadline ?? `${client.name} Resource Library`}</h1>
+              <p className="lead">
+                {hub?.heroLede ??
+                  cluster.pillar?.excerpt ??
+                  `Clear, trustworthy guides from ${client.name}.`}
+              </p>
+              <div className="cta-row">
+                <a className="btn gold" href="#articles">
+                  {hub?.primaryCtaLabel ?? "Read the guides"}
+                </a>
+                {tel ? (
+                  <a className="btn ghost" href={`tel:${tel}`}>
+                    Call {phone}
+                  </a>
+                ) : null}
+              </div>
+            </div>
 
-      {/* ── PILLAR (links out to every spoke — no orphan by construction) ─── */}
-      {cluster.pillar ? (
-        <section data-role="pillar">
-          <h2>
-            <a href={`/clients/${clientSlug}/blog/${cluster.pillar.slug}`}>
-              {cluster.pillar.title}
-            </a>
-          </h2>
-          {cluster.pillar.excerpt ? <p>{cluster.pillar.excerpt}</p> : null}
-        </section>
-      ) : null}
-
-      {/* ── NAMED THREE-STAGE CLUSTER SECTION ────────────────────────────── */}
-      <section data-role="cluster-stages">
-        {cluster.sections.map((sec) => (
-          <div key={sec.stage} data-role="funnel-stage" data-stage={sec.stage}>
-            <h2 data-role="stage-label">{sec.label}</h2>
-            {sec.cards.length > 0 ? (
-              <ul data-role="stage-cards">
-                {sec.cards.map((card) => (
-                  <GuideCard
-                    key={card.slug}
-                    clientSlug={clientSlug}
-                    slug={card.slug}
-                    title={card.title}
-                    excerpt={card.excerpt}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <p data-role="stage-empty">More guides coming soon.</p>
-            )}
+            {licensedHero || hub?.heroImage || hub?.heroStat ? (
+              <div className="hero-art">
+                {licensedHero ? (
+                  <figure data-role="hero-image" style={{ margin: 0 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={licensedHero.url!} alt={licensedHero.alt ?? client.name} />
+                    <figcaption
+                      data-role="license-badge"
+                      style={{ fontSize: ".78rem", color: "var(--muted)", marginTop: "8px" }}
+                    >
+                      {licensedHero.license!.attribution ??
+                        `Image: ${licensedHero.license!.provider}`}
+                    </figcaption>
+                  </figure>
+                ) : hub?.heroImage ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={hub.heroImage} alt={hub.heroHeadline ?? client.name} />
+                ) : null}
+                {hub?.heroStat ? (
+                  <div className="hero-badge">
+                    {hub.heroStat.value ? <span className="n">{hub.heroStat.value}</span> : null}
+                    {hub.heroStat.label ? <small>{hub.heroStat.label}</small> : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-        ))}
-      </section>
+        </section>
 
-      {/* ── GUIDE-CARD GRID (every spoke) ────────────────────────────────── */}
-      <section data-role="guide-grid">
-        <h2>All guides</h2>
-        <ul data-role="all-guides">
-          {cluster.allSpokes.map((card) => (
-            <GuideCard
-              key={card.slug}
-              clientSlug={clientSlug}
-              slug={card.slug}
-              title={card.title}
-              excerpt={card.excerpt}
-            />
-          ))}
-        </ul>
-      </section>
+        {/* ── STAT STRIP (semantic statistic-callout) ──────────────────────── */}
+        <section
+          className="section"
+          data-role="statistic-callout"
+          style={{ paddingTop: "30px", paddingBottom: "0" }}
+        >
+          <div className="wrap" style={{ textAlign: "center" }}>
+            <p style={{ color: "var(--muted)", margin: 0 }}>
+              <strong data-role="statistic-value" style={{ color: "var(--willow-700)" }}>
+                {totalGuides}
+              </strong>{" "}
+              published guides and answers — each reviewed for accuracy and grounded in cited sources.
+            </p>
+          </div>
+        </section>
 
-      {/* ── QUALITY SECTION ──────────────────────────────────────────────── */}
-      <section data-role="quality">
-        <h2>How we write</h2>
-        <p>
-          Every guide is reviewed for accuracy by qualified staff and grounded in
-          authoritative sources before it is published.
-        </p>
-      </section>
+        {/* ── STRATEGY STEPS ───────────────────────────────────────────────── */}
+        <section className="section" id="strategy">
+          <div className="wrap">
+            <div className="section-head center">
+              <span className="eyebrow">{hub?.stepsEyebrow ?? "How to use this library"}</span>
+              <h2>{hub?.stepsHeadline ?? "Guidance for every stage of the journey"}</h2>
+              {hub?.stepsLede ? <p>{hub.stepsLede}</p> : null}
+            </div>
+            <div className="steps">
+              {steps.map((st, i) => (
+                <div className="step" key={i}>
+                  <div className="k">{st.k}</div>
+                  <h3>{st.title}</h3>
+                  {st.body ? <p>{st.body}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      {/* ── TOUR CTA ─────────────────────────────────────────────────────── */}
-      <section data-role="tour-cta">
-        <a href={`/clients/${clientSlug}/tour`} data-role="cta-tour">
-          Schedule a tour
-        </a>
-      </section>
-    </main>
+        {/* ── ARTICLES — stage-grouped card grid (cluster-stages) ──────────── */}
+        <section className="section alt" id="articles" data-role="cluster-stages">
+          <div className="wrap">
+            <div className="section-head center">
+              <span className="eyebrow">{hub?.libraryEyebrow ?? "The resource library"}</span>
+              <h2>{hub?.libraryHeadline ?? "Every guide, organized by where you are"}</h2>
+              {hub?.libraryLede ? <p>{hub.libraryLede}</p> : null}
+            </div>
 
-      <Footer brand={brand} clientName={client.name} clientSlug={clientSlug} />
+            {/* Pillar feature card */}
+            {cluster.pillar ? (
+              <div data-role="pillar" style={{ maxWidth: "640px", margin: "0 auto 12px" }}>
+                <a className="card" href={blog(cluster.pillar.slug)}>
+                  {pillarImg ? (
+                    <div className="ph">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={pillarImg} alt="" />
+                    </div>
+                  ) : null}
+                  <div className="body">
+                    <span className="tag">Start here · the pillar guide</span>
+                    <h3>{cluster.pillar.title}</h3>
+                    {cluster.pillar.excerpt ? <p>{cluster.pillar.excerpt}</p> : null}
+                    <span className="more">Read the guide →</span>
+                  </div>
+                </a>
+              </div>
+            ) : null}
+
+            {cluster.sections.map((sec) => (
+              <div
+                key={sec.stage}
+                data-role="funnel-stage"
+                data-stage={sec.stage}
+                style={{ marginTop: "44px" }}
+              >
+                <h2 data-role="stage-label" style={{ textAlign: "center", marginTop: 0 }}>
+                  {sec.label}
+                </h2>
+                {sec.cards.length > 0 ? (
+                  <div className="cards">
+                    {sec.cards.map((card) => (
+                      <GuideCard
+                        key={card.slug}
+                        href={blog(card.slug)}
+                        title={card.title}
+                        excerpt={card.excerpt}
+                        tag={cardTag(card, hub)}
+                        image={pickImage(card.slug, cardIndex.get(card.slug) ?? 0, hub)}
+                        more={moreLabel(card.clusterRole)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p data-role="stage-empty" style={{ textAlign: "center", color: "var(--muted)" }}>
+                    More guides coming soon.
+                  </p>
+                )}
+              </div>
+            ))}
+
+            {/* Catch-all: spokes whose stage is outside the three funnel sections
+                (e.g. retention) still surface — no published guide is dropped. */}
+            {(() => {
+              const grouped = new Set(
+                cluster.sections.flatMap((s) => s.cards.map((c) => c.slug)),
+              );
+              const ungrouped = cluster.allSpokes.filter((c) => !grouped.has(c.slug));
+              if (ungrouped.length === 0) return null;
+              return (
+                <div data-role="funnel-stage" data-stage="more" style={{ marginTop: "44px" }}>
+                  <h2 data-role="stage-label" style={{ textAlign: "center", marginTop: 0 }}>
+                    More guides for families
+                  </h2>
+                  <div className="cards">
+                    {ungrouped.map((card) => (
+                      <GuideCard
+                        key={card.slug}
+                        href={blog(card.slug)}
+                        title={card.title}
+                        excerpt={card.excerpt}
+                        tag={cardTag(card, hub)}
+                        image={pickImage(card.slug, cardIndex.get(card.slug) ?? 0, hub)}
+                        more={moreLabel(card.clusterRole)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+
+        {/* ── QUALITY (willow dark) ────────────────────────────────────────── */}
+        <section className="section willow" data-role="quality">
+          <div className="wrap">
+            <div className="section-head center" style={{ maxWidth: "720px" }}>
+              <span className="eyebrow">
+                {hub?.qualityEyebrow ?? "Why these guides are built to be trusted"}
+              </span>
+              <h2>{hub?.qualityHeadline ?? "Quality is the strategy"}</h2>
+              <p>
+                {hub?.qualityLede ??
+                  "Every guide is engineered to be accurate, citable, and safe — held to a standard that protects your brand."}
+              </p>
+            </div>
+            <div className="steps">
+              {qualityPillars.map((p, i) => (
+                <div className="step" key={i}>
+                  <div className="k">{p.k}</div>
+                  <h3>{p.title}</h3>
+                  {p.body ? <p>{p.body}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA BAND ─────────────────────────────────────────────────────── */}
+        <section className="section" data-role="tour-cta">
+          <div className="wrap">
+            <div className="cta-band">
+              <div>
+                <h3>{hub?.ctaHeadline ?? `See if ${client.name} is the right fit`}</h3>
+                <p>
+                  {hub?.ctaBody ??
+                    "Schedule a visit, meet the team, and ask every question on your list. There's no pressure — just clear answers."}
+                </p>
+              </div>
+              <div className="actions">
+                <a
+                  className="btn white"
+                  href={tel ? `tel:${tel}` : `/clients/${clientSlug}/tour`}
+                  data-role="cta-tour"
+                >
+                  Schedule a Tour
+                </a>
+                {phone ? (
+                  <div className="phone">
+                    or call <b>{phone}</b>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <Footer brand={brand} clientName={client.name} clientSlug={clientSlug} links={footerLinks} />
       <HubScripts />
 
-      {/* LocalBusiness JSON-LD (Slice 9 / schema.org) */}
+      {/* LocalBusiness JSON-LD (schema.org) */}
       {orgLd ? (
         <script
           type="application/ld+json"
@@ -273,7 +518,7 @@ export async function renderHomePage(
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -283,12 +528,6 @@ export default async function ClientHomePage({
   params: Promise<{ client: string }>;
 }) {
   const { client: clientSlug } = await params;
-  // ACTIVATION (DR-026): resolve the live PUBLIC seam BEHIND the service-role creds
-  // gate. This composes the live published-content reads (resolveClientByBlogSlug /
-  // loadPublishedPiece / listPublishedPieces, status='published' only) WITH the
-  // live hero-asset resolver (C.021.2/DR-035) on the SAME gate. With no creds set
-  // it returns NOT_WIRED_PUBLIC_DATA_ACCESS (+ gated-off hero) → today's behavior
-  // (the route 404s; hero degrades to placeholder-strip). No hero-path regression.
   const data = await resolvePublicContentDataAccess();
   const deps: HomeDeps = { ...DEFAULT_DEPS, data };
   return renderHomePage(clientSlug, deps);

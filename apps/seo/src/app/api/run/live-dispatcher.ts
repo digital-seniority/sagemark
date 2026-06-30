@@ -69,11 +69,11 @@ export const DEFAULT_WORKER_WORKDIR = "/home/worker/run";
 export const WORKER_ENTRY = "dist/worker/entry.js";
 
 /**
- * The run-budget ceiling (ms) the VM is provisioned with. ~90s matches the
+ * The run-budget ceiling (ms) the VM is provisioned with. ~270s matches the
  * single-piece generation cap + the bridge-JWT expiry. The host relay carries the
  * same stall ceiling, so a wedged worker surfaces as a terminal error either way.
  */
-export const DEFAULT_RUN_TIMEOUT_MS = 90_000;
+export const DEFAULT_RUN_TIMEOUT_MS = 270_000;
 
 // ── Host-URL resolution (documented precedence, fail-closed) ──────────────────
 
@@ -204,6 +204,11 @@ const RE_SESSION_ID = /^::worker-session-id::\s*(.*)$/;
 const RE_RESULT = /^::worker-result::\s*(.*)$/;
 const RE_TERMINAL_ERROR = /^::worker-terminal-error::\s*(.*)$/;
 const RE_FATAL = /^::worker-fatal::\s*(.*)$/;
+// CLI stderr and diagnostic markers written to worker stdout — NOT forwarded as SSE
+// events (they are diagnostic-only). Captured in rawStderrLines for the no-output
+// error message so failures surface instead of producing a silent `done`.
+const RE_CLI_ERR = /^::worker-cli-err::\s*(.*)$/;
+const RE_DIAG = /^::worker-diag::\s*(.*)$/;
 // Rich live-delta markers (P-J). The payload is a base64 blob (no `::`, space, or
 // newline), so the prefix match is unambiguous and the blob is decoded separately.
 const RE_TOKEN = /^::worker-token::\s*(.*)$/;
@@ -390,7 +395,11 @@ export interface LiveDispatcherDeps {
   /** Provision + boot-gate the VM (default: PR 006 `launchSandbox`). */
   launchSandboxImpl?: (profile: LaunchProfile) => Promise<LaunchResult>;
   /** Start the worker process in the VM + return its log source. */
-  startWorker?: (sandbox: LaunchResult["sandbox"], prompt: string) => Promise<StartedWorker>;
+  startWorker?: (
+    sandbox: LaunchResult["sandbox"],
+    prompt: string,
+    baseEnv: Record<string, string>,
+  ) => Promise<StartedWorker>;
   /** Resolve the host base URL (default: env precedence above). */
   resolveHostBaseUrl?: () => string;
   /** The FS-jail workdir (default `/home/worker/run`). */
@@ -403,8 +412,12 @@ export interface LiveDispatcherDeps {
  * Start the worker loop inside the provisioned VM. `launchSandbox` only PROVISIONS
  * the hardened VM; the loop is NOT spawned by it. We start it the same way the
  * Dockerfile ENTRYPOINT does (`node dist/worker/entry.js`), passing the run's brief
- * via the `WORKER_PROMPT` per-command env override (the worker entry reads it; the
- * scrubbed base env from `buildWorkerEnv` deliberately does not carry the prompt).
+ * via `WORKER_PROMPT`. We re-spread the scrubbed base env (`launch.env`, from
+ * `buildWorkerEnv`) onto the per-command env because the `@vercel/sandbox` SDK treats
+ * a per-command `env` as an OVERRIDE of the sandbox defaults, not a merge — so passing
+ * `{ WORKER_PROMPT }` alone would starve the entry process of `ANTHROPIC_BASE_URL`,
+ * `SEO_HOST_BASE_URL`, `RUN_ID`, etc. and `readWorkerEnv()` would throw before the loop.
+ * Spreading is safe under both readings (a no-op if the SDK actually merges).
  * Detached, so we stream its logs while it runs.
  *
  * `cwd` is set explicitly so `process.cwd()` inside the worker resolves to
@@ -415,13 +428,14 @@ export interface LiveDispatcherDeps {
 async function startWorkerInSandbox(
   sandbox: LaunchResult["sandbox"],
   prompt: string,
+  baseEnv: Record<string, string>,
 ): Promise<StartedWorker> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cmd = await (sandbox as any).runCommand({
     cmd: "node",
     args: [WORKER_ENTRY],
     cwd: "/home/worker/app",
-    env: { WORKER_PROMPT: prompt },
+    env: { ...baseEnv, WORKER_PROMPT: prompt },
     detached: true,
   });
   return {
@@ -470,6 +484,14 @@ async function* sourceFromWorker(
             yield parsed.event;
             if (parsed.event.type === "done" || parsed.event.type === "error") return;
           }
+          // CLI errors and diagnostics on stdout: not forwarded as SSE but captured
+          // for the no-output error context so failures are not silently swallowed.
+          if (parsed.kind === "none") {
+            const isCliDiag = RE_CLI_ERR.test(line) || RE_DIAG.test(line);
+            if (isCliDiag && line.trim() && rawStderrLines.length < 10) {
+              rawStderrLines.push(line.trim().slice(0, 300));
+            }
+          }
           // session-id / none: nothing forwarded downstream.
         }
       } else {
@@ -515,19 +537,33 @@ async function* sourceFromWorker(
       yield stderrTail.event;
       return;
     }
-    // The log stream ended with no terminal marker. If we got no events at all this
-    // is an unhandled crash (Node module error, OOM, signal) — surface it as a
-    // loud error rather than a silent "done" that masks the failure.
-    if (!yieldedAnyEvent) {
-      const diagCtx = rawStderrLines.length
-        ? `stderr: ${rawStderrLines.join(" | ")}`
+    // The log stream ended with no terminal marker — always surface this as an
+    // error. A well-behaved worker MUST emit ::worker-done:: or ::worker-result::.
+    // Swallowing this produces a silent idle transition that hides the real cause.
+    const diagCtx = rawStderrLines.length
+      ? `stderr: ${rawStderrLines.join(" | ")}`
+      : yieldedAnyEvent
+        ? "worker exited without terminal marker (init/diag events seen but no done)"
         : "no stdout/stderr output received from worker";
-      yield {
-        type: "error",
-        code: "WORKER_LOOP_FAILED",
-        message: `worker exited without emitting any events (${diagCtx})`,
-      };
-    }
+    yield {
+      type: "error",
+      code: "WORKER_LOOP_FAILED",
+      message: `worker exited without terminal marker (${diagCtx})`,
+    };
+  } catch (err) {
+    // The Vercel Sandbox SDK throws a StreamError when the sandbox VM terminates
+    // (platform timeout, OOM, or explicit stop — signalled via a {stream:"error"}
+    // NDJSON line in the log HTTP stream). Always surface this — even when some
+    // events were already emitted, the stream terminated abnormally and the user
+    // must know. (Previously guarded by !yieldedAnyEvent, which silently swallowed
+    // the error whenever the worker emitted any init/diag event before dying.)
+    const message = err instanceof Error ? err.message : String(err);
+    const diagCtx = rawStderrLines.length ? ` | stderr: ${rawStderrLines.join(" | ")}` : "";
+    yield {
+      type: "error",
+      code: "WORKER_LOOP_FAILED",
+      message: `sandbox stream terminated: ${message}${diagCtx}`,
+    };
   } finally {
     await sandbox.stop?.().catch(() => undefined);
   }
@@ -595,9 +631,21 @@ export function createLiveDispatcher(deps: LiveDispatcherDeps = {}): WorkerDispa
       return withEnvelope(runId, terminalErrorSource(code, (err as Error).message));
     }
 
+    // Extend the sandbox lifetime immediately after creation. The Vercel Sandbox
+    // platform may apply a shorter default timeout than `profile.timeoutMs`
+    // (observed: VM dies at ~180s despite timeout:270_000 at create). Calling
+    // extendTimeout adds `timeoutMs` more milliseconds from now, ensuring the
+    // sandbox lives long enough for a full article-generation run.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (launch.sandbox as any).extendTimeout?.(timeoutMs);
+    } catch {
+      // Non-fatal: proceed with whatever lifetime the platform granted.
+    }
+
     let worker: StartedWorker;
     try {
-      worker = await startWorker(launch.sandbox, dispatch.prompt);
+      worker = await startWorker(launch.sandbox, dispatch.prompt, launch.env);
     } catch (err) {
       await (launch.sandbox as SandboxHandle).stop?.().catch(() => undefined);
       return withEnvelope(

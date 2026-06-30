@@ -64,16 +64,19 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     expect(html).toContain("Read the latest sources"); // the code -> plain done-phrase map
     expect(html).toContain("3 sources"); // the sanitized label
 
-    // Artifact zone: the accumulated token-delta body, rendered to serif prose
-    // (DraftPaper) — the markdown heading becomes an <h1>, not raw "# ..." source.
-    expect(html).toContain('data-testid="artifact-body"');
-    expect(html).toContain("<h1>Memory care basics</h1>");
+    // Artifact zone: token-delta narration goes to the agent feed, not the body.
+    // Body stays empty during streaming; the placeholder shows instead.
+    expect(html).toContain('data-testid="artifact-body-empty"');
+    expect(html).toContain("The agent is working");
+    // Narration row visible in the agent feed (not in the Draft area).
+    expect(html).toContain('data-testid="agent-narration"');
+    expect(html).toContain("# Memory care basics");
 
-    // Inspector zone: the authoritative gate scorecard (verdict band + score).
-    expect(html).toContain('data-testid="gate-scorecard"');
+    // Inspector zone: collapsed rail shows verdict badge (scorecard is behind the expand toggle).
+    expect(html).toContain('data-testid="inspector-rail"');
+    expect(html).toContain('data-testid="rail-verdict-badge"');
     expect(html).toContain('data-verdict="PUBLISH"');
-    expect(html).toContain('data-testid="verdict-score"');
-    expect(html).toContain("88");
+    expect(html).toContain("88"); // score visible in rail badge title attribute
   });
 
   it("surfaces a terminal error as an explicit row (not a dead spinner)", () => {

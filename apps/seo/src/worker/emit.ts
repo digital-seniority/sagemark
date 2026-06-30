@@ -301,6 +301,20 @@ export class WorkerEventEmitter {
  * IGNORES anything it does not understand (no free-text passthrough). The shapes
  * are matched defensively because the SDK message schema is loosely typed.
  *
+ * The SDK (0.1.x) passes through the Claude CLI's stream-json output directly.
+ * The CLI emits COMPLETE TURN MESSAGES as:
+ *   {type:"assistant", message:{role:"assistant", content:[...]}}
+ * where content blocks are:
+ *   {type:"text", text:"..."}           — model prose (body / article tokens)
+ *   {type:"thinking", thinking:"..."}   — extended thinking
+ *   {type:"tool_use", name:"..."}       — a tool invocation
+ *
+ * Older SDK versions wrapped streaming events as:
+ *   {type:"stream_event", event: RawMessageStreamEvent, ...}
+ * Legacy (pre-current SDK) format emitted message properties directly:
+ *   {type:"text_delta", text:"..."} / {delta:{text:"..."}} etc.
+ * All three paths are handled so the emitter is forward- and backward-compatible.
+ *
  * Returns the count of events emitted (for test assertions).
  */
 export async function emitFromSdkMessage(
@@ -310,6 +324,75 @@ export async function emitFromSdkMessage(
 ): Promise<number> {
   if (!message || typeof message !== "object") return 0;
   let emitted = 0;
+
+  // ── Current SDK format (0.1.x): {type:"assistant", message:{role, content:[]}} ──
+  // The SDK passes the CLI's stream-json turn objects through verbatim.
+  // Content blocks: {type:"text"}, {type:"thinking"}, {type:"tool_use"}.
+  if (message.type === "assistant" && message.message && typeof message.message === "object") {
+    const inner = message.message as Record<string, unknown>;
+    const content = Array.isArray(inner.content) ? (inner.content as Record<string, unknown>[]) : [];
+    for (const block of content) {
+      if (block.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+        await emitter.tokenDelta(block.text as string);
+        emitted++;
+      } else if (
+        block.type === "thinking" &&
+        typeof block.thinking === "string" &&
+        block.thinking.length > 0
+      ) {
+        await emitter.thinking(block.thinking as string);
+        emitted++;
+      } else if (block.type === "tool_use" && typeof block.name === "string") {
+        const seq = await emitter.toolUseFromRawName(block.name as string, "running");
+        if (seq !== null) emitted++;
+      }
+    }
+    return emitted;
+  }
+
+  // ── User turn (tool results): {type:"user", message:{role:"user", content:[]}} ──
+  if (message.type === "user" && message.message && typeof message.message === "object") {
+    // tool_result blocks carry only tool_use_id; we can't map that to a name here
+    // without tracking id→name across turns. Silently consumed so the loop doesn't
+    // fall through to the legacy path and emit spurious events.
+    return emitted;
+  }
+
+  // ── Older SDK format: {type:"stream_event", event: RawMessageStreamEvent} ──
+  // The SDK wraps every Anthropic API streaming event inside this envelope.
+  // Handle it here and return early so the legacy path below is not run.
+  if (message.type === "stream_event" && message.event && typeof message.event === "object") {
+    const evt = message.event as Record<string, unknown>;
+
+    if (evt.type === "content_block_delta") {
+      const delta = evt.delta as Record<string, unknown> | null;
+      // Text delta → token-delta event.
+      if (delta?.type === "text_delta" && typeof delta.text === "string" && delta.text.length > 0) {
+        await emitter.tokenDelta(delta.text as string);
+        emitted++;
+      }
+      // Thinking delta → thinking event.
+      if (
+        delta?.type === "thinking_delta" &&
+        typeof delta.thinking === "string" &&
+        delta.thinking.length > 0
+      ) {
+        await emitter.thinking(delta.thinking as string);
+        emitted++;
+      }
+    } else if (evt.type === "content_block_start") {
+      // Tool-use block start → coded `running` row.
+      const block = evt.content_block as Record<string, unknown> | null;
+      if (block?.type === "tool_use" && typeof block.name === "string") {
+        const seq = await emitter.toolUseFromRawName(block.name as string, "running");
+        if (seq !== null) emitted++;
+      }
+    }
+
+    return emitted; // handled; skip legacy path
+  }
+
+  // ── Legacy format (older SDK versions or direct event shapes) ──────────────
 
   // 1. A streamed assistant text delta (the body typing in).
   const textDelta: unknown =

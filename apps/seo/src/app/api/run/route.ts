@@ -95,7 +95,7 @@ export const runtime = "nodejs";
 /** Always run at request time — this is a live dispatch + SSE relay, never cached. */
 export const dynamic = "force-dynamic";
 /** The single-piece generation cap (seconds) — the relay/JWT run-budget ceiling. */
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 // ── The per-run bridge JWT (acceptance 6) ─────────────────────────────────────
 // The mint/verify primitives + their types now live in `@/lib/auth/bridge-token`
@@ -347,6 +347,186 @@ export async function handleRun(request: Request, deps: RunDeps = DEFAULT_DEPS):
       } catch {
         // NOT_WIRED or project not found — fall through to single-drafter (back-compat).
       }
+    }
+    // Hub run-modes: the default composeTurnPrompt brief says "run seo-blog-writer /
+    // use persistPiece" which directly conflicts with the strategy/author system prompt.
+    // Replace dispatchPrompt with a mode-aligned instruction so the model calls the
+    // correct tool (persistStrategy for Run 1, persistPiece for Runs 2+).
+    if (dispatchWorkerMode === "standalone-strategy") {
+      let strategyPrompt =
+        `The operator requests: ${prompt}\n\n` +
+        `Follow your system prompt instructions to produce a complete ContentStrategy ` +
+        `for this client. When all sections are filled (objective/audience/market, ` +
+        `topic-cluster map, competitive-gap analysis, E-E-A-T/authorship plan, ` +
+        `GEO/AEO + schema plan, conversion architecture, prioritized content roadmap), ` +
+        `call the \`persistStrategy\` tool ONCE with the full strategy as a JSON object. ` +
+        `Do not write article drafts. Do not use persistPiece.`;
+      if (turn.projectContextNote) {
+        strategyPrompt += `\n\n=== CLIENT & PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END CONTEXT ===`;
+      }
+      dispatchPrompt = strategyPrompt;
+    } else if (dispatchWorkerMode === "standalone-author") {
+      // composeTurnPrompt generates a REVISION brief when the conversation is linked
+      // to an existing piece (e.g. the pillar after the first authoring run). That
+      // brief tells the model to REVISE the linked piece — wrong for hub authoring
+      // where each run must write the NEXT PENDING page. Override with an explicit
+      // "write next pending page" brief so the model drafts the correct article.
+      //
+      // We query listProjectPieces (one extra read) to identify the first roadmap
+      // page whose slug is not yet authored, then generate a page-specific prompt.
+      let nextPage: {
+        slug: string;
+        title: string;
+        clusterRole: string;
+        funnelStage?: string | null;
+        primaryKeyword?: string | null;
+      } | null = null;
+      try {
+        if (dispatchProjectId) {
+          const [proj, existingPieces] = await Promise.all([
+            deps.projects.getProject(dispatchProjectId, ctx.workspaceId, ctx.clientId),
+            deps.projects.listProjectPieces(dispatchProjectId, ctx.workspaceId, ctx.clientId),
+          ]);
+          if (proj?.strategy && proj.strategyStatus === "approved") {
+            const rawStrategy = proj.strategy as Record<string, unknown>;
+            const rawRoadmap = (
+              Array.isArray(rawStrategy.roadmap)
+                ? rawStrategy.roadmap
+                : Array.isArray(rawStrategy.prioritized_roadmap)
+                  ? rawStrategy.prioritized_roadmap
+                  : []
+            ) as Record<string, unknown>[];
+            const authoredSlugs = new Set(existingPieces.map((p) => p.slug));
+            for (const item of rawRoadmap) {
+              const title = typeof item.title === "string" ? item.title : null;
+              if (!title) continue;
+              const slug =
+                typeof item.slug === "string"
+                  ? item.slug
+                  : title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+              if (!authoredSlugs.has(slug)) {
+                nextPage = {
+                  slug,
+                  title,
+                  clusterRole:
+                    typeof item.clusterRole === "string"
+                      ? item.clusterRole
+                      : typeof item.cluster_role === "string"
+                        ? item.cluster_role
+                        : "spoke",
+                  funnelStage:
+                    typeof item.funnelStage === "string"
+                      ? item.funnelStage
+                      : typeof item.funnel_stage === "string"
+                        ? item.funnel_stage
+                        : null,
+                  primaryKeyword:
+                    typeof item.primaryKeyword === "string"
+                      ? item.primaryKeyword
+                      : typeof item.target_keyword === "string"
+                        ? item.target_keyword
+                        : null,
+                };
+                break;
+              }
+            }
+          }
+        }
+      } catch {
+        // DB error or missing project — fall through to the generic brief below.
+      }
+
+      let authorPrompt: string;
+      if (nextPage) {
+        // DISPATCH PROMPT: must be assertive enough to override the seo-blog-writer
+        // SKILL.md's "kernel draft route" mental model. That SKILL.md describes Step 6
+        // as "the route persists automatically" — causing the model to generate the
+        // article as text output rather than calling persistPiece. This prompt
+        // explicitly states that the auto-persist route is NOT active and that
+        // persistPiece is the ONLY delivery mechanism.
+        authorPrompt =
+          `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
+          `The seo-blog-writer "draft route" auto-persist (SKILL.md Step 6) is NOT ` +
+          `active in this context. There is no route that captures your text output. ` +
+          `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
+          `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
+          `REQUIRED TOOL CALL SEQUENCE:\n` +
+          `1. [Optional] Call requestImages once: query="<descriptive image search>", ` +
+          `slug="${nextPage.slug}"\n` +
+          `2. [Required] Call persistPiece ONCE with:\n` +
+          `   - title: "${nextPage.title}"\n` +
+          `   - slug: "${nextPage.slug}"\n` +
+          `   - body: <the complete 1500-2500 word Markdown article — written as the ` +
+          `VALUE of this parameter, NOT as text output>\n` +
+          `   - excerpt: 1-2 sentence summary\n` +
+          `   - metaDescription: 150-160 character search snippet\n` +
+          `   - clusterRole: "${nextPage.clusterRole}"\n` +
+          (nextPage.funnelStage ? `   - funnelStage: "${nextPage.funnelStage}"\n` : "") +
+          `   - projectId: "${dispatchProjectId}"\n` +
+          `   - faqData: array of {question, answer} objects from the FAQ block\n\n` +
+          `ARTICLE REQUIREMENTS — write the body in Markdown using these authoring ` +
+          `conventions (they render into a polished, branded template; do NOT write raw ` +
+          `HTML or invent any design):\n` +
+          `- Do NOT include the H1 title in the body — the page renders the title itself. ` +
+          `Start the body with the quick-answer block.\n` +
+          `- Quick answer: a line ":::quick-answer", then a 2-3 sentence direct answer to ` +
+          `the core question (bold the load-bearing terms with **…**), then a line ":::". ` +
+          `AI answer engines lift this.\n` +
+          `- Use "## " headings for each major section (they become the on-page table of ` +
+          `contents).\n` +
+          `- For ANY comparison, use a GitHub-style Markdown table ` +
+          `(| Col A | Col B |, then | --- | --- |, then the rows).\n` +
+          `- Use callouts for asides — a line ":::tip" (advice), ":::warn" (caution), or ` +
+          `":::note" (context/stat), the content, then ":::". Put the YMYL disclaimer in a ` +
+          `":::note" near the end.\n` +
+          `- End the body with a key-takeaways box: a line ":::takeaways", a bulleted list ` +
+          `of 4-6 takeaways, then ":::".\n` +
+          `- Every statistic cites a named, authoritative source (no fabrication); keep ` +
+          `YMYL-safe framing throughout.\n` +
+          `- Do NOT write an FAQ section in the body — instead pass 5-7 Q&A pairs in the ` +
+          `faqData parameter (they render as an accordion + FAQ schema).\n` +
+          `- Include one [photo:${nextPage.slug}] placeholder where a supporting image fits.\n\n` +
+          (nextPage.primaryKeyword ? `TARGET KEYWORD: ${nextPage.primaryKeyword}\n\n` : "") +
+          `This is a NEW article. Do NOT revise any existing draft.`;
+      } else {
+        // Fallback: no pending page found (all authored, or DB error). Give the model
+        // a generic instruction so it can at least try via the project context.
+        authorPrompt =
+          `IMPORTANT — KERNEL MODE OVERRIDE:\n` +
+          `Text responses are DISCARDED. The article is saved ONLY when you call the ` +
+          `persistPiece tool with the body parameter containing the full Markdown article.\n\n` +
+          `Look at the "Full hub roadmap" in the project context below. ` +
+          `Find the FIRST roadmap page not in "Articles already authored" and write it ` +
+          `as a complete, grounded SEO article. ` +
+          `Call persistPiece ONCE with the exact slug, clusterRole, funnelStage, ` +
+          `and projectId '${dispatchProjectId ?? ""}'. ` +
+          `Do NOT revise any existing draft.`;
+      }
+      if (turn.projectContextNote) {
+        authorPrompt +=
+          `\n\n=== PROJECT CONTEXT (data) ===\n${turn.projectContextNote}\n=== END PROJECT CONTEXT ===`;
+      }
+      dispatchPrompt = authorPrompt;
+    } else {
+      // Single-drafter mode (no hub project). Switch to standalone-author workerMode
+      // so the worker uses the kernel-safe system prompt (persistPiece only, no text
+      // output).
+      //
+      // The standalone-author system prompt says "exact value from the assignment" for
+      // clusterRole/funnelStage. Provide concrete literal values so the model never
+      // guesses: spoke + awareness are the right defaults for standalone educational
+      // content. projectId is injected by the host bridge — omit it from the call.
+      dispatchWorkerMode = "standalone-author";
+      dispatchPrompt =
+        `=== ARTICLE ASSIGNMENT ===\n\n` +
+        `TOPIC: ${prompt.trim()}\n\n` +
+        `Assignment details:\n` +
+        `  title: [derive a compelling SEO title from the topic — max 70 characters]\n` +
+        `  slug: [derive a clean kebab-case slug, e.g. "preventing-falls-older-adults"]\n` +
+        `  clusterRole: spoke\n` +
+        `  funnelStage: awareness\n\n` +
+        `Follow your system prompt to write and persist the article.\n` +
+        `Do NOT include projectId in the persistPiece call — it is managed by the host.`;
     }
   }
 

@@ -65,8 +65,24 @@ export interface ToolUseItem {
   seq: number;
 }
 
+/**
+ * One agent-narration row — the model's text output (planning/commentary) that
+ * arrives as `token-delta` events between tool calls. Rendered in the agent
+ * feed (left zone), NOT in the draft body (center zone), because in
+ * standalone-author mode the article body comes from the `persistPiece` tool
+ * argument, never from the token stream directly. Consecutive token-delta
+ * events coalesce into a single growing row, same as thinking.
+ */
+export interface NarrationItem {
+  kind: "narration";
+  /** Stable React key (seq of the first delta in this coalesced row). */
+  id: number;
+  /** Accumulated narration text. */
+  text: string;
+}
+
 /** An ordered agent-feed item (the left zone renders these top-to-bottom). */
-export type AgentFeedItem = ThinkingItem | ToolUseItem;
+export type AgentFeedItem = ThinkingItem | ToolUseItem | NarrationItem;
 
 /** The latest gate scorecard projection (the inspector zone reads this). */
 export interface GateScorecard {
@@ -84,7 +100,7 @@ export interface UiMessageStreamState {
   phase: StreamPhase;
   /** Ordered agent feed: thinking rows + tool-use rows, in arrival order. */
   feed: AgentFeedItem[];
-  /** Accumulated body text from `token-delta` events (the artifact draft). */
+  /** Article body — populated only by `snapshot` (reconcile after persistPiece). Empty during streaming. */
   body: string;
   /** The latest gate scorecard, or null until a gate/snapshot frame arrives. */
   scorecard: GateScorecard | null;
@@ -117,7 +133,9 @@ export const INITIAL_STREAM_STATE: UiMessageStreamState = {
  * so the projection is fully unit-testable from a fixture event list.
  *
  * Folding rules (one per event type in the taxonomy):
- *   - token-delta : append `delta` to `body`; advance `lastSeq`; mark `streaming`.
+ *   - token-delta : coalesce into a trailing `narration` feed row (the model's
+ *                   planning text); does NOT touch `body` — the article body
+ *                   arrives via `persistPiece` → `snapshot`, not as tokens.
  *   - thinking    : coalesce consecutive thinking deltas into the trailing
  *                   thinking row (a new row only when the previous feed item is
  *                   not a thinking row), so the left zone shows one growing
@@ -137,10 +155,21 @@ export function reduceUiMessageStream(
 ): UiMessageStreamState {
   switch (event.type) {
     case "token-delta": {
+      // Route narration text to the agent feed, NOT to `state.body`.
+      // In standalone-author mode the article body comes from the persistPiece
+      // tool argument (→ snapshot reconcile); token-deltas are model commentary.
+      const last = state.feed[state.feed.length - 1];
+      let feed: AgentFeedItem[];
+      if (last && last.kind === "narration") {
+        const merged: NarrationItem = { ...last, text: last.text + event.delta };
+        feed = [...state.feed.slice(0, -1), merged];
+      } else {
+        feed = [...state.feed, { kind: "narration", id: event.seq, text: event.delta }];
+      }
       return {
         ...state,
         phase: state.phase === "idle" ? "streaming" : state.phase,
-        body: state.body + event.delta,
+        feed,
         lastSeq: maxSeq(state.lastSeq, event.seq),
       };
     }

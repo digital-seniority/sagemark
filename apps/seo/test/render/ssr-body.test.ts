@@ -47,7 +47,8 @@ describe("SSR body-in-initial-HTML (criterion 1)", () => {
 
   it("renders the markdown heading as an <h2> in the body (not raw markdown)", async () => {
     const html = await renderHtml(CLIENT_SLUG, "what-is-memory-care");
-    expect(html).toContain("<h2>What is memory care?</h2>");
+    // Rendered as an <h2> (now carrying a slug anchor id for the TOC).
+    expect(html).toMatch(/<h2 id="what-is-memory-care">What is memory care\?<\/h2>/);
     // No raw markdown markers survive in the rendered body.
     expect(html).not.toContain("## What is memory care?");
   });
