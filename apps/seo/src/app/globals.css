@@ -75,6 +75,19 @@ body {
   }
 }
 
+@keyframes studio-dot-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.3;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
 /*
  * Verdict accent mapping — the theming layer ScoreSignalDot's header promised
  * ("a later theming PR can map data-verdict to brand accent tokens in CSS
@@ -202,7 +215,8 @@ body {
   [data-status="running"],
   [data-testid="stream-caret"],
   [data-testid="draft-caret"],
-  [data-anim="fade-up"] {
+  [data-anim="fade-up"],
+  [data-dot-bounce] {
     animation: none !important;
   }
 }

@@ -88,14 +88,19 @@ function VerdictChip({ verdict }: { verdict: string }) {
   );
 }
 
-function TurnBubble({ turn }: { turn: TranscriptTurn }) {
+function TurnBubble({ turn, index = 0 }: { turn: TranscriptTurn; index?: number }) {
   const isUser = turn.role === "user";
   return (
     <li
       data-testid="transcript-turn"
       data-role={turn.role}
       data-seq={turn.seq}
-      style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}
+      data-anim="fade-up"
+      style={{
+        display: "flex",
+        justifyContent: isUser ? "flex-end" : "flex-start",
+        animation: `studio-fade-up 0.35s ease ${Math.min(index * 55, 330)}ms both`,
+      }}
     >
       <div
         style={{
@@ -195,8 +200,8 @@ export function ConversationTranscript({
       {turns
         .slice()
         .sort((a, b) => a.seq - b.seq)
-        .map((turn) => (
-          <TurnBubble key={turn.id} turn={turn} />
+        .map((turn, i) => (
+          <TurnBubble key={turn.id} turn={turn} index={i} />
         ))}
     </ol>
   );
