@@ -138,7 +138,10 @@ describe("SeoStudioCanvas — chat composer dispatches a turn", () => {
     });
     expect(screen.getByText("Researching the topic.")).toBeInTheDocument(); // feed: thinking
     expect(document.querySelector('[data-tool-code="serpFetch"]')).toBeInTheDocument(); // feed: tool-use
-    expect(screen.getByTestId("artifact-body").textContent).toContain("Memory care basics"); // artifact body (rendered serif prose, not raw markdown)
+    // token-delta narration goes to the agent feed, not the artifact body
+    expect(screen.getByTestId("agent-narration").textContent).toContain("Memory care basics");
+    // artifact body stays empty (populated only by snapshot reconcile)
+    expect(screen.getByTestId("artifact-body-empty")).toBeInTheDocument();
     // Inspector starts collapsed; expand it to verify the scorecard rendered.
     fireEvent.click(screen.getByTestId("inspector-rail"));
     expect(screen.getByTestId("gate-scorecard")).toBeInTheDocument(); // inspector scorecard

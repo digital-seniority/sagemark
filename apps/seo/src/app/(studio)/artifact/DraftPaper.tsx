@@ -34,13 +34,18 @@ export interface DraftPaperProps {
 export function DraftPaper({ body, streaming = false }: DraftPaperProps) {
   const hasBody = body.trim().length > 0;
 
-  if (!hasBody && !streaming) {
+  // Body only arrives via snapshot (reconcile after persistPiece). During
+  // streaming the draft area shows a contextual placeholder rather than the
+  // model's narration text (which lives in the agent feed, not here).
+  if (!hasBody) {
     return (
       <p
         data-testid="artifact-body-empty"
         style={{ color: "var(--muted)", fontSize: 13, margin: 0 }}
       >
-        The draft body will appear here as the agent writes it.
+        {streaming
+          ? "The agent is working — the article will appear here once it’s saved."
+          : "The draft body will appear here as the agent writes it."}
       </p>
     );
   }
@@ -51,7 +56,6 @@ export function DraftPaper({ body, streaming = false }: DraftPaperProps) {
     <div
       data-testid="draft-paper"
       data-streaming={streaming ? "true" : "false"}
-      style={{ position: "relative" }}
     >
       <div
         data-testid="artifact-body"
@@ -60,21 +64,6 @@ export function DraftPaper({ body, streaming = false }: DraftPaperProps) {
         // guard the public SSR render also relies on).
         dangerouslySetInnerHTML={{ __html: html }}
       />
-      {streaming && (
-        <span
-          data-testid="draft-caret"
-          aria-hidden="true"
-          style={{
-            display: "inline-block",
-            width: 7,
-            height: 16,
-            marginLeft: 1,
-            verticalAlign: "-3px",
-            background: "var(--accent-blue)",
-            animation: "studio-blink 1s steps(1) infinite",
-          }}
-        />
-      )}
     </div>
   );
 }

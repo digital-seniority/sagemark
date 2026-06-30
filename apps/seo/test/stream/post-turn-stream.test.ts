@@ -133,7 +133,11 @@ describe("runTurnStream — POST + stream + fold", () => {
       { fetchImpl },
     );
 
-    expect(state.body).toBe("# Title");
+    // token-delta goes to feed as narration, body stays empty until snapshot
+    expect(state.body).toBe("");
+    const narr = state.feed.filter((f) => f.kind === "narration");
+    expect(narr).toHaveLength(1);
+    expect(narr[0]).toMatchObject({ kind: "narration", text: "# Title" });
     expect(state.feed.filter((f) => f.kind === "tool-use")).toHaveLength(1);
     expect(state.feed.filter((f) => f.kind === "thinking")).toHaveLength(1);
     expect(state.scorecard).toMatchObject({ verdict: "PUBLISH", score: 88 });
