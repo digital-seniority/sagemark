@@ -78,9 +78,31 @@ export function AgentMessageStream({ feed, phase = "idle", inFlight = false }: A
       style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}
     >
       {feed.map((item) => (
-        <li key={item.kind === "tool-use" ? `tool:${item.id}` : `think:${item.id}`}>
+        <li
+          key={
+            item.kind === "tool-use"
+              ? `tool:${item.id}`
+              : item.kind === "narration"
+                ? `narr:${item.id}`
+                : `think:${item.id}`
+          }
+        >
           {item.kind === "thinking" ? (
             <ThinkingDelta item={item} />
+          ) : item.kind === "narration" ? (
+            <p
+              data-testid="agent-narration"
+              style={{
+                margin: 0,
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: "currentColor",
+                opacity: 0.65,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {item.text}
+            </p>
           ) : (
             <ToolUseRow item={item} />
           )}

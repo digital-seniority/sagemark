@@ -27,15 +27,30 @@ function fold(events: SseEvent[], start: UiMessageStreamState = INITIAL_STREAM_S
   return events.reduce(reduceUiMessageStream, start);
 }
 
-describe("reduceUiMessageStream — token-delta -> artifact body", () => {
-  it("accumulates body text in order and flips to streaming", () => {
+describe("reduceUiMessageStream — token-delta -> agent narration feed", () => {
+  it("routes narration to the feed (not body), coalesces consecutive deltas, flips to streaming", () => {
     const state = fold([
       { type: "token-delta", seq: 1, runId: RUN, delta: "Memory " },
       { type: "token-delta", seq: 2, runId: RUN, delta: "care is" },
     ]);
-    expect(state.body).toBe("Memory care is");
+    expect(state.body).toBe("");
     expect(state.phase).toBe("streaming");
     expect(state.lastSeq).toBe(2);
+    const narr = state.feed.filter((f) => f.kind === "narration");
+    expect(narr).toHaveLength(1);
+    expect(narr[0]).toMatchObject({ kind: "narration", text: "Memory care is" });
+  });
+
+  it("starts a NEW narration row after a tool-use row breaks the run", () => {
+    const state = fold([
+      { type: "token-delta", seq: 1, runId: RUN, delta: "first narration" },
+      { type: "tool-use", seq: 2, runId: RUN, code: "serpFetch", status: "running" },
+      { type: "token-delta", seq: 3, runId: RUN, delta: "second narration" },
+    ]);
+    const narr = state.feed.filter((f) => f.kind === "narration");
+    expect(narr).toHaveLength(2);
+    expect(narr[0]).toMatchObject({ text: "first narration" });
+    expect(narr[1]).toMatchObject({ text: "second narration" });
   });
 });
 
@@ -101,9 +116,12 @@ describe("reduceUiMessageStream — gate -> scorecard", () => {
 });
 
 describe("reduceUiMessageStream — snapshot reconnect resume", () => {
-  it("replaces body + scorecard with the persisted truth (acceptance 5)", () => {
-    const dirty = fold([{ type: "token-delta", seq: 1, runId: RUN, delta: "stale partial" }]);
-    const resumed = reduceUiMessageStream(dirty, {
+  it("populates body from the persisted piece (acceptance 5)", () => {
+    // body is empty during streaming (narration goes to feed, not body)
+    const streaming = fold([{ type: "token-delta", seq: 1, runId: RUN, delta: "agent narration" }]);
+    expect(streaming.body).toBe("");
+    // snapshot reconcile supplies the actual article body
+    const resumed = reduceUiMessageStream(streaming, {
       type: "snapshot",
       seq: 5,
       runId: RUN,
@@ -152,17 +170,21 @@ describe("reduceUiMessageStream — heartbeat + terminal frames", () => {
 });
 
 describe("reduceUiMessageStream — a full interleaved run", () => {
-  it("projects feed, body, and scorecard together", () => {
+  it("routes narration to feed, body stays empty until snapshot, scorecard projects correctly", () => {
     const state = fold([
       { type: "thinking", seq: 1, runId: RUN, delta: "Researching." },
       { type: "tool-use", seq: 2, runId: RUN, code: "serpFetch", status: "running" },
       { type: "tool-use", seq: 3, runId: RUN, code: "serpFetch", status: "ok" },
-      { type: "token-delta", seq: 4, runId: RUN, delta: "# Title\n" },
-      { type: "token-delta", seq: 5, runId: RUN, delta: "Body." },
+      { type: "token-delta", seq: 4, runId: RUN, delta: "Drafting the article now." },
+      { type: "token-delta", seq: 5, runId: RUN, delta: " Almost done." },
       { type: "gate", seq: 6, runId: RUN, stage: "stageB", score: 88, verdict: "PUBLISH" },
       { type: "done", seq: 7, runId: RUN },
     ]);
-    expect(state.body).toBe("# Title\nBody.");
+    // narration goes to feed, body stays empty (snapshot reconcile fills it)
+    expect(state.body).toBe("");
+    const narr = state.feed.filter((f) => f.kind === "narration");
+    expect(narr).toHaveLength(1);
+    expect(narr[0]).toMatchObject({ text: "Drafting the article now. Almost done." });
     expect(state.feed.filter((f) => f.kind === "tool-use")).toHaveLength(1);
     expect(state.feed.filter((f) => f.kind === "thinking")).toHaveLength(1);
     expect(state.scorecard).toMatchObject({ verdict: "PUBLISH", score: 88 });

@@ -64,11 +64,13 @@ describe("SeoStudioCanvas — three-zone shell", () => {
     expect(html).toContain("Read the latest sources"); // the code -> plain done-phrase map
     expect(html).toContain("3 sources"); // the sanitized label
 
-    // Artifact zone: the accumulated token-delta body, rendered to serif prose
-    // (DraftPaper) — the markdown heading becomes an <h1>, not raw "# ..." source.
-    expect(html).toContain('data-testid="artifact-body"');
-    // The markdown heading renders as an <h1> (now carrying a slug anchor id).
-    expect(html).toMatch(/<h1 id="[^"]*">Memory care basics<\/h1>/);
+    // Artifact zone: token-delta narration goes to the agent feed, not the body.
+    // Body stays empty during streaming; the placeholder shows instead.
+    expect(html).toContain('data-testid="artifact-body-empty"');
+    expect(html).toContain("The agent is working");
+    // Narration row visible in the agent feed (not in the Draft area).
+    expect(html).toContain('data-testid="agent-narration"');
+    expect(html).toContain("# Memory care basics");
 
     // Inspector zone: collapsed rail shows verdict badge (scorecard is behind the expand toggle).
     expect(html).toContain('data-testid="inspector-rail"');
